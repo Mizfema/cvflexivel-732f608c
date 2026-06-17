@@ -4,8 +4,10 @@ import { z } from "zod";
 import { CvPreview } from "@/components/editor/CvPreview";
 import { EditorForm } from "@/components/editor/EditorForm";
 import { InterviewMode } from "@/components/editor/InterviewMode";
+import { CvDesignDialog } from "@/components/editor/CvDesignDialog";
 import { useDraftCv } from "@/hooks/use-draft-cv";
 import { Button } from "@/components/ui/button";
+
 
 
 const editorSearchSchema = z.object({
