@@ -1,4 +1,5 @@
-import { createFileRoute, Link, useServerFn } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { AlertTriangle, ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
@@ -27,9 +28,8 @@ function AnalisePage() {
   const [tdr, setTdr] = useState("");
   const analyze = useServerFn(analyzeCoverage);
 
-  const mutation = useMutation({
-    mutationFn: (vars: { cv: typeof draft; jobTdr: string }) =>
-      analyze({ data: vars }),
+  const mutation = useMutation<CoverageAnalysis, Error, { cv: typeof draft; jobTdr: string }>({
+    mutationFn: (vars) => analyze({ data: vars }) as Promise<CoverageAnalysis>,
   });
 
   const cvVazio =
