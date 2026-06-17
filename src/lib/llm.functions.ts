@@ -127,3 +127,107 @@ export const analyzeCoverage = createServerFn({ method: "POST" })
       throw new Error(`Falha na análise: ${msg}`);
     }
   });
+
+// =================== Entrevista guiada ===================
+
+const interviewInputSchema = z.object({
+  answers: z.array(
+    z.object({
+      pergunta: z.string(),
+      resposta: z.string(),
+    }),
+  ),
+  jobTdr: z.string().optional(),
+});
+
+const cvDraftSectionsSchema = z.object({
+  perfil: z.object({
+    nome: z.string().default(""),
+    headline: z.string().default(""),
+    email: z.string().default(""),
+    telefone: z.string().default(""),
+    cidade: z.string().default(""),
+    pais: z.string().default("Moçambique"),
+    linkedin: z.string().optional(),
+    website: z.string().optional(),
+    resumo: z.string().optional(),
+  }),
+  experiencia: z.array(
+    z.object({
+      cargo: z.string(),
+      organizacao: z.string(),
+      local: z.string().optional(),
+      inicio: z.string().optional(),
+      fim: z.string().optional(),
+      descricao: z.string().optional(),
+    }),
+  ),
+  formacao: z.array(
+    z.object({
+      curso: z.string(),
+      instituicao: z.string(),
+      local: z.string().optional(),
+      inicio: z.string().optional(),
+      fim: z.string().optional(),
+      descricao: z.string().optional(),
+    }),
+  ),
+  competencias: z.array(z.object({ nome: z.string() })),
+  idiomas: z.array(
+    z.object({
+      idioma: z.string(),
+      nivel: z
+        .enum(["basico", "intermedio", "avancado", "fluente", "nativo"])
+        .optional(),
+    }),
+  ),
+});
+
+const INTERVIEW_SYSTEM = `És um redator de CVs especializado em ONGs, desenvolvimento, consultoria e administração pública em Moçambique e PALOP. Transformas respostas de entrevista em conteúdo estruturado de CV.
+
+Regras absolutas:
+- Responde sempre em PORTUGUÊS EUROPEU (PT-PT).
+- NUNCA inventes experiência, datas, organizações, formação, certificações ou números. Se a pessoa não disse, deixa em branco.
+- Podes reformular, profissionalizar e estruturar — não podes acrescentar factos.
+- Para "descricao" das experiências, usa bullets curtos começando por verbos de ação (Coordenei, Implementei, Geri), só com informação que veio na entrevista.
+- "resumo" do perfil: 2-3 frases ancoradas estritamente no que foi dito.
+- Se o utilizador deu nome, contactos, cidade, usa-os tal e qual.
+- Se houve TdR, prioriza realçar competências/experiências da pessoa que se cruzam com o TdR — sem fabricar.`;
+
+export const generateCvFromInterview = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => interviewInputSchema.parse(input))
+  .handler(async ({ data }) => {
+    const key = process.env.LOVABLE_API_KEY;
+    if (!key) throw new Error("LOVABLE_API_KEY em falta.");
+
+    const gateway = createLovableAiGatewayProvider(key);
+
+    const answersBlock = data.answers
+      .map((a, i) => `P${i + 1}: ${a.pergunta}\nR${i + 1}: ${a.resposta}`)
+      .join("\n\n");
+
+    const prompt = [
+      "## Respostas da entrevista",
+      answersBlock,
+      data.jobTdr ? `\n## Termos de Referência da vaga\n${data.jobTdr}` : "",
+      "\nGera as secções do CV em JSON estruturado, ancorado nestas respostas.",
+    ].join("\n");
+
+    try {
+      const { experimental_output } = await generateText({
+        model: gateway("google/gemini-3-flash-preview"),
+        system: INTERVIEW_SYSTEM,
+        prompt,
+        experimental_output: Output.object({ schema: cvDraftSectionsSchema }),
+      });
+      return experimental_output;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("429"))
+        throw new Error("Limite de pedidos atingido. Tenta dentro de 1 minuto.");
+      if (msg.includes("402"))
+        throw new Error("Créditos de AI esgotados nesta workspace.");
+      throw new Error(`Falha a gerar CV: ${msg}`);
+    }
+  });
+
