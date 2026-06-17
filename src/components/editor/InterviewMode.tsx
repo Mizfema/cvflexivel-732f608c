@@ -114,7 +114,9 @@ export function InterviewMode({
 
   const gen = useServerFn(generateCvFromInterview);
   const mut = useMutation({
-    mutationFn: (input: Parameters<typeof gen>[0]) => gen(input),
+    mutationFn: (input: { answers: { pergunta: string; resposta: string }[]; jobTdr?: string }) =>
+      gen({ data: input }),
+
     onSuccess: (data) => {
       const sections: CvDraft["sections"] = {
         perfil: {
