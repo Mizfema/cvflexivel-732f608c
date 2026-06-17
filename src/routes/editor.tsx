@@ -1,11 +1,14 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 import { CvPreview } from "@/components/editor/CvPreview";
 import { EditorForm } from "@/components/editor/EditorForm";
 import { InterviewMode } from "@/components/editor/InterviewMode";
 import { CvDesignDialog } from "@/components/editor/CvDesignDialog";
+import { ExportMenu } from "@/components/editor/ExportMenu";
 import { useDraftCv } from "@/hooks/use-draft-cv";
+import { useAuth } from "@/hooks/use-auth";
+import { exportCvDocx, exportCvPdf } from "@/lib/cv-export";
 import { Button } from "@/components/ui/button";
 
 
@@ -15,6 +18,7 @@ const editorSearchSchema = z.object({
     .enum(["cv-vaga", "cv", "entrevista-vaga", "entrevista-zero"])
     .optional(),
   jobId: z.string().optional(),
+  export: z.enum(["pdf", "docx"]).optional(),
 });
 
 const labelModo: Record<string, string> = {
@@ -40,11 +44,20 @@ export const Route = createFileRoute("/editor")({
 });
 
 function EditorPage() {
-  const { modo } = Route.useSearch();
+  const { modo, export: autoExport } = Route.useSearch();
   const navigate = useNavigate();
   const { draft, update, hydrated, reset } = useDraftCv();
+  const { session } = useAuth();
   const [tab, setTab] = useState<"editar" | "preview">("editar");
   const [interviewDone, setInterviewDone] = useState(false);
+
+  // Auto-export depois do login (gate único): /editor?export=pdf|docx
+  useEffect(() => {
+    if (!hydrated || !session || !autoExport) return;
+    if (autoExport === "docx") exportCvDocx(draft);
+    else exportCvPdf();
+    navigate({ to: "/editor", search: { modo: "cv" }, replace: true });
+  }, [hydrated, session, autoExport, draft, navigate]);
 
   const isInterview =
     (modo === "entrevista-vaga" || modo === "entrevista-zero") &&
@@ -86,6 +99,7 @@ function EditorPage() {
         </div>
         <div className="flex items-center gap-2">
           <CvDesignDialog draft={draft} update={update} />
+          <ExportMenu draft={draft} />
           <Button
             variant="ghost"
             size="sm"
