@@ -1,10 +1,12 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { z } from "zod";
 import { CvPreview } from "@/components/editor/CvPreview";
 import { EditorForm } from "@/components/editor/EditorForm";
+import { InterviewMode } from "@/components/editor/InterviewMode";
 import { useDraftCv } from "@/hooks/use-draft-cv";
 import { Button } from "@/components/ui/button";
+
 
 const editorSearchSchema = z.object({
   modo: z
