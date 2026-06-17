@@ -1,0 +1,95 @@
+// Tipos partilhados do CV — usados pelo editor, preview, draft local e Supabase.
+
+export type CvExperience = {
+  id: string;
+  cargo: string;
+  organizacao: string;
+  local?: string;
+  inicio?: string; // "2023-01"
+  fim?: string; // "2024-06" ou "atual"
+  descricao?: string;
+};
+
+export type CvFormacao = {
+  id: string;
+  curso: string;
+  instituicao: string;
+  local?: string;
+  inicio?: string;
+  fim?: string;
+  descricao?: string;
+};
+
+export type CvCompetencia = {
+  id: string;
+  nome: string;
+  nivel?: 'basico' | 'intermedio' | 'avancado' | 'especialista';
+};
+
+export type CvIdioma = {
+  id: string;
+  idioma: string;
+  nivel?: 'basico' | 'intermedio' | 'avancado' | 'fluente' | 'nativo';
+};
+
+export type CvSecaoExtra = {
+  id: string;
+  tipo: 'cursos' | 'estagios' | 'certificados' | 'realizacoes' | 'atividades' | 'qualidades';
+  titulo: string;
+  itens: Array<{ id: string; titulo: string; descricao?: string; data?: string }>;
+};
+
+export type CvSections = {
+  perfil: {
+    nome: string;
+    headline: string;
+    email: string;
+    telefone: string;
+    cidade: string;
+    pais: string;
+    linkedin?: string;
+    website?: string;
+    resumo?: string; // rich text leve
+  };
+  experiencia: CvExperience[];
+  formacao: CvFormacao[];
+  competencias: CvCompetencia[];
+  idiomas: CvIdioma[];
+  extras: CvSecaoExtra[];
+};
+
+export type CvDesign = {
+  fonte: 'inter' | 'lato' | 'georgia' | 'source-serif';
+  paleta: 'ardosia' | 'marinho' | 'esmeralda' | 'bordeaux' | 'grafite';
+  densidade: 'compacto' | 'normal' | 'espacoso';
+};
+
+export type CvDraft = {
+  title: string;
+  sections: CvSections;
+  template: string;
+  design: CvDesign;
+  updatedAt: string;
+};
+
+export const EMPTY_CV: CvDraft = {
+  title: 'CV sem título',
+  sections: {
+    perfil: {
+      nome: '',
+      headline: '',
+      email: '',
+      telefone: '',
+      cidade: '',
+      pais: 'Moçambique',
+    },
+    experiencia: [],
+    formacao: [],
+    competencias: [],
+    idiomas: [],
+    extras: [],
+  },
+  template: 'classico',
+  design: { fonte: 'inter', paleta: 'marinho', densidade: 'normal' },
+  updatedAt: new Date(0).toISOString(),
+};
