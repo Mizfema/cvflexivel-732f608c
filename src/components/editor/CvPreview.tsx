@@ -290,6 +290,7 @@ export function CvPreview({ draft }: { draft: CvDraft }) {
 
   return (
     <article
+      data-cv-print
       className="mx-auto max-w-[720px] bg-paper shadow-card"
       style={{
         ...style,

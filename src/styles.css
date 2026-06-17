@@ -165,3 +165,22 @@
     letter-spacing: -0.01em;
   }
 }
+
+/* ============ Impressão / PDF ============
+ * Quando o utilizador exporta para PDF, escondemos toda a UI excepto a
+ * pré-visualização do CV (marcada com data-cv-print).
+ */
+@media print {
+  @page { size: A4; margin: 14mm; }
+  body { background: white !important; }
+  body * { visibility: hidden !important; }
+  [data-cv-print], [data-cv-print] * { visibility: visible !important; }
+  [data-cv-print] {
+    position: absolute !important;
+    inset: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    max-width: none !important;
+    width: 100% !important;
+  }
+}
