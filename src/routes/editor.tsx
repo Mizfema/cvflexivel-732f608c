@@ -85,6 +85,7 @@ function EditorPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <CvDesignDialog draft={draft} update={update} />
           <Button
             variant="ghost"
             size="sm"
@@ -97,6 +98,7 @@ function EditorPage() {
             Limpar
           </Button>
         </div>
+
       </header>
 
       {/* Mobile tabs */}
