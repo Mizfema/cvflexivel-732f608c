@@ -4,8 +4,10 @@ import { z } from "zod";
 import { CvPreview } from "@/components/editor/CvPreview";
 import { EditorForm } from "@/components/editor/EditorForm";
 import { InterviewMode } from "@/components/editor/InterviewMode";
+import { CvDesignDialog } from "@/components/editor/CvDesignDialog";
 import { useDraftCv } from "@/hooks/use-draft-cv";
 import { Button } from "@/components/ui/button";
+
 
 
 const editorSearchSchema = z.object({
@@ -83,6 +85,7 @@ function EditorPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <CvDesignDialog draft={draft} update={update} />
           <Button
             variant="ghost"
             size="sm"
@@ -95,6 +98,7 @@ function EditorPage() {
             Limpar
           </Button>
         </div>
+
       </header>
 
       {/* Mobile tabs */}
