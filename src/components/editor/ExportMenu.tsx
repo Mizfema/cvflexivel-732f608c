@@ -14,7 +14,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-export function ExportMenu({ draft }: { draft: CvDraft }) {
+export function ExportMenu({
+  draft,
+  cvId,
+  onSaved,
+}: {
+  draft: CvDraft;
+  cvId?: string;
+  onSaved?: (id: string) => void;
+}) {
   const { session, ready } = useAuth();
   const navigate = useNavigate();
   const save = useServerFn(saveCv);
@@ -36,14 +44,16 @@ export function ExportMenu({ draft }: { draft: CvDraft }) {
     setBusy(kind);
     try {
       // Guardar (ou upsert) o CV antes de exportar.
-      await save({
+      const res = await save({
         data: {
+          id: cvId,
           title: draft.sections.perfil.nome || draft.title || "CV sem título",
           sections: draft.sections,
           template: draft.template,
           design: draft.design,
         },
       });
+      onSaved?.(res.id);
 
       if (kind === "docx") {
         await exportCvDocx(draft);
