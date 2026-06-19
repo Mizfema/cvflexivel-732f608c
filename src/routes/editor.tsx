@@ -9,6 +9,9 @@ import { ExportMenu } from "@/components/editor/ExportMenu";
 import { useDraftCv } from "@/hooks/use-draft-cv";
 import { useAuth } from "@/hooks/use-auth";
 import { exportCvDocx, exportCvPdf } from "@/lib/cv-export";
+import { getCv } from "@/lib/cvs.functions";
+import { useServerFn } from "@tanstack/react-start";
+import type { CvDesign, CvSections } from "@/lib/cv-types";
 import { Button } from "@/components/ui/button";
 
 
@@ -18,6 +21,7 @@ const editorSearchSchema = z.object({
     .enum(["cv-vaga", "cv", "entrevista-vaga", "entrevista-zero"])
     .optional(),
   jobId: z.string().optional(),
+  id: z.string().uuid().optional(),
   export: z.enum(["pdf", "docx"]).optional(),
 });
 
@@ -44,12 +48,39 @@ export const Route = createFileRoute("/editor")({
 });
 
 function EditorPage() {
-  const { modo, export: autoExport } = Route.useSearch();
+  const { modo, id, export: autoExport } = Route.useSearch();
   const navigate = useNavigate();
   const { draft, update, hydrated, reset } = useDraftCv();
   const { session } = useAuth();
+  const fetchCv = useServerFn(getCv);
   const [tab, setTab] = useState<"editar" | "preview">("editar");
   const [interviewDone, setInterviewDone] = useState(false);
+  const [cvId, setCvId] = useState<string | undefined>(id);
+
+  // Carregar CV existente quando ?id= e sessão presentes
+  useEffect(() => {
+    if (!hydrated || !session || !id) return;
+    let cancelled = false;
+    fetchCv({ data: { id } })
+      .then((row) => {
+        if (cancelled || !row) return;
+        setCvId(row.id);
+        update(() => ({
+          title: row.title,
+          template: row.template,
+          sections: row.sections as CvSections,
+          design: row.design as CvDesign,
+          updatedAt: row.updated_at,
+        }));
+      })
+      .catch(() => {
+        /* silencioso: mantém rascunho local */
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, session, id]);
 
   // Auto-export depois do login (gate único): /editor?export=pdf|docx
   useEffect(() => {
@@ -99,7 +130,7 @@ function EditorPage() {
         </div>
         <div className="flex items-center gap-2">
           <CvDesignDialog draft={draft} update={update} />
-          <ExportMenu draft={draft} />
+          <ExportMenu draft={draft} cvId={cvId} onSaved={setCvId} />
           <Button
             variant="ghost"
             size="sm"
