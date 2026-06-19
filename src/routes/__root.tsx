@@ -93,6 +93,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
+      { name: "twitter:title", content: "CV Flexível — Alinha o teu CV à vaga" },
+      { name: "description", content: "Your App Blueprint plans and designs the best implementation path for your app idea." },
+      { property: "og:description", content: "Your App Blueprint plans and designs the best implementation path for your app idea." },
+      { name: "twitter:description", content: "Your App Blueprint plans and designs the best implementation path for your app idea." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/d5b23ef7-7e73-40dc-8efb-062991b6c276/id-preview-68854c0b--90ee89ac-51e8-496c-81d3-34bda88c4830.lovable.app-1781874850960.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/d5b23ef7-7e73-40dc-8efb-062991b6c276/id-preview-68854c0b--90ee89ac-51e8-496c-81d3-34bda88c4830.lovable.app-1781874850960.png" },
     ],
     links: [
       {
