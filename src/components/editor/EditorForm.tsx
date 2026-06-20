@@ -143,7 +143,7 @@ function PerfilSection({ draft, update }: { draft: CvDraft; update: Updater }) {
           <Input
             value={p.headline}
             onChange={(e) => set("headline", e.target.value)}
-            placeholder="Coordenadora de Programa"
+            placeholder="Oficial de Monitoria e avaliação"
           />
         </Field>
         <Field label="Email">
