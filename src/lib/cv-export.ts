@@ -7,7 +7,8 @@ import {
   Paragraph,
   TextRun,
 } from "docx";
-import { saveAs } from "file-saver";
+import FileSaver from "file-saver";
+const { saveAs } = FileSaver;
 import type { CvDraft } from "./cv-types";
 
 function fmtPeriodo(inicio?: string, fim?: string) {
