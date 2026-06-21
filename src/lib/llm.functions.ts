@@ -371,11 +371,6 @@ function asString(value: unknown): string {
   return "";
 }
 
-function asStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.map(asString).filter(Boolean);
-}
-
 function normalizeIdiomaNivel(value: unknown) {
   const nivel = asString(value).toLowerCase();
   if (["basico", "intermedio", "avancado", "fluente", "nativo"].includes(nivel)) return nivel;
