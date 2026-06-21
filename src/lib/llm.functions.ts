@@ -397,17 +397,26 @@ export const alignCvToTdr = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<AlignmentResult> => {
     const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY);
 
-    const prompt = `## CV actual do candidato\n${data.cv}\n\n## Termos de Referência da vaga\n${data.jobTdr}\n\nReescreve o CV para o alinhar ao máximo com este TdR. Devolve o CV reestruturado em JSON, incluindo o array "alteracoes" com cada mudança substantiva.`;
+    const prompt = `## CV actual do candidato\n${data.cv}\n\n## Termos de Referência da vaga\n${data.jobTdr}\n\nReescreve o CV para o alinhar ao máximo com este TdR. Responde APENAS com um objecto JSON válido (sem markdown, sem comentários, sem texto antes ou depois) que respeite o schema fornecido no sistema, incluindo o array "alteracoes" com cada mudança substantiva.`;
 
-    try {
-      const { experimental_output } = await generateText({
+    const callOnce = async () => {
+      const { text } = await generateText({
         model: gateway("google/gemini-3-flash-preview"),
         system: ALIGN_SYSTEM,
         prompt,
-        experimental_output: Output.object({ schema: alignOutputSchema }),
       });
+      const json = extractJson(text);
+      return alignOutputSchema.parse(json);
+    };
 
-      const raw = experimental_output as z.infer<typeof alignOutputSchema>;
+    try {
+      let raw: z.infer<typeof alignOutputSchema>;
+      try {
+        raw = await callOnce();
+      } catch (e) {
+        console.warn("alignCvToTdr: 1ª tentativa falhou, a repetir.", e);
+        raw = await callOnce();
+      }
 
       const addId = () => crypto.randomUUID();
       const sections: CvSections = {
