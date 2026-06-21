@@ -118,35 +118,69 @@ Para cada requisito que o CV não cobre totalmente, procura no CV evidência dir
 - "parcial_transferivel": o CV mostra experiência relacionada mas não idêntica. Sugere como recontextualizar essa experiência.
 - "lacuna_real": não existe qualquer evidência no CV. NUNCA sugiras adicionar ao CV algo que não existe. Sugere APENAS vias legítimas: curso, certificação, menção na carta de motivação, declarar o nível/estado real, ou avaliar a adequação à vaga.`;
 
+function extractJson(response: string): unknown {
+  let cleaned = response
+    .replace(/```json\s*/gi, "")
+    .replace(/```\s*/g, "")
+    .trim();
+  const start = cleaned.search(/[\{\[]/);
+  if (start === -1) throw new Error("Resposta sem JSON.");
+  const openChar = cleaned[start];
+  const closeChar = openChar === "[" ? "]" : "}";
+  const end = cleaned.lastIndexOf(closeChar);
+  if (end === -1) throw new Error("JSON truncado na resposta.");
+  cleaned = cleaned.substring(start, end + 1);
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const repaired = cleaned
+      .replace(/,\s*}/g, "}")
+      .replace(/,\s*]/g, "]")
+      .replace(/[\x00-\x1F\x7F]/g, " ");
+    return JSON.parse(repaired);
+  }
+}
+
 export const analyzeCoverage = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => inputSchema.parse(input))
   .handler(async ({ data }): Promise<CoverageAnalysis> => {
-    const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY);
+    const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY!);
 
     const cvText =
       typeof data.cv === "string" ? data.cv : cvToText(data.cv as CvDraft);
-    const prompt = `## CV do candidato\n${cvText}\n\n## Termos de Referência da vaga\n${data.jobTdr}`;
+    const prompt = `## CV do candidato\n${cvText}\n\n## Termos de Referência da vaga\n${data.jobTdr}\n\nResponde APENAS com um objecto JSON válido (sem markdown, sem comentários, sem texto antes ou depois) com esta forma exacta:
+{
+  "resumo": string,
+  "cobertura": [{ "secao": string, "score": 0|1|2|3, "presentes": string[], "emFalta": [{ "requisito": string, "tipo": "tem_nao_mostrou"|"parcial_transferivel"|"lacuna_real", "accao_sugerida": string }] }],
+  "keywords": { "presentes": string[], "emFalta": string[] },
+  "requisitosEliminatoriosNaoCumpridos": [{ "requisito": string, "mitigacao": string }],
+  "totalRequisitos": number,
+  "requisitosCobertos": number
+}`;
 
-    try {
-      const { experimental_output } = await generateText({
+    const callOnce = async () => {
+      const { text } = await generateText({
         model: gateway("google/gemini-3-flash-preview"),
         system: SYSTEM,
         prompt,
-        experimental_output: Output.object({ schema: outputSchema }),
       });
-      return experimental_output as CoverageAnalysis;
+      const json = extractJson(text);
+      return outputSchema.parse(json) as CoverageAnalysis;
+    };
+
+    try {
+      try {
+        return await callOnce();
+      } catch (e) {
+        console.warn("analyzeCoverage: 1ª tentativa falhou, a repetir.", e);
+        return await callOnce();
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("429")) {
-        throw new Error(
-          "Limite de pedidos atingido. Tenta de novo dentro de 1 minuto.",
-        );
-      }
-      if (msg.includes("402")) {
-        throw new Error(
-          "Créditos de AI esgotados nesta workspace. Adiciona créditos para continuar.",
-        );
-      }
+      if (msg.includes("429"))
+        throw new Error("Limite de pedidos atingido. Tenta de novo dentro de 1 minuto.");
+      if (msg.includes("402"))
+        throw new Error("Créditos de AI esgotados nesta workspace. Adiciona créditos para continuar.");
       throw new Error(`Falha na análise: ${msg}`);
     }
   });
