@@ -353,6 +353,119 @@ const alignOutputSchema = z.object({
   ),
 });
 
+type JsonRecord = Record<string, unknown>;
+
+function asRecord(value: unknown): JsonRecord {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as JsonRecord)
+    : {};
+}
+
+function asString(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value.map(asString).filter(Boolean).join("\n");
+  }
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return "";
+}
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map(asString).filter(Boolean);
+}
+
+function normalizeIdiomaNivel(value: unknown) {
+  const nivel = asString(value).toLowerCase();
+  if (["basico", "intermedio", "avancado", "fluente", "nativo"].includes(nivel)) return nivel;
+  if (["básico", "basic"].includes(nivel)) return "basico";
+  if (["intermédio", "medio", "médio", "intermediate"].includes(nivel)) return "intermedio";
+  if (["avançado", "advanced"].includes(nivel)) return "avancado";
+  if (["fluent"].includes(nivel)) return "fluente";
+  if (["native", "materno", "materna"].includes(nivel)) return "nativo";
+  return undefined;
+}
+
+function normalizeAlignmentJson(value: unknown): unknown {
+  const root = asRecord(value);
+  const source = asRecord(root.sections ?? root.cv ?? root.curriculo ?? root);
+  const perfil = asRecord(source.perfil ?? source.profile ?? source.dadosPessoais ?? source.dados_pessoais);
+  const experiencia = Array.isArray(source.experiencia ?? source.experiências ?? source.experience)
+    ? (source.experiencia ?? source.experiências ?? source.experience)
+    : [];
+  const formacao = Array.isArray(source.formacao ?? source.formação ?? source.educacao ?? source.education)
+    ? (source.formacao ?? source.formação ?? source.educacao ?? source.education)
+    : [];
+  const competencias = Array.isArray(source.competencias ?? source.competências ?? source.skills)
+    ? (source.competencias ?? source.competências ?? source.skills)
+    : [];
+  const idiomas = Array.isArray(source.idiomas ?? source.linguas ?? source.línguas ?? source.languages)
+    ? (source.idiomas ?? source.linguas ?? source.línguas ?? source.languages)
+    : [];
+
+  return {
+    perfil: {
+      nome: asString(perfil.nome ?? perfil.name),
+      headline: asString(perfil.headline ?? perfil.titulo ?? perfil.title ?? perfil.cargo),
+      email: asString(perfil.email),
+      telefone: asString(perfil.telefone ?? perfil.phone ?? perfil.telemovel ?? perfil.telemóvel),
+      cidade: asString(perfil.cidade ?? perfil.city),
+      pais: asString(perfil.pais ?? perfil.país ?? perfil.country) || "Moçambique",
+      linkedin: asString(perfil.linkedin) || undefined,
+      website: asString(perfil.website ?? perfil.site) || undefined,
+      resumo: asString(perfil.resumo ?? perfil.summary ?? perfil.sobre) || undefined,
+    },
+    experiencia: (experiencia as unknown[]).map((item) => {
+      const exp = asRecord(item);
+      return {
+        cargo: asString(exp.cargo ?? exp.funcao ?? exp.função ?? exp.title ?? exp.position),
+        organizacao: asString(exp.organizacao ?? exp.organização ?? exp.empresa ?? exp.instituicao ?? exp.instituição ?? exp.organization),
+        local: asString(exp.local ?? exp.location) || undefined,
+        inicio: asString(exp.inicio ?? exp.início ?? exp.start ?? exp.periodo_inicio) || undefined,
+        fim: asString(exp.fim ?? exp.end ?? exp.periodo_fim) || undefined,
+        descricao: asString(exp.descricao ?? exp.descrição ?? exp.description ?? exp.responsabilidades ?? exp.bullets) || undefined,
+      };
+    }),
+    formacao: (formacao as unknown[]).map((item) => {
+      const edu = asRecord(item);
+      return {
+        curso: asString(edu.curso ?? edu.grau ?? edu.titulo ?? edu.título ?? edu.degree ?? edu.nome) || "Formação",
+        instituicao: asString(edu.instituicao ?? edu.instituição ?? edu.escola ?? edu.universidade ?? edu.institution),
+        local: asString(edu.local ?? edu.location) || undefined,
+        inicio: asString(edu.inicio ?? edu.início ?? edu.start) || undefined,
+        fim: asString(edu.fim ?? edu.end) || undefined,
+        descricao: asString(edu.descricao ?? edu.descrição ?? edu.description) || undefined,
+      };
+    }),
+    competencias: (competencias as unknown[])
+      .map((item) => ({ nome: asString(asRecord(item).nome ?? asRecord(item).name ?? item) }))
+      .filter((item) => item.nome),
+    idiomas: (idiomas as unknown[])
+      .map((item) => {
+        const idioma = asRecord(item);
+        return {
+          idioma: asString(idioma.idioma ?? idioma.lingua ?? idioma.língua ?? idioma.language ?? item),
+          nivel: normalizeIdiomaNivel(idioma.nivel ?? idioma.level),
+        };
+      })
+      .filter((item) => item.idioma),
+    alteracoes: Array.isArray(root.alteracoes ?? root.alterações ?? source.alteracoes ?? source.alterações)
+      ? ((root.alteracoes ?? root.alterações ?? source.alteracoes ?? source.alterações) as unknown[]).map((item) => {
+          const change = asRecord(item);
+          const tipo = asString(change.tipo ?? change.type);
+          return {
+            tipo: tipo === "recontextualizado" ? "recontextualizado" : "reformulado",
+            campo: asString(change.campo ?? change.field),
+            de: asString(change.de ?? change.from ?? change.original),
+            para: asString(change.para ?? change.to ?? change.reescrito),
+            justificacao: asString(change.justificacao ?? change.justificação ?? change.reason ?? change.motivo),
+          };
+        })
+      : [],
+  };
+}
+
 const ALIGN_SYSTEM = `És um redator de CVs especializado em ONGs, desenvolvimento, consultoria e administração pública em Moçambique e PALOP. Recebes um CV existente e os Termos de Referência (TdR) de uma vaga, e REESCREVES o CV para o alinhar ao máximo com o TdR — usando EXCLUSIVAMENTE informação que já consta no CV de entrada.
 
 Princípio central — ZERO INVENÇÃO:
@@ -397,7 +510,7 @@ export const alignCvToTdr = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<AlignmentResult> => {
     const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY);
 
-    const prompt = `## CV actual do candidato\n${data.cv}\n\n## Termos de Referência da vaga\n${data.jobTdr}\n\nReescreve o CV para o alinhar ao máximo com este TdR. Responde APENAS com um objecto JSON válido (sem markdown, sem comentários, sem texto antes ou depois) que respeite o schema fornecido no sistema, incluindo o array "alteracoes" com cada mudança substantiva.`;
+    const prompt = `## CV actual do candidato\n${data.cv}\n\n## Termos de Referência da vaga\n${data.jobTdr}\n\nReescreve o CV para o alinhar ao máximo com este TdR. Responde APENAS com um objecto JSON válido (sem markdown, sem comentários, sem texto antes ou depois) nesta forma exacta:\n{\n  "perfil": { "nome": string, "headline": string, "email": string, "telefone": string, "cidade": string, "pais": string, "linkedin": string, "website": string, "resumo": string },\n  "experiencia": [{ "cargo": string, "organizacao": string, "local": string, "inicio": string, "fim": string, "descricao": string }],\n  "formacao": [{ "curso": string, "instituicao": string, "local": string, "inicio": string, "fim": string, "descricao": string }],\n  "competencias": [{ "nome": string }],\n  "idiomas": [{ "idioma": string, "nivel": "basico"|"intermedio"|"avancado"|"fluente"|"nativo" }],\n  "alteracoes": [{ "tipo": "reformulado"|"recontextualizado", "campo": string, "de": string, "para": string, "justificacao": string }]\n}\nNunca uses arrays em campos de texto como "descricao"; junta bullets numa única string com quebras de linha.`;
 
     const callOnce = async () => {
       const { text } = await generateText({
@@ -406,7 +519,7 @@ export const alignCvToTdr = createServerFn({ method: "POST" })
         prompt,
       });
       const json = extractJson(text);
-      return alignOutputSchema.parse(json);
+      return alignOutputSchema.parse(normalizeAlignmentJson(json));
     };
 
     try {
