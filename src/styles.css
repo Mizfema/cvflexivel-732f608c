@@ -166,6 +166,88 @@
   }
 }
 
+/* ============ Animações — mockups de CV ============ */
+
+@keyframes cv-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes cv-float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-cv-fade-in {
+  opacity: 0;
+  animation: cv-fade-in 0.8s ease-out forwards;
+}
+
+.animate-cv-float {
+  animation: cv-float 4s ease-in-out infinite;
+}
+
+/* ============ Animações — scanner de análise ============ */
+
+@keyframes scanner-sweep {
+  0%, 100% { top: 4%; }
+  50% { top: 88%; }
+}
+
+@keyframes scanner-glow {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+@keyframes scanner-pulse {
+  0%, 100% { box-shadow: 0 0 8px 2px oklch(0.51 0.09 248 / 0.3); }
+  50% { box-shadow: 0 0 20px 6px oklch(0.51 0.09 248 / 0.5); }
+}
+
+@keyframes result-bar-fill {
+  from { width: 0%; }
+}
+
+@keyframes result-fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pct-count {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-scanner-sweep {
+  animation: scanner-sweep 3s ease-in-out infinite;
+}
+
+.animate-scanner-glow {
+  animation: scanner-glow 1.5s ease-in-out infinite;
+}
+
+.animate-scanner-pulse {
+  animation: scanner-pulse 2s ease-in-out infinite;
+}
+
+.animate-result-fade-up {
+  animation: result-fade-up 0.5s ease-out both;
+}
+
+.animate-pct-count {
+  animation: pct-count 0.6s ease-out both;
+}
+
 /* ============ Impressão / PDF ============
  * Quando o utilizador exporta para PDF, escondemos toda a UI excepto a
  * pré-visualização do CV (marcada com data-cv-print).

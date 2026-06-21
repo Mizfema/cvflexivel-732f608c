@@ -2,11 +2,19 @@
 
 export type CoverageScore = 0 | 1 | 2 | 3; // 0 = ausente, 3 = totalmente coberto
 
+export type GapType = "tem_nao_mostrou" | "parcial_transferivel" | "lacuna_real";
+
+export type GapDetail = {
+  requisito: string;
+  tipo: GapType;
+  accao_sugerida: string;
+};
+
 export type SectionCoverage = {
   secao: string;
   score: CoverageScore;
   presentes: string[];
-  emFalta: string[];
+  emFalta: GapDetail[];
 };
 
 export type EliminatorioNaoCumprido = {

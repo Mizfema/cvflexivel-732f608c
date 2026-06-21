@@ -222,7 +222,7 @@ function SectionRow({ c }: { c: SectionCoverage }) {
       )}
       {c.emFalta.length > 0 && (
         <p className="mt-1 text-xs text-muted-foreground">
-          Em falta: {c.emFalta.join(" · ")}
+          Em falta: {c.emFalta.map((g) => g.requisito).join(" · ")}
         </p>
       )}
     </div>

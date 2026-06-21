@@ -204,15 +204,94 @@ function SiteHeader() {
 
 function SiteFooter() {
   return (
-    <footer className="border-t border-navy-rule bg-surface/40">
-      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-10 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-        <p className="font-serif text-base text-foreground">CV Flexível</p>
-        <p>
-          Para profissionais do setor de desenvolvimento — Moçambique e PALOP.
-        </p>
-        <p className="text-xs uppercase tracking-[0.2em]">
-          Em português · 2026
-        </p>
+    <footer className="border-t border-navy-rule bg-navy-deep text-paper/80">
+      <div className="mx-auto max-w-7xl px-6 py-14">
+        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
+          {/* Brand */}
+          <div className="lg:col-span-1">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-sm bg-white/10 font-serif text-sm font-bold text-paper ring-1 ring-white/10">
+                CV
+              </span>
+              <span className="font-serif text-lg tracking-tight text-paper">
+                CV Flexível
+              </span>
+            </div>
+            <p className="mt-4 text-sm leading-relaxed text-paper/60 max-w-[260px]">
+              Plataforma para profissionais do setor de desenvolvimento, cooperação
+              internacional e administração pública em Moçambique e PALOP.
+            </p>
+          </div>
+
+          {/* Produto */}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-paper/40 mb-4">
+              Produto
+            </p>
+            <ul className="space-y-2.5 text-sm">
+              <li>
+                <Link to="/editor" className="text-paper/65 transition-colors hover:text-paper">
+                  Editor de CV
+                </Link>
+              </li>
+              <li>
+                <Link to="/analise" className="text-paper/65 transition-colors hover:text-paper">
+                  Análise de CV
+                </Link>
+              </li>
+              <li>
+                <Link to="/vagas" className="text-paper/65 transition-colors hover:text-paper">
+                  Vagas ReliefWeb
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          {/* Recursos */}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-paper/40 mb-4">
+              Recursos
+            </p>
+            <ul className="space-y-2.5 text-sm">
+              <li>
+                <span className="text-paper/65">Exportação PDF & DOCX</span>
+              </li>
+              <li>
+                <span className="text-paper/65">Formato compatível ATS</span>
+              </li>
+              <li>
+                <span className="text-paper/65">Interface em Português</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Contacto */}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-paper/40 mb-4">
+              Contacto
+            </p>
+            <ul className="space-y-2.5 text-sm">
+              <li className="text-paper/65">
+                Maputo, Moçambique
+              </li>
+              <li>
+                <a href="mailto:info@cvflexivel.com" className="text-paper/65 transition-colors hover:text-paper">
+                  info@cvflexivel.com
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        {/* Bottom bar */}
+        <div className="mt-12 flex flex-col items-center gap-3 border-t border-white/10 pt-8 sm:flex-row sm:justify-between">
+          <p className="text-xs text-paper/40">
+            &copy; 2026 CV Flexível. Todos os direitos reservados.
+          </p>
+          <p className="text-xs text-paper/40 uppercase tracking-[0.15em]">
+            Feito em Moçambique · Para profissionais de desenvolvimento
+          </p>
+        </div>
       </div>
     </footer>
   );

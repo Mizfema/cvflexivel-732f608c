@@ -21,7 +21,26 @@ const outputSchema = z.object({
       secao: z.string(),
       score: z.number().int().min(0).max(3),
       presentes: z.array(z.string()),
-      emFalta: z.array(z.string()),
+      emFalta: z.array(
+        z.object({
+          requisito: z.string().describe("O requisito em falta."),
+          tipo: z
+            .enum(["tem_nao_mostrou", "parcial_transferivel", "lacuna_real"])
+            .describe(
+              "tem_nao_mostrou = CV tem evidência clara mas não a destaca; " +
+              "parcial_transferivel = experiência relacionada mas não idêntica; " +
+              "lacuna_real = sem qualquer evidência no CV.",
+            ),
+          accao_sugerida: z
+            .string()
+            .describe(
+              "Para tem_nao_mostrou: sugere reformulação/destaque no CV. " +
+              "Para parcial_transferivel: sugere como recontextualizar a experiência adjacente. " +
+              "Para lacuna_real: sugere APENAS vias legítimas (curso, certificação, menção na carta, declarar nível real) " +
+              "— NUNCA instruas a adicionar ao CV algo que não existe.",
+            ),
+        }),
+      ),
     }),
   ),
   keywords: z.object({
@@ -91,17 +110,21 @@ Regras absolutas:
 - Score por secção: 0=ausente, 1=fraco, 2=parcial, 3=totalmente coberto.
 - "keywords" = termos técnicos do TdR (ferramentas, metodologias, sectores). Compara contra o texto do CV.
 - "requisitosEliminatoriosNaoCumpridos" = só requisitos que o TdR marca como obrigatórios E que o CV não satisfaz.
-- totalRequisitos / requisitosCobertos = contagem honesta sobre o conjunto de requisitos extraídos do TdR.`;
+- totalRequisitos / requisitosCobertos = contagem honesta sobre o conjunto de requisitos extraídos do TdR.
+
+Classificação de cada requisito em falta (campo "emFalta" dentro de cada secção):
+Para cada requisito que o CV não cobre totalmente, procura no CV evidência directa ou adjacente e classifica:
+- "tem_nao_mostrou": o CV contém evidência clara deste requisito, mas não a destaca ou formula adequadamente. Sugere reformulação.
+- "parcial_transferivel": o CV mostra experiência relacionada mas não idêntica. Sugere como recontextualizar essa experiência.
+- "lacuna_real": não existe qualquer evidência no CV. NUNCA sugiras adicionar ao CV algo que não existe. Sugere APENAS vias legítimas: curso, certificação, menção na carta de motivação, declarar o nível/estado real, ou avaliar a adequação à vaga.`;
 
 export const analyzeCoverage = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => inputSchema.parse(input))
   .handler(async ({ data }): Promise<CoverageAnalysis> => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("LOVABLE_API_KEY em falta.");
+    const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY);
 
-    const gateway = createLovableAiGatewayProvider(key);
-
-    const cvText = cvToText(data.cv as CvDraft);
+    const cvText =
+      typeof data.cv === "string" ? data.cv : cvToText(data.cv as CvDraft);
     const prompt = `## CV do candidato\n${cvText}\n\n## Termos de Referência da vaga\n${data.jobTdr}`;
 
     try {
@@ -197,10 +220,7 @@ Regras absolutas:
 export const generateCvFromInterview = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => interviewInputSchema.parse(input))
   .handler(async ({ data }) => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("LOVABLE_API_KEY em falta.");
-
-    const gateway = createLovableAiGatewayProvider(key);
+    const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY);
 
     const answersBlock = data.answers
       .map((a, i) => `P${i + 1}: ${a.pergunta}\nR${i + 1}: ${a.resposta}`)
