@@ -72,6 +72,23 @@ export type CvDraft = {
   updatedAt: string;
 };
 
+// Alterações feitas pelo alinhamento CV ↔ TdR
+
+export type AlignmentChangeType = 'reformulado' | 'recontextualizado';
+
+export type AlignmentChange = {
+  tipo: AlignmentChangeType;
+  campo: string;
+  de: string;
+  para: string;
+  justificacao: string;
+};
+
+export type AlignmentResult = {
+  sections: CvSections;
+  alteracoes: AlignmentChange[];
+};
+
 export const EMPTY_CV: CvDraft = {
   title: 'CV sem título',
   sections: {

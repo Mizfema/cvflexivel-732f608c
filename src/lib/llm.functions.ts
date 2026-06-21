@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { generateText, Output } from "ai";
 import { z } from "zod";
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
-import type { CvDraft } from "./cv-types";
+import type { CvDraft, CvSections, AlignmentResult } from "./cv-types";
 import type { CoverageAnalysis } from "./coverage-types";
 
 const inputSchema = z.object({
@@ -282,6 +282,170 @@ export const generateCvFromInterview = createServerFn({ method: "POST" })
       if (msg.includes("402"))
         throw new Error("Créditos de AI esgotados nesta workspace.");
       throw new Error(`Falha a gerar CV: ${msg}`);
+    }
+  });
+
+// =================== Alinhamento CV ↔ TdR ===================
+
+const alignInputSchema = z.object({
+  cv: z.string().min(20, "Cola ou carrega um CV mais completo."),
+  jobTdr: z.string().min(20, "Cola um TdR mais detalhado."),
+});
+
+const alignOutputSchema = z.object({
+  perfil: z.object({
+    nome: z.string(),
+    headline: z.string(),
+    email: z.string(),
+    telefone: z.string(),
+    cidade: z.string(),
+    pais: z.string(),
+    linkedin: z.string().optional(),
+    website: z.string().optional(),
+    resumo: z.string().optional(),
+  }),
+  experiencia: z.array(
+    z.object({
+      cargo: z.string(),
+      organizacao: z.string(),
+      local: z.string().optional(),
+      inicio: z.string().optional(),
+      fim: z.string().optional(),
+      descricao: z.string().optional(),
+    }),
+  ),
+  formacao: z.array(
+    z.object({
+      curso: z.string(),
+      instituicao: z.string(),
+      local: z.string().optional(),
+      inicio: z.string().optional(),
+      fim: z.string().optional(),
+      descricao: z.string().optional(),
+    }),
+  ),
+  competencias: z.array(z.object({ nome: z.string() })),
+  idiomas: z.array(
+    z.object({
+      idioma: z.string(),
+      nivel: z
+        .enum(["basico", "intermedio", "avancado", "fluente", "nativo"])
+        .optional(),
+    }),
+  ),
+  alteracoes: z.array(
+    z.object({
+      tipo: z
+        .enum(["reformulado", "recontextualizado"])
+        .describe(
+          "reformulado = texto reescrito para usar terminologia do TdR, sem mudar o significado. " +
+          "recontextualizado = experiência adjacente reposicionada para evidenciar relevância ao TdR.",
+        ),
+      campo: z
+        .string()
+        .describe("Secção e item afectado, e.g. 'Experiência · UNICEF — Gestor de Projectos' ou 'Perfil · headline'."),
+      de: z.string().describe("Texto original (trecho relevante, não o campo inteiro)."),
+      para: z.string().describe("Texto reescrito correspondente."),
+      justificacao: z
+        .string()
+        .describe("1 frase curta a explicar porquê — que requisito do TdR esta alteração visa cobrir."),
+    }),
+  ),
+});
+
+const ALIGN_SYSTEM = `És um redator de CVs especializado em ONGs, desenvolvimento, consultoria e administração pública em Moçambique e PALOP. Recebes um CV existente e os Termos de Referência (TdR) de uma vaga, e REESCREVES o CV para o alinhar ao máximo com o TdR — usando EXCLUSIVAMENTE informação que já consta no CV de entrada.
+
+Princípio central — ZERO INVENÇÃO:
+O CV de saída é uma reformulação do CV de entrada, nunca uma ampliação. Tudo o que escreveres tem de ter origem verificável no texto do CV original. Se um requisito do TdR não tem qualquer suporte no CV, NÃO o adiciones — simplesmente omite-o.
+
+O que NUNCA podes fazer:
+- Inventar experiência profissional, projectos, cargos, organizações ou sectores que não existam no CV.
+- Inventar ou alterar datas (anos de início/fim, duração).
+- Inventar formação académica, cursos, certificações ou graus.
+- Inventar idiomas ou alterar níveis de proficiência declarados.
+- Inventar ferramentas, softwares, metodologias ou frameworks que o candidato não mencionou.
+- Inventar resultados quantitativos (percentagens, valores monetários, números de beneficiários) não presentes no CV.
+- Adicionar competências que não se podem derivar directamente da experiência descrita no CV.
+
+O que DEVES fazer (dentro do que existe):
+- Reformular títulos de cargos para usar a terminologia do TdR, quando o cargo original for equivalente.
+- Reescrever descrições de experiência para realçar as competências e responsabilidades pedidas no TdR que o candidato efectivamente exerceu.
+- Reordenar secções e experiências para que as mais relevantes ao TdR apareçam primeiro.
+- Ajustar o "headline" para reflectir o cargo/área da vaga, mantendo-se fiel ao perfil real.
+- Reescrever o "resumo" do perfil (2-3 frases) orientado à vaga, ancorado na experiência real.
+- Para "descricao", usar bullets curtos começando por verbos de ação (Coordenei, Implementei, Geri), realçando resultados e competências relevantes ao TdR que já existam no CV.
+- Priorizar em "competencias" as que casam com o TdR — sem acrescentar novas.
+- Se o CV contém informação dispersa (cursos, certificações, voluntariado) que não encaixa nas secções standard, incorporá-la na secção mais relevante.
+
+Dados pessoais:
+Mantém TODOS os dados pessoais (nome, email, telefone, cidade, país, linkedin, website) exactamente como estão no CV original.
+
+Registo de alterações ("alteracoes"):
+Para CADA mudança significativa que fizeres, adiciona uma entrada no array "alteracoes":
+- tipo "reformulado": reescreveste texto para usar terminologia do TdR sem mudar o significado factual.
+- tipo "recontextualizado": reposicionaste experiência adjacente para evidenciar relevância a um requisito do TdR.
+- "campo": identifica a secção e o item (ex: "Experiência · UNICEF — Gestor de Projectos", "Perfil · headline").
+- "de": trecho original relevante (não o campo inteiro — só a parte que mudou).
+- "para": o trecho reescrito correspondente.
+- "justificacao": 1 frase curta explicando que requisito do TdR esta alteração visa cobrir.
+Não registes mudanças triviais (pontuação, capitalização). Regista apenas alterações substantivas.
+
+Responde sempre em PORTUGUÊS EUROPEU (PT-PT).`;
+
+export const alignCvToTdr = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => alignInputSchema.parse(input))
+  .handler(async ({ data }): Promise<AlignmentResult> => {
+    const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY);
+
+    const prompt = `## CV actual do candidato\n${data.cv}\n\n## Termos de Referência da vaga\n${data.jobTdr}\n\nReescreve o CV para o alinhar ao máximo com este TdR. Devolve o CV reestruturado em JSON, incluindo o array "alteracoes" com cada mudança substantiva.`;
+
+    try {
+      const { experimental_output } = await generateText({
+        model: gateway("google/gemini-3-flash-preview"),
+        system: ALIGN_SYSTEM,
+        prompt,
+        experimental_output: Output.object({ schema: alignOutputSchema }),
+      });
+
+      const raw = experimental_output as z.infer<typeof alignOutputSchema>;
+
+      const addId = () => crypto.randomUUID();
+      const sections: CvSections = {
+        perfil: {
+          nome: raw.perfil.nome,
+          headline: raw.perfil.headline,
+          email: raw.perfil.email,
+          telefone: raw.perfil.telefone,
+          cidade: raw.perfil.cidade,
+          pais: raw.perfil.pais || "Moçambique",
+          linkedin: raw.perfil.linkedin,
+          website: raw.perfil.website,
+          resumo: raw.perfil.resumo,
+        },
+        experiencia: raw.experiencia.map((e) => ({ id: addId(), ...e })),
+        formacao: raw.formacao.map((f) => ({ id: addId(), ...f })),
+        competencias: raw.competencias.map((c) => ({ id: addId(), ...c })),
+        idiomas: raw.idiomas.map((i) => ({ id: addId(), ...i })),
+        extras: [],
+      };
+
+      return {
+        sections,
+        alteracoes: (raw.alteracoes ?? []).map((a) => ({
+          tipo: a.tipo,
+          campo: a.campo,
+          de: a.de,
+          para: a.para,
+          justificacao: a.justificacao,
+        })),
+      };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("429"))
+        throw new Error("Limite de pedidos atingido. Tenta dentro de 1 minuto.");
+      if (msg.includes("402"))
+        throw new Error("Créditos de AI esgotados nesta workspace.");
+      throw new Error(`Falha ao alinhar CV: ${msg}`);
     }
   });
 

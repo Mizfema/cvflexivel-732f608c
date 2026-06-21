@@ -115,6 +115,130 @@ const MOCK_CV_SECTIONS = {
   ],
 };
 
+function buildMockAlignment(userPrompt: string) {
+  const cvBlock = userPrompt.split("## Termos de Referência")[0] ?? "";
+  const lines = cvBlock.split("\n").filter((l) => l.trim());
+
+  let nome = "Candidato";
+  let email = "";
+  let telefone = "";
+  let cidade = "Maputo";
+  let headline = "Profissional";
+  let cargo = "Coordenador de Projecto";
+  let org = "Organização";
+  let curso = "Licenciatura";
+  let inst = "Universidade";
+  const competencias: string[] = [];
+  const idiomas: { idioma: string; nivel?: string }[] = [];
+
+  for (const line of lines) {
+    const l = line.replace(/^#+\s*/, "").trim();
+    if (l.startsWith("# ")) {
+      const parts = l.replace("# ", "").split("—");
+      nome = parts[0]?.trim() || nome;
+      headline = parts[1]?.trim() || headline;
+    }
+    if (l.match(/email|@/i) && l.includes("@")) {
+      email = l.replace(/.*?(\S+@\S+).*/, "$1");
+    }
+    if (l.match(/telefone|tel|phone|\+258/i)) {
+      telefone = l.replace(/.*?([\d+][\d\s-]+).*/, "$1").trim();
+    }
+    if (l.match(/cidade|city|maputo|beira|nampula/i)) {
+      const m = l.match(/(?:cidade|city)[:\s]*(.+)/i);
+      if (m) cidade = m[1].trim();
+    }
+    if (l.startsWith("- ") && l.includes("·")) {
+      const parts = l.replace("- ", "").split("·");
+      if (parts.length >= 2) {
+        cargo = parts[0].trim();
+        org = parts[1].split("(")[0].trim();
+      }
+    }
+    if (l.match(/^##\s*Competências/i)) {
+      const rest = l.replace(/^##\s*Competências[:\s]*/i, "");
+      rest.split(",").forEach((c) => {
+        const n = c.trim();
+        if (n) competencias.push(n);
+      });
+    }
+    if (l.match(/^##\s*Idiomas/i)) {
+      const rest = l.replace(/^##\s*Idiomas[:\s]*/i, "");
+      rest.split(",").forEach((raw) => {
+        const m = raw.trim().match(/^(.+?)\s*\((.+?)\)$/);
+        if (m) idiomas.push({ idioma: m[1].trim(), nivel: m[2].trim() });
+        else if (raw.trim()) idiomas.push({ idioma: raw.trim() });
+      });
+    }
+    if (l.startsWith("- ") && l.match(/licenciatura|mestrado|doutoramento|curso|cert/i)) {
+      const parts = l.replace("- ", "").split("·");
+      if (parts.length >= 2) {
+        curso = parts[0].trim();
+        inst = parts[1].split("(")[0].trim();
+      }
+    }
+  }
+
+  const cargoAlinhado = cargo.replace(/coordenador/i, "Gestor").replace(/assistente/i, "Oficial") || cargo;
+
+  return {
+    perfil: {
+      nome,
+      headline: `⚠️ MOCK — ${cargoAlinhado} (alinhado à vaga)`,
+      email,
+      telefone,
+      cidade,
+      pais: "Moçambique",
+      resumo:
+        `⚠️ MOCK (sem LOVABLE_API_KEY) — Este CV foi devolvido sem processamento IA. ` +
+        `${nome} com experiência em ${cargo.toLowerCase()} e formação em ${curso.toLowerCase()}.`,
+    },
+    experiencia: [
+      {
+        cargo: cargoAlinhado,
+        organizacao: org,
+        local: cidade,
+        inicio: "2020-01",
+        fim: "atual",
+        descricao:
+          "Liderou a implementação de actividades programáticas; " +
+          "elaborou relatórios de monitoria para doadores institucionais.",
+      },
+    ],
+    formacao: [{ curso, instituicao: inst, inicio: "2014", fim: "2018" }],
+    competencias:
+      competencias.length > 0
+        ? competencias.map((n) => ({ nome: n }))
+        : [{ nome: "Gestão de Projectos" }, { nome: "Excel" }],
+    idiomas:
+      idiomas.length > 0
+        ? idiomas
+        : [
+            { idioma: "Português", nivel: "nativo" },
+            { idioma: "Inglês", nivel: "avancado" },
+          ],
+    alteracoes: [
+      {
+        tipo: "reformulado",
+        campo: `Experiência · ${org} — ${cargo}`,
+        de: cargo,
+        para: cargoAlinhado,
+        justificacao:
+          "⚠️ MOCK — Título reformulado para usar terminologia do TdR.",
+      },
+      {
+        tipo: "recontextualizado",
+        campo: `Experiência · ${org} — descrição`,
+        de: "Coordenação de actividades de projecto e elaboração de relatórios.",
+        para:
+          "Liderou a implementação de actividades programáticas; elaborou relatórios de monitoria para doadores institucionais.",
+        justificacao:
+          "⚠️ MOCK — Descrição recontextualizada para realçar monitoria e reporte.",
+      },
+    ],
+  };
+}
+
 export function createLovableAiGatewayProvider(
   lovableApiKey?: string,
   initialRunId?: string,
@@ -154,13 +278,22 @@ function createMockProvider() {
     baseURL: "https://mock.local/v1",
     fetch: async (_input, init) => {
       const body = JSON.parse((init?.body as string) || "{}");
-      const systemMsg: string =
-        body.messages?.find((m: { role: string }) => m.role === "system")
-          ?.content ?? "";
+      const messages: { role: string; content: string }[] = body.messages ?? [];
+      const systemMsg = messages.find((m) => m.role === "system")?.content ?? "";
+      const userMsg = messages.find((m) => m.role === "user")?.content ?? "";
 
       const isCoverage =
         systemMsg.includes("cobertura") || systemMsg.includes("recrutamento");
-      const mockPayload = isCoverage ? MOCK_COVERAGE : MOCK_CV_SECTIONS;
+      const isAlignment = systemMsg.includes("ZERO INVENÇÃO");
+
+      let mockPayload: unknown;
+      if (isAlignment) {
+        mockPayload = buildMockAlignment(userMsg);
+      } else if (isCoverage) {
+        mockPayload = MOCK_COVERAGE;
+      } else {
+        mockPayload = MOCK_CV_SECTIONS;
+      }
       const jsonStr = JSON.stringify(mockPayload);
 
       const hasTools = Array.isArray(body.tools) && body.tools.length > 0;

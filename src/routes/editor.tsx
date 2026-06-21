@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z } from "zod";
+import { ArrowRight, X, PenLine, Shuffle } from "lucide-react";
 import { CvPreview } from "@/components/editor/CvPreview";
 import { EditorForm } from "@/components/editor/EditorForm";
 import { InterviewMode } from "@/components/editor/InterviewMode";
@@ -11,7 +12,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { exportCvDocx, exportCvPdf } from "@/lib/cv-export";
 import { getCv } from "@/lib/cvs.functions";
 import { useServerFn } from "@tanstack/react-start";
-import type { CvDesign, CvSections } from "@/lib/cv-types";
+import type { CvDesign, CvSections, AlignmentChange } from "@/lib/cv-types";
 import { Button } from "@/components/ui/button";
 
 
@@ -56,6 +57,18 @@ function EditorPage() {
   const [tab, setTab] = useState<"editar" | "preview">("editar");
   const [interviewDone, setInterviewDone] = useState(false);
   const [cvId, setCvId] = useState<string | undefined>(id);
+  const [alignChanges, setAlignChanges] = useState<AlignmentChange[] | null>(null);
+
+  useEffect(() => {
+    if (modo !== "cv-vaga") return;
+    try {
+      const raw = window.localStorage.getItem("cv-flexivel:align-changes");
+      if (raw) {
+        setAlignChanges(JSON.parse(raw));
+        window.localStorage.removeItem("cv-flexivel:align-changes");
+      }
+    } catch { /* ignore */ }
+  }, [modo]);
 
   // Carregar CV existente quando ?id= e sessão presentes
   useEffect(() => {
@@ -170,6 +183,10 @@ function EditorPage() {
         </button>
       </div>
 
+      {alignChanges && alignChanges.length > 0 && (
+        <AlignChangesPanel changes={alignChanges} onDismiss={() => setAlignChanges(null)} />
+      )}
+
       {!hydrated ? (
         <div className="rounded-lg border border-dashed border-navy-rule p-12 text-center text-sm text-muted-foreground">
           A carregar rascunho…
@@ -190,6 +207,132 @@ function EditorPage() {
           </section>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ── Painel "O que foi ajustado" ── */
+
+function AlignChangesPanel({
+  changes,
+  onDismiss,
+}: {
+  changes: AlignmentChange[];
+  onDismiss: () => void;
+}) {
+  const [collapsed, setCollapsed] = useState(false);
+
+  const reformulados = changes.filter((c) => c.tipo === "reformulado");
+  const recontextualizados = changes.filter((c) => c.tipo === "recontextualizado");
+
+  return (
+    <div className="mb-6 rounded-xl border border-[#1a5454]/25 bg-gradient-to-br from-[#1a5454]/5 to-transparent animate-result-fade-up">
+      <div className="flex items-center justify-between px-5 py-3.5">
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="flex items-center gap-2.5 text-left"
+        >
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#1a5454]/10">
+            <Shuffle className="h-4 w-4 text-[#1a5454]" />
+          </div>
+          <div>
+            <h3 className="font-serif text-base text-foreground">O que foi ajustado</h3>
+            <p className="text-xs text-muted-foreground">
+              {changes.length} alteraç{changes.length === 1 ? "ão" : "ões"} — revê antes de exportar
+            </p>
+          </div>
+        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {collapsed ? "Expandir" : "Recolher"}
+          </button>
+          <button
+            onClick={onDismiss}
+            className="rounded-md p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+            title="Fechar painel"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {!collapsed && (
+        <div className="px-5 pb-5 space-y-4">
+          {reformulados.length > 0 && (
+            <ChangeGroup
+              title="Reformulado"
+              subtitle="Texto reescrito para usar a terminologia da vaga"
+              icon={<PenLine className="h-4 w-4 text-blue-600" />}
+              borderColor="border-blue-200"
+              bgColor="bg-blue-50"
+              textColor="text-blue-700"
+              items={reformulados}
+            />
+          )}
+          {recontextualizados.length > 0 && (
+            <ChangeGroup
+              title="Recontextualizado"
+              subtitle="Experiência adjacente reposicionada para o TdR"
+              icon={<ArrowRight className="h-4 w-4 text-amber-600" />}
+              borderColor="border-amber-200"
+              bgColor="bg-amber-50"
+              textColor="text-amber-700"
+              items={recontextualizados}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ChangeGroup({
+  title,
+  subtitle,
+  icon,
+  borderColor,
+  bgColor,
+  textColor,
+  items,
+}: {
+  title: string;
+  subtitle: string;
+  icon: React.ReactNode;
+  borderColor: string;
+  bgColor: string;
+  textColor: string;
+  items: AlignmentChange[];
+}) {
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        {icon}
+        <div>
+          <p className={`text-sm font-medium ${textColor}`}>{title}</p>
+          <p className="text-[11px] text-muted-foreground">{subtitle}</p>
+        </div>
+      </div>
+      <div className="space-y-2">
+        {items.map((change, i) => (
+          <div key={i} className={`rounded-lg border ${borderColor} ${bgColor}/60 p-3`}>
+            <p className="text-xs font-medium text-muted-foreground mb-1.5">{change.campo}</p>
+            <div className="grid gap-1.5 sm:grid-cols-2">
+              <div className="rounded-md bg-white/80 border border-gray-200 px-2.5 py-1.5">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-0.5">Antes</p>
+                <p className="text-xs text-ink-soft line-through decoration-red-300">{change.de}</p>
+              </div>
+              <div className={`rounded-md bg-white/80 border ${borderColor} px-2.5 py-1.5`}>
+                <p className={`text-[10px] font-medium uppercase tracking-wider ${textColor} mb-0.5`}>Depois</p>
+                <p className="text-xs text-foreground">{change.para}</p>
+              </div>
+            </div>
+            <p className="mt-1.5 text-[11px] text-ink-soft italic">{change.justificacao}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

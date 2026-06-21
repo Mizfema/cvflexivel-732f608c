@@ -248,6 +248,58 @@
   animation: pct-count 0.6s ease-out both;
 }
 
+/* ============ Animações — stepper de alinhamento ============ */
+
+@keyframes stepper-slide-in {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes stepper-slide-out {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(-24px); }
+}
+
+@keyframes progress-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes align-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+@keyframes msg-swap {
+  0% { opacity: 0; transform: translateY(8px); }
+  15% { opacity: 1; transform: translateY(0); }
+  85% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-8px); }
+}
+
+.animate-stepper-in {
+  animation: stepper-slide-in 0.35s ease-out both;
+}
+
+.animate-progress-shimmer {
+  background-size: 200% 100%;
+  background-image: linear-gradient(
+    90deg,
+    oklch(0.51 0.09 248 / 0.7) 0%,
+    oklch(0.51 0.09 248 / 1) 50%,
+    oklch(0.51 0.09 248 / 0.7) 100%
+  );
+  animation: progress-shimmer 2s linear infinite;
+}
+
+.animate-align-pulse {
+  animation: align-pulse 2s ease-in-out infinite;
+}
+
+.animate-msg-swap {
+  animation: msg-swap 3.5s ease-in-out both;
+}
+
 /* ============ Impressão / PDF ============
  * Quando o utilizador exporta para PDF, escondemos toda a UI excepto a
  * pré-visualização do CV (marcada com data-cv-print).

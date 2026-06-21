@@ -1,18 +1,21 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation } from "@tanstack/react-query";
 import { useState, useRef, useEffect } from "react";
 import {
-  Search, Target, PenLine, FilePlus, ArrowRight,
+  Search, Target, PenLine, FilePlus, ArrowRight, ArrowLeft,
   Upload, Loader2, X, FileText, AlertTriangle,
-  CheckCircle2, XCircle, Lightbulb, ShieldAlert,
+  CheckCircle2, XCircle, Lightbulb, ShieldAlert, Sparkles,
 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { analyzeCoverage } from "@/lib/llm.functions";
+import { analyzeCoverage, alignCvToTdr } from "@/lib/llm.functions";
+import { DRAFT_KEY } from "@/hooks/use-draft-cv";
+import { EMPTY_CV } from "@/lib/cv-types";
+import type { AlignmentResult } from "@/lib/cv-types";
 import type { CoverageAnalysis, GapDetail, GapType } from "@/lib/coverage-types";
 
 export const Route = createFileRoute("/")({
@@ -90,10 +93,13 @@ const acoes: Acao[] = [
 
 function LandingPage() {
   const [analiseOpen, setAnaliseOpen] = useState(false);
+  const [vagaOpen, setVagaOpen] = useState(false);
 
   function handleAcaoClick(id: string) {
     if (id === "analisar") {
       setAnaliseOpen(true);
+    } else if (id === "vaga") {
+      setVagaOpen(true);
     } else {
       alert(`"${acoes.find((a) => a.id === id)?.titulo}" — será implementado nas próximas fases.`);
     }
@@ -125,7 +131,391 @@ function LandingPage() {
       </section>
 
       <AnaliseModal open={analiseOpen} onOpenChange={setAnaliseOpen} />
+      <VagaStepper open={vagaOpen} onOpenChange={setVagaOpen} />
     </>
+  );
+}
+
+/* ── Stepper: CV para uma vaga ── */
+
+const ALIGN_MESSAGES = [
+  "A ler os Termos de Referência…",
+  "A mapear requisitos obrigatórios e desejáveis…",
+  "A analisar a tua experiência…",
+  "A reformular títulos e descrições…",
+  "A reordenar secções por relevância…",
+  "A ajustar o resumo profissional à vaga…",
+  "A priorizar competências-chave…",
+  "A verificar que nada foi inventado…",
+  "Quase pronto — últimos ajustes…",
+];
+
+function VagaStepper({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const navigate = useNavigate();
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [tdrText, setTdrText] = useState("");
+  const [cvText, setCvText] = useState("");
+  const [tdrFileName, setTdrFileName] = useState<string | null>(null);
+  const [cvFileName, setCvFileName] = useState<string | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(false);
+  const tdrFileRef = useRef<HTMLInputElement>(null);
+  const cvFileRef = useRef<HTMLInputElement>(null);
+
+  const align = useServerFn(alignCvToTdr);
+  const mutation = useMutation<AlignmentResult, Error, { cv: string; jobTdr: string }>({
+    mutationFn: (vars) => align({ data: vars }) as Promise<AlignmentResult>,
+    onSuccess: (result) => {
+      const draft = {
+        ...EMPTY_CV,
+        title: "CV alinhado à vaga",
+        sections: { ...EMPTY_CV.sections, ...result.sections },
+        updatedAt: new Date().toISOString(),
+      };
+      window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      if (result.alteracoes.length > 0) {
+        window.localStorage.setItem("cv-flexivel:align-changes", JSON.stringify(result.alteracoes));
+      }
+      navigate({ to: "/editor", search: { modo: "cv-vaga" } });
+      onOpenChange(false);
+    },
+  });
+
+  function resetAll() {
+    setStep(1);
+    setTdrText("");
+    setCvText("");
+    setTdrFileName(null);
+    setCvFileName(null);
+    setFileError(null);
+    setProcessing(false);
+    mutation.reset();
+  }
+
+  function handleClose(v: boolean) {
+    if (!v && !mutation.isPending) {
+      onOpenChange(false);
+      resetAll();
+    } else {
+      onOpenChange(v);
+    }
+  }
+
+  async function handleFileUpload(
+    file: File,
+    setText: (v: string) => void,
+    setName: (v: string | null) => void,
+  ) {
+    setFileError(null);
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+    try {
+      setProcessing(true);
+      let text: string;
+      if (ext === "docx") {
+        const mammoth = await import("mammoth");
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await mammoth.extractRawText({ arrayBuffer });
+        text = result.value;
+      } else if (ext === "pdf") {
+        const pdfjsLib = await import("pdfjs-dist");
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const pages: string[] = [];
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          pages.push(content.items.map((it: any) => it.str).join(" "));
+        }
+        text = pages.join("\n\n");
+      } else {
+        text = await file.text();
+      }
+      if (text.startsWith("PK") || text.includes("[Content_Types].xml")) {
+        setFileError(`O ficheiro "${file.name}" contém dados binários. Tenta .txt ou .docx.`);
+        return;
+      }
+      const trimmed = text.trim();
+      if (!trimmed) {
+        setFileError(`O ficheiro "${file.name}" está vazio.`);
+        return;
+      }
+      setName(file.name);
+      setText(trimmed);
+    } catch (err) {
+      setFileError(`Erro ao ler "${file.name}": ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setProcessing(false);
+    }
+  }
+
+  function handleSubmit() {
+    const guard = (s: string) => s.startsWith("PK") || s.includes("[Content_Types].xml");
+    if (guard(cvText) || guard(tdrText)) {
+      setFileError("Um dos textos contém dados binários. Remove e carrega de novo.");
+      return;
+    }
+    setFileError(null);
+    setStep(3);
+    mutation.mutate({ cv: cvText, jobTdr: tdrText });
+  }
+
+  const stepLabels = ["TdR da vaga", "O teu CV", "Alinhamento"];
+  const canNext1 = tdrText.trim().length >= 20 && !processing;
+  const canNext2 = cvText.trim().length >= 20 && !processing;
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        {/* Stepper indicator */}
+        <div className="flex items-center gap-2 mb-6">
+          {stepLabels.map((label, i) => {
+            const stepNum = (i + 1) as 1 | 2 | 3;
+            const isActive = step === stepNum;
+            const isDone = step > stepNum;
+            return (
+              <div key={i} className="flex items-center gap-2 flex-1">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold transition-all duration-300 ${
+                      isDone
+                        ? "bg-emerald-500 text-white"
+                        : isActive
+                        ? "bg-[#1a5454] text-white shadow-md"
+                        : "bg-paper-deep text-muted-foreground"
+                    }`}
+                  >
+                    {isDone ? <CheckCircle2 className="h-4 w-4" /> : stepNum}
+                  </div>
+                  <span
+                    className={`text-xs font-medium truncate transition-colors ${
+                      isActive ? "text-foreground" : "text-muted-foreground"
+                    }`}
+                  >
+                    {label}
+                  </span>
+                </div>
+                {i < 2 && (
+                  <div
+                    className={`h-[2px] flex-1 rounded-full transition-colors duration-300 ${
+                      isDone ? "bg-emerald-400" : "bg-navy-rule"
+                    }`}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Step 1: TdR */}
+        {step === 1 && (
+          <div className="animate-stepper-in space-y-5">
+            <DialogHeader>
+              <DialogTitle className="font-serif text-xl">
+                <span className="text-[#1a5454]">Etapa 1</span> — Termos de Referência
+              </DialogTitle>
+              <DialogDescription>
+                Cola ou carrega o anúncio completo da vaga: responsabilidades, qualificações,
+                requisitos, competências desejadas.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  TdR / anúncio da vaga
+                </label>
+                <div className="flex items-center gap-2">
+                  {tdrFileName && (
+                    <span className="flex items-center gap-1 text-xs text-navy-mid">
+                      <FileText className="h-3 w-3" />
+                      {tdrFileName}
+                      <button onClick={() => { setTdrFileName(null); setTdrText(""); }} className="hover:text-foreground">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => tdrFileRef.current?.click()}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-navy-rule px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:border-navy-mid hover:text-foreground"
+                  >
+                    <Upload className="h-3 w-3" />
+                    Carregar ficheiro
+                  </button>
+                  <input
+                    ref={tdrFileRef}
+                    type="file"
+                    accept=".txt,.docx,.pdf"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleFileUpload(f, setTdrText, setTdrFileName);
+                    }}
+                  />
+                </div>
+              </div>
+              <Textarea
+                value={tdrText}
+                onChange={(e) => { setTdrText(e.target.value); setTdrFileName(null); setFileError(null); }}
+                rows={10}
+                placeholder="Cola aqui o anúncio completo da vaga: contexto, responsabilidades, qualificações exigidas, requisitos eliminatórios, competências desejadas…"
+                className="font-mono text-[13px] resize-none"
+              />
+              <p className="mt-1 text-xs text-muted-foreground text-right">{tdrText.length} caracteres</p>
+            </div>
+
+            {processing && (
+              <div className="flex items-center gap-2 rounded-md border border-navy-rule bg-surface/40 p-3 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                A extrair texto do ficheiro…
+              </div>
+            )}
+            {fileError && (
+              <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                {fileError}
+              </div>
+            )}
+
+            <div className="flex justify-end">
+              <Button disabled={!canNext1} onClick={() => { setFileError(null); setStep(2); }} className="min-w-[140px]">
+                Próximo
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: CV */}
+        {step === 2 && (
+          <div className="animate-stepper-in space-y-5">
+            <DialogHeader>
+              <DialogTitle className="font-serif text-xl">
+                <span className="text-[#1a5454]">Etapa 2</span> — O teu CV actual
+              </DialogTitle>
+              <DialogDescription>
+                Cola ou carrega o teu CV actual. A IA vai reescrevê-lo para casar com os
+                requisitos da vaga — sem inventar experiência.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  O teu CV
+                </label>
+                <div className="flex items-center gap-2">
+                  {cvFileName && (
+                    <span className="flex items-center gap-1 text-xs text-navy-mid">
+                      <FileText className="h-3 w-3" />
+                      {cvFileName}
+                      <button onClick={() => { setCvFileName(null); setCvText(""); }} className="hover:text-foreground">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => cvFileRef.current?.click()}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-navy-rule px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:border-navy-mid hover:text-foreground"
+                  >
+                    <Upload className="h-3 w-3" />
+                    Carregar ficheiro
+                  </button>
+                  <input
+                    ref={cvFileRef}
+                    type="file"
+                    accept=".txt,.docx,.pdf"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleFileUpload(f, setCvText, setCvFileName);
+                    }}
+                  />
+                </div>
+              </div>
+              <Textarea
+                value={cvText}
+                onChange={(e) => { setCvText(e.target.value); setCvFileName(null); setFileError(null); }}
+                rows={10}
+                placeholder="Cola aqui o conteúdo completo do teu CV: dados pessoais, resumo, experiência, formação, competências…"
+                className="font-mono text-[13px] resize-none"
+              />
+              <p className="mt-1 text-xs text-muted-foreground text-right">{cvText.length} caracteres</p>
+            </div>
+
+            {processing && (
+              <div className="flex items-center gap-2 rounded-md border border-navy-rule bg-surface/40 p-3 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                A extrair texto do ficheiro…
+              </div>
+            )}
+            {fileError && (
+              <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                {fileError}
+              </div>
+            )}
+
+            {mutation.isError && (
+              <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                {mutation.error.message}
+              </div>
+            )}
+
+            <div className="flex justify-between">
+              <Button variant="outline" onClick={() => setStep(1)}>
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Voltar
+              </Button>
+              <Button disabled={!canNext2} onClick={handleSubmit} className="min-w-[140px]">
+                Alinhar CV
+                <Sparkles className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Processing */}
+        {step === 3 && (
+          <div className="animate-stepper-in">
+            {mutation.isError ? (
+              <div className="flex flex-col items-center py-8 px-4 text-center space-y-4">
+                <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-full bg-destructive/10">
+                  <XCircle className="h-8 w-8 text-destructive" />
+                </div>
+                <div>
+                  <p className="font-serif text-lg text-foreground">Falha no alinhamento</p>
+                  <p className="mt-2 text-sm text-muted-foreground max-w-md">{mutation.error.message}</p>
+                </div>
+                <div className="flex gap-2 justify-center pt-2">
+                  <Button variant="outline" onClick={() => { setStep(2); mutation.reset(); }}>
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Voltar
+                  </Button>
+                  <Button onClick={() => { mutation.reset(); mutation.mutate({ cv: cvText, jobTdr: tdrText }); }}>
+                    Tentar de novo
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <ScannerAnimation
+                title="A alinhar o teu CV"
+                messages={ALIGN_MESSAGES}
+              />
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -409,15 +799,21 @@ const SCANNER_MESSAGES = [
   "A preparar o relatório…",
 ];
 
-function ScannerAnimation() {
+function ScannerAnimation({
+  title = "A analisar o teu CV",
+  messages = SCANNER_MESSAGES,
+}: {
+  title?: string;
+  messages?: string[];
+} = {}) {
   const [msgIndex, setMsgIndex] = useState(0);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setMsgIndex((prev) => (prev + 1) % SCANNER_MESSAGES.length);
+      setMsgIndex((prev) => (prev + 1) % messages.length);
     }, 3000);
     return () => clearInterval(interval);
-  }, []);
+  }, [messages.length]);
 
   return (
     <div className="flex flex-col items-center py-8 px-4">
@@ -486,12 +882,12 @@ function ScannerAnimation() {
 
       {/* Status text */}
       <div className="mt-8 text-center">
-        <p className="font-serif text-lg text-foreground">A analisar o teu CV</p>
+        <p className="font-serif text-lg text-foreground">{title}</p>
         <p
           key={msgIndex}
           className="mt-2 text-sm text-navy-mid animate-result-fade-up"
         >
-          {SCANNER_MESSAGES[msgIndex]}
+          {messages[msgIndex]}
         </p>
         <div className="mt-4 flex justify-center gap-1.5">
           {[0, 1, 2].map((i) => (
