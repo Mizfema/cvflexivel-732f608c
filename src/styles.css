@@ -318,3 +318,12 @@
     width: 100% !important;
   }
 }
+
+/* ============ Auth page float animation ============ */
+@keyframes auth-float {
+  0%, 100% { transform: translateY(0) rotate(var(--rot, 0deg)); }
+  50% { transform: translateY(-12px) rotate(var(--rot, 0deg)); }
+}
+.animate-auth-float {
+  animation: auth-float 7s ease-in-out infinite;
+}
