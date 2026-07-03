@@ -1,22 +1,9 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
-import { useMutation } from "@tanstack/react-query";
-import { useState, useRef, useEffect } from "react";
-import {
-  Search, Target, PenLine, FilePlus, ArrowRight, ArrowLeft,
-  Upload, Loader2, X, FileText, AlertTriangle,
-  CheckCircle2, XCircle, Lightbulb, ShieldAlert, Sparkles,
-} from "lucide-react";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { analyzeCoverage, alignCvToTdr } from "@/lib/llm.functions";
-import { DRAFT_KEY } from "@/hooks/use-draft-cv";
-import { EMPTY_CV } from "@/lib/cv-types";
-import type { AlignmentResult } from "@/lib/cv-types";
-import type { CoverageAnalysis, GapDetail, GapType } from "@/lib/coverage-types";
+import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import { Search, Target, PenLine, FilePlus, ArrowRight } from "lucide-react";
+import { AnaliseModal } from "@/components/AnaliseModal";
+import { VagaStepper } from "@/components/VagaStepper";
+import { ImportCvModal } from "@/components/ImportCvModal";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -94,12 +81,15 @@ const acoes: Acao[] = [
 function LandingPage() {
   const [analiseOpen, setAnaliseOpen] = useState(false);
   const [vagaOpen, setVagaOpen] = useState(false);
+  const [importarOpen, setImportarOpen] = useState(false);
 
   function handleAcaoClick(id: string) {
     if (id === "analisar") {
       setAnaliseOpen(true);
     } else if (id === "vaga") {
       setVagaOpen(true);
+    } else if (id === "melhorar") {
+      setImportarOpen(true);
     } else {
       alert(`"${acoes.find((a) => a.id === id)?.titulo}" — será implementado nas próximas fases.`);
     }
@@ -132,1054 +122,8 @@ function LandingPage() {
 
       <AnaliseModal open={analiseOpen} onOpenChange={setAnaliseOpen} />
       <VagaStepper open={vagaOpen} onOpenChange={setVagaOpen} />
+      <ImportCvModal open={importarOpen} onOpenChange={setImportarOpen} />
     </>
-  );
-}
-
-/* ── Stepper: CV para uma vaga ── */
-
-const ALIGN_MESSAGES = [
-  "A ler os Termos de Referência…",
-  "A mapear requisitos obrigatórios e desejáveis…",
-  "A analisar a tua experiência…",
-  "A reformular títulos e descrições…",
-  "A reordenar secções por relevância…",
-  "A ajustar o resumo profissional à vaga…",
-  "A priorizar competências-chave…",
-  "A verificar que nada foi inventado…",
-  "Quase pronto — últimos ajustes…",
-];
-
-function VagaStepper({
-  open,
-  onOpenChange,
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-}) {
-  const navigate = useNavigate();
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [tdrText, setTdrText] = useState("");
-  const [cvText, setCvText] = useState("");
-  const [tdrFileName, setTdrFileName] = useState<string | null>(null);
-  const [cvFileName, setCvFileName] = useState<string | null>(null);
-  const [fileError, setFileError] = useState<string | null>(null);
-  const [processing, setProcessing] = useState(false);
-  const tdrFileRef = useRef<HTMLInputElement>(null);
-  const cvFileRef = useRef<HTMLInputElement>(null);
-
-  const align = useServerFn(alignCvToTdr);
-  const mutation = useMutation<AlignmentResult, Error, { cv: string; jobTdr: string }>({
-    mutationFn: (vars) => align({ data: vars }) as Promise<AlignmentResult>,
-    onSuccess: (result) => {
-      const draft = {
-        ...EMPTY_CV,
-        title: "CV alinhado à vaga",
-        sections: { ...EMPTY_CV.sections, ...result.sections },
-        updatedAt: new Date().toISOString(),
-      };
-      window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-      if (result.alteracoes.length > 0) {
-        window.localStorage.setItem("cv-flexivel:align-changes", JSON.stringify(result.alteracoes));
-      }
-      navigate({ to: "/editor", search: { modo: "cv-vaga" } });
-      onOpenChange(false);
-    },
-  });
-
-  function resetAll() {
-    setStep(1);
-    setTdrText("");
-    setCvText("");
-    setTdrFileName(null);
-    setCvFileName(null);
-    setFileError(null);
-    setProcessing(false);
-    mutation.reset();
-  }
-
-  function handleClose(v: boolean) {
-    if (!v && !mutation.isPending) {
-      onOpenChange(false);
-      resetAll();
-    } else {
-      onOpenChange(v);
-    }
-  }
-
-  async function handleFileUpload(
-    file: File,
-    setText: (v: string) => void,
-    setName: (v: string | null) => void,
-  ) {
-    setFileError(null);
-    const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-    try {
-      setProcessing(true);
-      let text: string;
-      if (ext === "docx") {
-        const mammoth = await import("mammoth");
-        const arrayBuffer = await file.arrayBuffer();
-        const result = await mammoth.extractRawText({ arrayBuffer });
-        text = result.value;
-      } else if (ext === "pdf") {
-        const pdfjsLib = await import("pdfjs-dist");
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        const pages: string[] = [];
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
-          const content = await page.getTextContent();
-          pages.push(content.items.map((it: any) => it.str).join(" "));
-        }
-        text = pages.join("\n\n");
-      } else {
-        text = await file.text();
-      }
-      if (text.startsWith("PK") || text.includes("[Content_Types].xml")) {
-        setFileError(`O ficheiro "${file.name}" contém dados binários. Tenta .txt ou .docx.`);
-        return;
-      }
-      const trimmed = text.trim();
-      if (!trimmed) {
-        setFileError(`O ficheiro "${file.name}" está vazio.`);
-        return;
-      }
-      setName(file.name);
-      setText(trimmed);
-    } catch (err) {
-      setFileError(`Erro ao ler "${file.name}": ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setProcessing(false);
-    }
-  }
-
-  function handleSubmit() {
-    const guard = (s: string) => s.startsWith("PK") || s.includes("[Content_Types].xml");
-    if (guard(cvText) || guard(tdrText)) {
-      setFileError("Um dos textos contém dados binários. Remove e carrega de novo.");
-      return;
-    }
-    setFileError(null);
-    setStep(3);
-    mutation.mutate({ cv: cvText, jobTdr: tdrText });
-  }
-
-  const stepLabels = ["TdR da vaga", "O teu CV", "Alinhamento"];
-  const canNext1 = tdrText.trim().length >= 20 && !processing;
-  const canNext2 = cvText.trim().length >= 20 && !processing;
-
-  return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        {/* Stepper indicator */}
-        <div className="flex items-center gap-2 mb-6">
-          {stepLabels.map((label, i) => {
-            const stepNum = (i + 1) as 1 | 2 | 3;
-            const isActive = step === stepNum;
-            const isDone = step > stepNum;
-            return (
-              <div key={i} className="flex items-center gap-2 flex-1">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold transition-all duration-300 ${
-                      isDone
-                        ? "bg-emerald-500 text-white"
-                        : isActive
-                        ? "bg-[#1a5454] text-white shadow-md"
-                        : "bg-paper-deep text-muted-foreground"
-                    }`}
-                  >
-                    {isDone ? <CheckCircle2 className="h-4 w-4" /> : stepNum}
-                  </div>
-                  <span
-                    className={`text-xs font-medium truncate transition-colors ${
-                      isActive ? "text-foreground" : "text-muted-foreground"
-                    }`}
-                  >
-                    {label}
-                  </span>
-                </div>
-                {i < 2 && (
-                  <div
-                    className={`h-[2px] flex-1 rounded-full transition-colors duration-300 ${
-                      isDone ? "bg-emerald-400" : "bg-navy-rule"
-                    }`}
-                  />
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Step 1: TdR */}
-        {step === 1 && (
-          <div className="animate-stepper-in space-y-5">
-            <DialogHeader>
-              <DialogTitle className="font-serif text-xl">
-                <span className="text-[#1a5454]">Etapa 1</span> — Termos de Referência
-              </DialogTitle>
-              <DialogDescription>
-                Cola ou carrega o anúncio completo da vaga: responsabilidades, qualificações,
-                requisitos, competências desejadas.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  TdR / anúncio da vaga
-                </label>
-                <div className="flex items-center gap-2">
-                  {tdrFileName && (
-                    <span className="flex items-center gap-1 text-xs text-navy-mid">
-                      <FileText className="h-3 w-3" />
-                      {tdrFileName}
-                      <button onClick={() => { setTdrFileName(null); setTdrText(""); }} className="hover:text-foreground">
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => tdrFileRef.current?.click()}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-navy-rule px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:border-navy-mid hover:text-foreground"
-                  >
-                    <Upload className="h-3 w-3" />
-                    Carregar ficheiro
-                  </button>
-                  <input
-                    ref={tdrFileRef}
-                    type="file"
-                    accept=".txt,.docx,.pdf"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) handleFileUpload(f, setTdrText, setTdrFileName);
-                    }}
-                  />
-                </div>
-              </div>
-              <Textarea
-                value={tdrText}
-                onChange={(e) => { setTdrText(e.target.value); setTdrFileName(null); setFileError(null); }}
-                rows={10}
-                placeholder="Cola aqui o anúncio completo da vaga: contexto, responsabilidades, qualificações exigidas, requisitos eliminatórios, competências desejadas…"
-                className="font-mono text-[13px] resize-none"
-              />
-              <p className="mt-1 text-xs text-muted-foreground text-right">{tdrText.length} caracteres</p>
-            </div>
-
-            {processing && (
-              <div className="flex items-center gap-2 rounded-md border border-navy-rule bg-surface/40 p-3 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin shrink-0" />
-                A extrair texto do ficheiro…
-              </div>
-            )}
-            {fileError && (
-              <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                {fileError}
-              </div>
-            )}
-
-            <div className="flex justify-end">
-              <Button disabled={!canNext1} onClick={() => { setFileError(null); setStep(2); }} className="min-w-[140px]">
-                Próximo
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 2: CV */}
-        {step === 2 && (
-          <div className="animate-stepper-in space-y-5">
-            <DialogHeader>
-              <DialogTitle className="font-serif text-xl">
-                <span className="text-[#1a5454]">Etapa 2</span> — O teu CV actual
-              </DialogTitle>
-              <DialogDescription>
-                Cola ou carrega o teu CV actual. A IA vai reescrevê-lo para casar com os
-                requisitos da vaga — sem inventar experiência.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  O teu CV
-                </label>
-                <div className="flex items-center gap-2">
-                  {cvFileName && (
-                    <span className="flex items-center gap-1 text-xs text-navy-mid">
-                      <FileText className="h-3 w-3" />
-                      {cvFileName}
-                      <button onClick={() => { setCvFileName(null); setCvText(""); }} className="hover:text-foreground">
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => cvFileRef.current?.click()}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-navy-rule px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:border-navy-mid hover:text-foreground"
-                  >
-                    <Upload className="h-3 w-3" />
-                    Carregar ficheiro
-                  </button>
-                  <input
-                    ref={cvFileRef}
-                    type="file"
-                    accept=".txt,.docx,.pdf"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) handleFileUpload(f, setCvText, setCvFileName);
-                    }}
-                  />
-                </div>
-              </div>
-              <Textarea
-                value={cvText}
-                onChange={(e) => { setCvText(e.target.value); setCvFileName(null); setFileError(null); }}
-                rows={10}
-                placeholder="Cola aqui o conteúdo completo do teu CV: dados pessoais, resumo, experiência, formação, competências…"
-                className="font-mono text-[13px] resize-none"
-              />
-              <p className="mt-1 text-xs text-muted-foreground text-right">{cvText.length} caracteres</p>
-            </div>
-
-            {processing && (
-              <div className="flex items-center gap-2 rounded-md border border-navy-rule bg-surface/40 p-3 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin shrink-0" />
-                A extrair texto do ficheiro…
-              </div>
-            )}
-            {fileError && (
-              <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                {fileError}
-              </div>
-            )}
-
-            {mutation.isError && (
-              <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                {mutation.error.message}
-              </div>
-            )}
-
-            <div className="flex justify-between">
-              <Button variant="outline" onClick={() => setStep(1)}>
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Voltar
-              </Button>
-              <Button disabled={!canNext2} onClick={handleSubmit} className="min-w-[140px]">
-                Alinhar CV
-                <Sparkles className="ml-2 h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 3: Processing */}
-        {step === 3 && (
-          <div className="animate-stepper-in">
-            {mutation.isError ? (
-              <div className="flex flex-col items-center py-8 px-4 text-center space-y-4">
-                <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-full bg-destructive/10">
-                  <XCircle className="h-8 w-8 text-destructive" />
-                </div>
-                <div>
-                  <p className="font-serif text-lg text-foreground">Falha no alinhamento</p>
-                  <p className="mt-2 text-sm text-muted-foreground max-w-md">{mutation.error.message}</p>
-                </div>
-                <div className="flex gap-2 justify-center pt-2">
-                  <Button variant="outline" onClick={() => { setStep(2); mutation.reset(); }}>
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Voltar
-                  </Button>
-                  <Button onClick={() => { mutation.reset(); mutation.mutate({ cv: cvText, jobTdr: tdrText }); }}>
-                    Tentar de novo
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <ScannerAnimation
-                title="A alinhar o teu CV"
-                messages={ALIGN_MESSAGES}
-              />
-            )}
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-/* ── Modal de análise ── */
-
-function AnaliseModal({
-  open,
-  onOpenChange,
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-}) {
-  const [cvText, setCvText] = useState("");
-  const [tdrText, setTdrText] = useState("");
-  const [cvFileName, setCvFileName] = useState<string | null>(null);
-  const [tdrFileName, setTdrFileName] = useState<string | null>(null);
-  const [fileError, setFileError] = useState<string | null>(null);
-  const [processing, setProcessing] = useState(false);
-  const cvFileRef = useRef<HTMLInputElement>(null);
-  const tdrFileRef = useRef<HTMLInputElement>(null);
-
-  const analyze = useServerFn(analyzeCoverage);
-  const mutation = useMutation<CoverageAnalysis, Error, { cv: string; jobTdr: string }>({
-    mutationFn: (vars) => analyze({ data: vars }) as Promise<CoverageAnalysis>,
-  });
-
-  async function handleFileUpload(
-    file: File,
-    setText: (v: string) => void,
-    setName: (v: string | null) => void,
-  ) {
-    setFileError(null);
-    const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-
-    try {
-      setProcessing(true);
-      let text: string;
-
-      if (ext === "docx") {
-        const mammoth = await import("mammoth");
-        const arrayBuffer = await file.arrayBuffer();
-        const result = await mammoth.extractRawText({ arrayBuffer });
-        text = result.value;
-      } else if (ext === "pdf") {
-        const pdfjsLib = await import("pdfjs-dist");
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        const pages: string[] = [];
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
-          const content = await page.getTextContent();
-          pages.push(content.items.map((it: any) => it.str).join(" "));
-        }
-        text = pages.join("\n\n");
-      } else {
-        text = await file.text();
-      }
-
-      if (text.startsWith("PK") || text.includes("[Content_Types].xml")) {
-        setFileError(
-          `O ficheiro "${file.name}" não foi extraído correctamente — parece conter dados binários em vez de texto. Tenta exportar como .txt ou .docx e carrega de novo.`,
-        );
-        return;
-      }
-
-      const trimmed = text.trim();
-      if (!trimmed) {
-        setFileError(`O ficheiro "${file.name}" está vazio ou não contém texto legível.`);
-        return;
-      }
-
-      setName(file.name);
-      setText(trimmed);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setFileError(`Erro ao ler "${file.name}": ${msg}`);
-    } finally {
-      setProcessing(false);
-    }
-  }
-
-  function handleClose(v: boolean) {
-    if (!v && !mutation.isPending) {
-      onOpenChange(false);
-      if (!mutation.data) {
-        setCvText("");
-        setTdrText("");
-        setCvFileName(null);
-        setTdrFileName(null);
-        setFileError(null);
-        mutation.reset();
-      }
-    } else {
-      onOpenChange(v);
-    }
-  }
-
-  const canSubmit = cvText.trim().length >= 20 && tdrText.trim().length >= 20 && !mutation.isPending && !processing;
-
-  return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className={mutation.isPending || mutation.data ? "max-w-3xl max-h-[90vh] overflow-y-auto" : "max-w-2xl max-h-[90vh] overflow-y-auto"}>
-        {mutation.isPending ? (
-          <ScannerAnimation />
-        ) : mutation.data ? (
-          <>
-            <ResultadoCompleto data={mutation.data} />
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => mutation.reset()}>
-                Nova análise
-              </Button>
-              <Button onClick={() => handleClose(false)}>Fechar</Button>
-            </div>
-          </>
-        ) : (
-          <>
-            <DialogHeader>
-              <DialogTitle className="font-serif text-xl">Analisar cobertura do CV</DialogTitle>
-              <DialogDescription>
-                Cola ou carrega o teu CV e os Termos de Referência da vaga. A análise compara ambos e
-                mostra requisitos cobertos e em falta.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-5 mt-2">
-              {/* CV input */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    O teu CV
-                  </label>
-                  <div className="flex items-center gap-2">
-                    {cvFileName && (
-                      <span className="flex items-center gap-1 text-xs text-navy-mid">
-                        <FileText className="h-3 w-3" />
-                        {cvFileName}
-                        <button
-                          onClick={() => { setCvFileName(null); setCvText(""); }}
-                          className="hover:text-foreground"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => cvFileRef.current?.click()}
-                      className="inline-flex items-center gap-1.5 rounded-md border border-navy-rule px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:border-navy-mid hover:text-foreground"
-                    >
-                      <Upload className="h-3 w-3" />
-                      Carregar ficheiro
-                    </button>
-                    <input
-                      ref={cvFileRef}
-                      type="file"
-                      accept=".txt,.docx,.pdf"
-                      className="hidden"
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) handleFileUpload(f, setCvText, setCvFileName);
-                      }}
-                    />
-                  </div>
-                </div>
-                <Textarea
-                  value={cvText}
-                  onChange={(e) => { setCvText(e.target.value); setCvFileName(null); setFileError(null); }}
-                  rows={6}
-                  placeholder="Cola aqui o conteúdo completo do teu CV: dados pessoais, resumo, experiência, formação, competências…"
-                  className="font-mono text-[13px] resize-none"
-                />
-                <p className="mt-1 text-xs text-muted-foreground text-right">{cvText.length} caracteres</p>
-              </div>
-
-              {/* TdR input */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    Termos de Referência (TdR)
-                  </label>
-                  <div className="flex items-center gap-2">
-                    {tdrFileName && (
-                      <span className="flex items-center gap-1 text-xs text-navy-mid">
-                        <FileText className="h-3 w-3" />
-                        {tdrFileName}
-                        <button
-                          onClick={() => { setTdrFileName(null); setTdrText(""); }}
-                          className="hover:text-foreground"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => tdrFileRef.current?.click()}
-                      className="inline-flex items-center gap-1.5 rounded-md border border-navy-rule px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:border-navy-mid hover:text-foreground"
-                    >
-                      <Upload className="h-3 w-3" />
-                      Carregar ficheiro
-                    </button>
-                    <input
-                      ref={tdrFileRef}
-                      type="file"
-                      accept=".txt,.docx,.pdf"
-                      className="hidden"
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) handleFileUpload(f, setTdrText, setTdrFileName);
-                      }}
-                    />
-                  </div>
-                </div>
-                <Textarea
-                  value={tdrText}
-                  onChange={(e) => { setTdrText(e.target.value); setTdrFileName(null); setFileError(null); }}
-                  rows={6}
-                  placeholder="Cola aqui o anúncio completo da vaga: contexto, responsabilidades, qualificações exigidas, requisitos eliminatórios, competências desejadas…"
-                  className="font-mono text-[13px] resize-none"
-                />
-                <p className="mt-1 text-xs text-muted-foreground text-right">{tdrText.length} caracteres</p>
-              </div>
-
-              {processing && (
-                <div className="flex items-center gap-2 rounded-md border border-navy-rule bg-surface/40 p-3 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin shrink-0" />
-                  A extrair texto do ficheiro…
-                </div>
-              )}
-
-              {fileError && (
-                <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                  {fileError}
-                </div>
-              )}
-
-              {mutation.isError && (
-                <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                  {mutation.error.message}
-                </div>
-              )}
-
-              <div className="flex justify-end">
-                <Button
-                  disabled={!canSubmit}
-                  onClick={() => {
-                    const guard = (s: string) => s.startsWith("PK") || s.includes("[Content_Types].xml");
-                    if (guard(cvText) || guard(tdrText)) {
-                      setFileError("Um dos textos contém dados binários em vez de texto legível. Remove e carrega de novo como .txt ou .docx.");
-                      return;
-                    }
-                    setFileError(null);
-                    mutation.mutate({ cv: cvText, jobTdr: tdrText });
-                  }}
-                  className="min-w-[140px]"
-                >
-                  Analisar
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-/* ── Scanner animation (durante processamento) ── */
-
-const SCANNER_MESSAGES = [
-  "A ler o teu CV…",
-  "A extrair competências e experiência…",
-  "A comparar com os requisitos da vaga…",
-  "A identificar palavras-chave…",
-  "A calcular cobertura por secção…",
-  "A verificar requisitos eliminatórios…",
-  "A preparar o relatório…",
-];
-
-function ScannerAnimation({
-  title = "A analisar o teu CV",
-  messages = SCANNER_MESSAGES,
-}: {
-  title?: string;
-  messages?: string[];
-} = {}) {
-  const [msgIndex, setMsgIndex] = useState(0);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setMsgIndex((prev) => (prev + 1) % messages.length);
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [messages.length]);
-
-  return (
-    <div className="flex flex-col items-center py-8 px-4">
-      {/* Mini CV being scanned */}
-      <div className="relative w-[200px] h-[280px] rounded-lg border border-navy-rule bg-white shadow-elevated overflow-hidden animate-scanner-pulse">
-        {/* Scan line */}
-        <div className="absolute left-0 right-0 h-[2px] animate-scanner-sweep z-20">
-          <div className="h-full bg-navy-mid animate-scanner-glow" />
-          <div className="absolute inset-x-0 -top-6 h-12 bg-gradient-to-b from-transparent via-navy-mid/10 to-transparent" />
-        </div>
-
-        {/* Mock CV content */}
-        <div className="flex h-full">
-          {/* Sidebar */}
-          <div className="w-[56px] shrink-0 bg-navy-deep flex flex-col items-center pt-5 pb-3">
-            <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center text-[9px] font-bold text-white/70">
-              CV
-            </div>
-            <div className="mt-4 w-full px-2 space-y-[4px]">
-              {[100, 75, 85, 55, 90].map((w, i) => (
-                <div key={i}>
-                  <div className="h-[2px] bg-white/10 rounded-full" />
-                  <div className="h-[2px] bg-white/30 rounded-full -mt-[2px]" style={{ width: `${w}%` }} />
-                </div>
-              ))}
-            </div>
-            <div className="mt-auto w-full px-2 space-y-[3px]">
-              {[1, 2, 3].map((_, i) => (
-                <div key={i} className="h-[2px] bg-white/15 rounded-full" style={{ width: `${80 - i * 15}%` }} />
-              ))}
-            </div>
-          </div>
-
-          {/* Content */}
-          <div className="flex-1 p-3 pt-4 space-y-3">
-            <div>
-              <div className="h-[8px] bg-gray-300 rounded w-[70%]" />
-              <div className="h-[5px] bg-gray-200 rounded w-[50%] mt-1.5" />
-            </div>
-            <div className="h-[1px] bg-gray-200" />
-            <div className="space-y-[3px]">
-              <div className="h-[4px] bg-navy-deep/10 rounded w-[40%]" />
-              <div className="h-[3px] bg-gray-200 rounded w-full" />
-              <div className="h-[3px] bg-gray-200 rounded w-[90%]" />
-              <div className="h-[3px] bg-gray-200 rounded w-[80%]" />
-            </div>
-            <div className="space-y-[3px]">
-              <div className="h-[4px] bg-navy-deep/10 rounded w-[55%]" />
-              <div className="h-[3px] bg-gray-200 rounded w-full" />
-              <div className="h-[3px] bg-gray-200 rounded w-[85%]" />
-            </div>
-            <div className="space-y-[3px]">
-              <div className="h-[4px] bg-navy-deep/10 rounded w-[45%]" />
-              <div className="h-[3px] bg-gray-200 rounded w-[75%]" />
-              <div className="h-[3px] bg-gray-200 rounded w-full" />
-              <div className="h-[3px] bg-gray-200 rounded w-[60%]" />
-            </div>
-            <div className="space-y-[3px]">
-              <div className="h-[4px] bg-navy-deep/10 rounded w-[35%]" />
-              <div className="h-[3px] bg-gray-200 rounded w-[90%]" />
-              <div className="h-[3px] bg-gray-200 rounded w-[70%]" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Status text */}
-      <div className="mt-8 text-center">
-        <p className="font-serif text-lg text-foreground">{title}</p>
-        <p
-          key={msgIndex}
-          className="mt-2 text-sm text-navy-mid animate-result-fade-up"
-        >
-          {messages[msgIndex]}
-        </p>
-        <div className="mt-4 flex justify-center gap-1.5">
-          {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              className="w-1.5 h-1.5 rounded-full bg-navy-mid animate-scanner-glow"
-              style={{ animationDelay: `${i * 0.3}s` }}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ── Resultado completo ── */
-
-function ResultadoCompleto({ data }: { data: CoverageAnalysis }) {
-  const pct = data.totalRequisitos
-    ? Math.round((data.requisitosCobertos / data.totalRequisitos) * 100)
-    : 0;
-  const pctColor = pct >= 70 ? "text-emerald-600" : pct >= 40 ? "text-amber-600" : "text-destructive";
-  const ringColor = pct >= 70 ? "stroke-emerald-600" : pct >= 40 ? "stroke-amber-600" : "stroke-destructive";
-
-  return (
-    <div className="space-y-5">
-      {/* Hero: percentagem + resumo */}
-      <div className="animate-result-fade-up flex flex-col items-center text-center pt-4 pb-2">
-        {/* Circular gauge */}
-        <div className="relative w-28 h-28">
-          <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90">
-            <circle cx="60" cy="60" r="52" fill="none" strokeWidth="8" className="stroke-paper-deep" />
-            <circle
-              cx="60" cy="60" r="52" fill="none" strokeWidth="8" strokeLinecap="round"
-              className={`${ringColor} transition-all duration-1000 ease-out`}
-              strokeDasharray={`${2 * Math.PI * 52}`}
-              strokeDashoffset={`${2 * Math.PI * 52 * (1 - pct / 100)}`}
-            />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className={`font-serif text-3xl font-bold animate-pct-count ${pctColor}`}>
-              {pct}%
-            </span>
-          </div>
-        </div>
-        <p className="mt-3 text-xs font-medium uppercase tracking-wider text-navy-mid">
-          {data.requisitosCobertos} de {data.totalRequisitos} requisitos cobertos
-        </p>
-        <p className="mt-3 max-w-lg text-sm text-ink-soft leading-relaxed">{data.resumo}</p>
-      </div>
-
-      {/* Eliminatórios */}
-      {data.requisitosEliminatoriosNaoCumpridos.length > 0 && (
-        <div className="animate-result-fade-up rounded-xl border border-destructive/25 bg-gradient-to-br from-destructive/5 to-transparent p-5" style={{ animationDelay: "0.1s" }}>
-          <div className="flex items-center gap-2.5 mb-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-destructive/10">
-              <ShieldAlert className="h-4 w-4 text-destructive" />
-            </div>
-            <div>
-              <h3 className="font-serif text-base text-foreground">Requisitos eliminatórios não cumpridos</h3>
-              <p className="text-xs text-muted-foreground">Atenção obrigatória antes de candidatar</p>
-            </div>
-          </div>
-          <div className="space-y-3">
-            {data.requisitosEliminatoriosNaoCumpridos.map((r, i) => (
-              <div key={i} className="rounded-lg bg-white/60 border border-destructive/10 p-3">
-                <p className="text-sm font-medium text-foreground flex items-start gap-2">
-                  <XCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
-                  {r.requisito}
-                </p>
-                <div className="mt-2 ml-6 flex items-start gap-1.5 text-sm text-ink-soft">
-                  <Lightbulb className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
-                  {r.mitigacao}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Cobertura por secção */}
-      <div className="animate-result-fade-up rounded-xl border border-navy-rule bg-card p-5" style={{ animationDelay: "0.2s" }}>
-        <h3 className="font-serif text-base text-foreground mb-4">Cobertura por secção</h3>
-        <div className="space-y-4">
-          {data.cobertura.map((c, i) => {
-            const barPct = Math.round((c.score / 3) * 100);
-            const barColor =
-              c.score === 3 ? "bg-emerald-500" :
-              c.score === 2 ? "bg-amber-400" :
-              c.score === 1 ? "bg-amber-500" : "bg-red-400";
-            const label = ["Ausente", "Fraco", "Parcial", "Coberto"][c.score];
-            const labelColor =
-              c.score === 3 ? "text-emerald-700 bg-emerald-50 border-emerald-200" :
-              c.score === 2 ? "text-amber-700 bg-amber-50 border-amber-200" :
-              c.score === 1 ? "text-amber-800 bg-amber-100 border-amber-300" :
-              "text-red-700 bg-red-50 border-red-200";
-
-            return (
-              <div key={i}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-sm font-medium text-foreground">{c.secao}</span>
-                  <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full border ${labelColor}`}>
-                    {label}
-                  </span>
-                </div>
-                <div className="h-2.5 w-full overflow-hidden rounded-full bg-paper-deep">
-                  <div
-                    className={`h-full rounded-full ${barColor} transition-all duration-700 ease-out`}
-                    style={{ width: `${barPct}%`, animation: "result-bar-fill 0.8s ease-out" }}
-                  />
-                </div>
-                {c.presentes.length > 0 && (
-                  <div className="mt-2 text-xs">
-                    <span className="flex items-center gap-1 text-emerald-700">
-                      <CheckCircle2 className="h-3 w-3" />
-                      {c.presentes.join(" · ")}
-                    </span>
-                  </div>
-                )}
-                {c.emFalta.length > 0 && (
-                  <div className="mt-2 space-y-1.5">
-                    {c.emFalta.map((gap, gi) => (
-                      <GapItem key={gi} gap={gap} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Keywords */}
-      <div className="animate-result-fade-up grid gap-4 sm:grid-cols-2" style={{ animationDelay: "0.3s" }}>
-        <div className="rounded-xl border border-navy-rule bg-card p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Keywords encontradas
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {data.keywords.presentes.length === 0
-              ? <span className="text-sm text-muted-foreground">Nenhuma keyword identificada</span>
-              : data.keywords.presentes.map((k, i) => (
-                  <span key={i} className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800">
-                    {k}
-                  </span>
-                ))
-            }
-          </div>
-        </div>
-        <div className="rounded-xl border border-navy-rule bg-card p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle className="h-4 w-4 text-amber-500" />
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Keywords em falta
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {data.keywords.emFalta.length === 0
-              ? <span className="text-sm text-muted-foreground">Nenhuma keyword em falta</span>
-              : data.keywords.emFalta.map((k, i) => (
-                  <span key={i} className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">
-                    {k}
-                  </span>
-                ))
-            }
-          </div>
-        </div>
-      </div>
-
-      {/* Plano de acção agrupado por tipo */}
-      <GapActionPlan cobertura={data.cobertura} />
-    </div>
-  );
-}
-
-/* ── Gap items e plano de acção ── */
-
-const GAP_CONFIG: Record<GapType, { label: string; color: string; borderColor: string; bgColor: string; icon: typeof CheckCircle2 }> = {
-  tem_nao_mostrou: {
-    label: "Tens — falta destacar",
-    color: "text-blue-700",
-    borderColor: "border-blue-200",
-    bgColor: "bg-blue-50",
-    icon: CheckCircle2,
-  },
-  parcial_transferivel: {
-    label: "Experiência adjacente",
-    color: "text-amber-700",
-    borderColor: "border-amber-200",
-    bgColor: "bg-amber-50",
-    icon: ArrowRight,
-  },
-  lacuna_real: {
-    label: "Lacuna real",
-    color: "text-red-700",
-    borderColor: "border-red-200",
-    bgColor: "bg-red-50",
-    icon: XCircle,
-  },
-};
-
-function GapItem({ gap }: { gap: GapDetail }) {
-  const cfg = GAP_CONFIG[gap.tipo];
-  const Icon = cfg.icon;
-
-  return (
-    <div className={`flex items-start gap-2 rounded-md border ${cfg.borderColor} ${cfg.bgColor} px-2.5 py-1.5 text-xs`}>
-      <Icon className={`h-3.5 w-3.5 shrink-0 mt-0.5 ${cfg.color}`} />
-      <div className="min-w-0">
-        <span className={`font-medium ${cfg.color}`}>{gap.requisito}</span>
-        <span className={`ml-1.5 inline-flex items-center rounded px-1 py-px text-[10px] font-medium ${cfg.color} ${cfg.bgColor} border ${cfg.borderColor}`}>
-          {cfg.label}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function GapActionPlan({ cobertura }: { cobertura: CoverageAnalysis["cobertura"] }) {
-  const allGaps = cobertura.flatMap((c) =>
-    c.emFalta.map((gap) => ({ ...gap, secao: c.secao })),
-  );
-
-  if (allGaps.length === 0) return null;
-
-  const grouped: Record<GapType, typeof allGaps> = {
-    tem_nao_mostrou: allGaps.filter((g) => g.tipo === "tem_nao_mostrou"),
-    parcial_transferivel: allGaps.filter((g) => g.tipo === "parcial_transferivel"),
-    lacuna_real: allGaps.filter((g) => g.tipo === "lacuna_real"),
-  };
-
-  const sections: { tipo: GapType; title: string; subtitle: string; icon: typeof Lightbulb; items: typeof allGaps }[] = [
-    {
-      tipo: "tem_nao_mostrou",
-      title: "Reformula o que já tens",
-      subtitle: "O teu CV tem evidência — só precisa de ser destacada",
-      icon: CheckCircle2,
-      items: grouped.tem_nao_mostrou,
-    },
-    {
-      tipo: "parcial_transferivel",
-      title: "Recontextualiza experiência adjacente",
-      subtitle: "Tens experiência relacionada que pode ser reposicionada",
-      icon: ArrowRight,
-      items: grouped.parcial_transferivel,
-    },
-    {
-      tipo: "lacuna_real",
-      title: "Lacunas reais — vias legítimas",
-      subtitle: "Sem evidência no CV — não adiciones o que não existe",
-      icon: ShieldAlert,
-      items: grouped.lacuna_real,
-    },
-  ];
-
-  return (
-    <div className="animate-result-fade-up space-y-4" style={{ animationDelay: "0.4s" }}>
-      {sections
-        .filter((s) => s.items.length > 0)
-        .map((s) => {
-          const cfg = GAP_CONFIG[s.tipo];
-          return (
-            <div key={s.tipo} className={`rounded-xl border ${cfg.borderColor} p-5`}>
-              <div className="flex items-center gap-2.5 mb-3">
-                <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${cfg.bgColor}`}>
-                  <s.icon className={`h-4 w-4 ${cfg.color}`} />
-                </div>
-                <div>
-                  <h3 className="font-serif text-base text-foreground">{s.title}</h3>
-                  <p className="text-xs text-muted-foreground">{s.subtitle}</p>
-                </div>
-              </div>
-              <div className="space-y-2.5">
-                {s.items.map((gap, i) => (
-                  <div key={i} className={`rounded-lg ${cfg.bgColor}/60 border ${cfg.borderColor}/60 p-3`}>
-                    <p className="text-sm font-medium text-foreground">
-                      <span className="text-muted-foreground">{gap.secao} →</span> {gap.requisito}
-                    </p>
-                    <p className="mt-1.5 text-sm text-ink-soft flex items-start gap-1.5">
-                      <Lightbulb className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
-                      {gap.accao_sugerida}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-    </div>
   );
 }
 
@@ -1371,7 +315,10 @@ function CvMockup({
           </p>
           <div className="flex items-center gap-2 mt-[3px]">
             <span className="text-[5px] text-gray-400 flex items-center gap-[2px]">
-              <span className="inline-block w-[4px] h-[4px] rounded-full" style={{ backgroundColor: `${sidebarColor}40` }} />
+              <span
+                className="inline-block w-[4px] h-[4px] rounded-full"
+                style={{ backgroundColor: `${sidebarColor}40` }}
+              />
               {email}
             </span>
             <span className="text-[5px] text-gray-400">{location}</span>
@@ -1381,7 +328,10 @@ function CvMockup({
         <div className="w-full h-[1px] my-1.5" style={{ backgroundColor: `${sidebarColor}20` }} />
 
         <div>
-          <p className="text-[5.5px] font-bold uppercase tracking-[0.12em]" style={{ color: sidebarColor }}>
+          <p
+            className="text-[5.5px] font-bold uppercase tracking-[0.12em]"
+            style={{ color: sidebarColor }}
+          >
             Resumo Profissional
           </p>
           <div className="mt-1 space-y-[2.5px]">
@@ -1393,7 +343,10 @@ function CvMockup({
         </div>
 
         <div className="mt-2">
-          <p className="text-[5.5px] font-bold uppercase tracking-[0.12em]" style={{ color: sidebarColor }}>
+          <p
+            className="text-[5.5px] font-bold uppercase tracking-[0.12em]"
+            style={{ color: sidebarColor }}
+          >
             Experiência Profissional
           </p>
           <div className="mt-1 space-y-1.5">
@@ -1431,34 +384,53 @@ function CvMockup({
         </div>
 
         <div className="mt-2">
-          <p className="text-[5.5px] font-bold uppercase tracking-[0.12em]" style={{ color: sidebarColor }}>
+          <p
+            className="text-[5.5px] font-bold uppercase tracking-[0.12em]"
+            style={{ color: sidebarColor }}
+          >
             Formação Académica
           </p>
           <div className="mt-1 space-y-1">
             <div>
               <div className="flex items-center justify-between">
                 <p className="text-[5.5px] font-semibold text-gray-600">
-                  {variant === 1 ? "Mestrado em Gestão" : variant === 2 ? "Mestrado em Estatística" : "Licenciatura em RI"}
+                  {variant === 1
+                    ? "Mestrado em Gestão"
+                    : variant === 2
+                    ? "Mestrado em Estatística"
+                    : "Licenciatura em RI"}
                 </p>
                 <p className="text-[4.5px] text-gray-400">
                   {variant === 1 ? "2014" : variant === 2 ? "2016" : "2015"}
                 </p>
               </div>
               <p className="text-[4.5px] text-gray-400">
-                {variant === 1 ? "Universidade Eduardo Mondlane" : variant === 2 ? "Universidade Pedagógica" : "ISCTEM"}
+                {variant === 1
+                  ? "Universidade Eduardo Mondlane"
+                  : variant === 2
+                  ? "Universidade Pedagógica"
+                  : "ISCTEM"}
               </p>
             </div>
             <div>
               <div className="flex items-center justify-between">
                 <p className="text-[5.5px] font-semibold text-gray-600">
-                  {variant === 1 ? "Licenciatura em Economia" : variant === 2 ? "Lic. Matemática Aplicada" : "Cert. Gestão de Projectos"}
+                  {variant === 1
+                    ? "Licenciatura em Economia"
+                    : variant === 2
+                    ? "Lic. Matemática Aplicada"
+                    : "Cert. Gestão de Projectos"}
                 </p>
                 <p className="text-[4.5px] text-gray-400">
                   {variant === 1 ? "2011" : variant === 2 ? "2012" : "2017"}
                 </p>
               </div>
               <p className="text-[4.5px] text-gray-400">
-                {variant === 1 ? "UEM — Faculdade de Economia" : variant === 2 ? "Universidade Lúrio" : "PMI / Online"}
+                {variant === 1
+                  ? "UEM — Faculdade de Economia"
+                  : variant === 2
+                  ? "Universidade Lúrio"
+                  : "PMI / Online"}
               </p>
             </div>
           </div>
@@ -1470,7 +442,9 @@ function CvMockup({
               <div
                 key={i}
                 className="flex-1 h-[4px] rounded-full"
-                style={{ backgroundColor: `${sidebarColor}${i === 0 ? "30" : i === 1 ? "20" : "15"}` }}
+                style={{
+                  backgroundColor: `${sidebarColor}${i === 0 ? "30" : i === 1 ? "20" : "15"}`,
+                }}
               />
             ))}
           </div>
@@ -1513,7 +487,8 @@ function AcaoCard({ acao, onClick }: { acao: Acao; onClick: (id: string) => void
       </div>
 
       <div className="relative flex-1 min-w-0">
-        <h3 className="font-serif text-base leading-snug text-foreground group-hover:text-[var(--hover-color)] transition-colors duration-300"
+        <h3
+          className="font-serif text-base leading-snug text-foreground group-hover:text-[var(--hover-color)] transition-colors duration-300"
           style={{ "--hover-color": acao.color } as React.CSSProperties}
         >
           {acao.titulo}
@@ -1521,9 +496,7 @@ function AcaoCard({ acao, onClick }: { acao: Acao; onClick: (id: string) => void
         <p className="mt-1 text-sm text-ink-soft leading-relaxed">{acao.descricao}</p>
       </div>
 
-      <div
-        className="relative mt-2.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all duration-300 group-hover:translate-x-1"
-      >
+      <div className="relative mt-2.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all duration-300 group-hover:translate-x-1">
         <div
           className="absolute inset-0 rounded-full opacity-0 transition-opacity duration-300 group-hover:opacity-100"
           style={{ backgroundColor: `${acao.color}12` }}

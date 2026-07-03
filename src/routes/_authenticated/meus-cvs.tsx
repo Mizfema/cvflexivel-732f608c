@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
+import { FileText, Plus } from "lucide-react";
 import { listCvs, deleteCv, duplicateCv } from "@/lib/cvs.functions";
 import { Button } from "@/components/ui/button";
 
@@ -83,8 +84,9 @@ function MeusCvsPage() {
         </div>
         <Link
           to="/editor"
-          className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-navy-deep"
+          className="inline-flex items-center gap-2 rounded-[10px] bg-[#1b1b19] px-4 py-2 text-sm font-medium text-[#F1EFE8] transition-opacity hover:opacity-90"
         >
+          <Plus className="h-4 w-4" />
           Novo CV
         </Link>
       </header>
@@ -100,15 +102,22 @@ function MeusCvsPage() {
           A carregar…
         </div>
       ) : rows.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-navy-rule p-12 text-center">
-          <p className="text-sm text-muted-foreground">
-            Ainda não tens CVs guardados.
+        <div className="flex flex-col items-center rounded-2xl border border-dashed border-[#E3DFD7] bg-[#FBFAF7] px-6 py-16 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-[#1b1b19]/6">
+            <FileText className="h-7 w-7 text-[#5F5E5A]" strokeWidth={1.5} />
+          </div>
+          <h2 className="mt-5 font-serif text-xl text-[#2C2C2A]">
+            Ainda não tens CVs guardados
+          </h2>
+          <p className="mt-2 max-w-xs text-[13px] leading-relaxed text-[#5F5E5A]">
+            Cria o teu primeiro CV e guarda-o na tua conta para poderes retomar a qualquer momento.
           </p>
           <Link
             to="/editor"
-            className="mt-4 inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-navy-deep"
+            className="mt-6 inline-flex items-center gap-2 rounded-[10px] bg-[#1b1b19] px-5 py-2.5 text-sm font-medium text-[#F1EFE8] transition-opacity hover:opacity-90"
           >
-            Criar o primeiro
+            <Plus className="h-4 w-4" />
+            Criar o primeiro CV
           </Link>
         </div>
       ) : (
@@ -135,7 +144,7 @@ function MeusCvsPage() {
                 <Link
                   to="/editor"
                   search={{ id: cv.id }}
-                  className="inline-flex items-center justify-center rounded-md border border-navy-rule bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface"
+                  className="inline-flex items-center justify-center rounded-[10px] border border-navy-rule bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface"
                 >
                   Abrir
                 </Link>

@@ -10,16 +10,24 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VagasRouteImport } from './routes/vagas'
+import { Route as PrepararEntrevistaRouteImport } from './routes/preparar-entrevista'
 import { Route as EditorRouteImport } from './routes/editor'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AnaliseRouteImport } from './routes/analise'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedMeusCvsRouteImport } from './routes/_authenticated/meus-cvs'
+import { Route as AuthenticatedEntrevistasRouteImport } from './routes/_authenticated/entrevistas'
+import { Route as AuthenticatedCartasRouteImport } from './routes/_authenticated/cartas'
 
 const VagasRoute = VagasRouteImport.update({
   id: '/vagas',
   path: '/vagas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrepararEntrevistaRoute = PrepararEntrevistaRouteImport.update({
+  id: '/preparar-entrevista',
+  path: '/preparar-entrevista',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EditorRoute = EditorRouteImport.update({
@@ -51,13 +59,27 @@ const AuthenticatedMeusCvsRoute = AuthenticatedMeusCvsRouteImport.update({
   path: '/meus-cvs',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedEntrevistasRoute =
+  AuthenticatedEntrevistasRouteImport.update({
+    id: '/entrevistas',
+    path: '/entrevistas',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedCartasRoute = AuthenticatedCartasRouteImport.update({
+  id: '/cartas',
+  path: '/cartas',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/analise': typeof AnaliseRoute
   '/auth': typeof AuthRoute
   '/editor': typeof EditorRoute
+  '/preparar-entrevista': typeof PrepararEntrevistaRoute
   '/vagas': typeof VagasRoute
+  '/cartas': typeof AuthenticatedCartasRoute
+  '/entrevistas': typeof AuthenticatedEntrevistasRoute
   '/meus-cvs': typeof AuthenticatedMeusCvsRoute
 }
 export interface FileRoutesByTo {
@@ -65,7 +87,10 @@ export interface FileRoutesByTo {
   '/analise': typeof AnaliseRoute
   '/auth': typeof AuthRoute
   '/editor': typeof EditorRoute
+  '/preparar-entrevista': typeof PrepararEntrevistaRoute
   '/vagas': typeof VagasRoute
+  '/cartas': typeof AuthenticatedCartasRoute
+  '/entrevistas': typeof AuthenticatedEntrevistasRoute
   '/meus-cvs': typeof AuthenticatedMeusCvsRoute
 }
 export interface FileRoutesById {
@@ -75,14 +100,35 @@ export interface FileRoutesById {
   '/analise': typeof AnaliseRoute
   '/auth': typeof AuthRoute
   '/editor': typeof EditorRoute
+  '/preparar-entrevista': typeof PrepararEntrevistaRoute
   '/vagas': typeof VagasRoute
+  '/_authenticated/cartas': typeof AuthenticatedCartasRoute
+  '/_authenticated/entrevistas': typeof AuthenticatedEntrevistasRoute
   '/_authenticated/meus-cvs': typeof AuthenticatedMeusCvsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/analise' | '/auth' | '/editor' | '/vagas' | '/meus-cvs'
+  fullPaths:
+    | '/'
+    | '/analise'
+    | '/auth'
+    | '/editor'
+    | '/preparar-entrevista'
+    | '/vagas'
+    | '/cartas'
+    | '/entrevistas'
+    | '/meus-cvs'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/analise' | '/auth' | '/editor' | '/vagas' | '/meus-cvs'
+  to:
+    | '/'
+    | '/analise'
+    | '/auth'
+    | '/editor'
+    | '/preparar-entrevista'
+    | '/vagas'
+    | '/cartas'
+    | '/entrevistas'
+    | '/meus-cvs'
   id:
     | '__root__'
     | '/'
@@ -90,7 +136,10 @@ export interface FileRouteTypes {
     | '/analise'
     | '/auth'
     | '/editor'
+    | '/preparar-entrevista'
     | '/vagas'
+    | '/_authenticated/cartas'
+    | '/_authenticated/entrevistas'
     | '/_authenticated/meus-cvs'
   fileRoutesById: FileRoutesById
 }
@@ -100,6 +149,7 @@ export interface RootRouteChildren {
   AnaliseRoute: typeof AnaliseRoute
   AuthRoute: typeof AuthRoute
   EditorRoute: typeof EditorRoute
+  PrepararEntrevistaRoute: typeof PrepararEntrevistaRoute
   VagasRoute: typeof VagasRoute
 }
 
@@ -110,6 +160,13 @@ declare module '@tanstack/react-router' {
       path: '/vagas'
       fullPath: '/vagas'
       preLoaderRoute: typeof VagasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/preparar-entrevista': {
+      id: '/preparar-entrevista'
+      path: '/preparar-entrevista'
+      fullPath: '/preparar-entrevista'
+      preLoaderRoute: typeof PrepararEntrevistaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/editor': {
@@ -154,14 +211,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMeusCvsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/entrevistas': {
+      id: '/_authenticated/entrevistas'
+      path: '/entrevistas'
+      fullPath: '/entrevistas'
+      preLoaderRoute: typeof AuthenticatedEntrevistasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/cartas': {
+      id: '/_authenticated/cartas'
+      path: '/cartas'
+      fullPath: '/cartas'
+      preLoaderRoute: typeof AuthenticatedCartasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedCartasRoute: typeof AuthenticatedCartasRoute
+  AuthenticatedEntrevistasRoute: typeof AuthenticatedEntrevistasRoute
   AuthenticatedMeusCvsRoute: typeof AuthenticatedMeusCvsRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedCartasRoute: AuthenticatedCartasRoute,
+  AuthenticatedEntrevistasRoute: AuthenticatedEntrevistasRoute,
   AuthenticatedMeusCvsRoute: AuthenticatedMeusCvsRoute,
 }
 
@@ -174,8 +249,19 @@ const rootRouteChildren: RootRouteChildren = {
   AnaliseRoute: AnaliseRoute,
   AuthRoute: AuthRoute,
   EditorRoute: EditorRoute,
+  PrepararEntrevistaRoute: PrepararEntrevistaRoute,
   VagasRoute: VagasRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

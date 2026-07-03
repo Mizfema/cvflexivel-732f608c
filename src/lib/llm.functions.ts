@@ -4,6 +4,7 @@ import { z } from "zod";
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
 import type { CvDraft, CvSections, AlignmentResult } from "./cv-types";
 import type { CoverageAnalysis } from "./coverage-types";
+import type { InterviewQuestion } from "./interview-types";
 
 const inputSchema = z.object({
   cv: z.any(),
@@ -563,6 +564,151 @@ export const alignCvToTdr = createServerFn({ method: "POST" })
       if (msg.includes("402"))
         throw new Error("Créditos de AI esgotados nesta workspace.");
       throw new Error(`Falha ao alinhar CV: ${msg}`);
+    }
+  });
+
+// =================== Preparação de entrevista ===================
+
+const interviewCategorias = [
+  "comportamental",
+  "tecnica",
+  "sobre_empresa",
+  "eliminatoria",
+] as const;
+
+const interviewPrepInputSchema = z.object({
+  jobTdr: z.string().min(20, "Cola um TdR mais detalhado."),
+  coverLetter: z.string().min(10, "Cola a tua carta de apresentação."),
+  cv: z.string().min(20, "Cola ou carrega um CV mais completo."),
+});
+
+const interviewPrepOutputSchema = z.object({
+  perguntas: z.array(
+    z.object({
+      categoria: z.enum(interviewCategorias),
+      pergunta: z.string(),
+      resposta_sugerida: z.string(),
+    }),
+  ),
+});
+
+const INTERVIEW_PREP_SYSTEM = `És um coach de entrevistas especializado em ONGs, desenvolvimento, consultoria e administração pública em Moçambique e PALOP. Com base nos Termos de Referência (TdR) de uma vaga, na carta de apresentação e no CV de um candidato, preparas uma simulação de entrevista completa e específica para aquela vaga.
+
+Regra absoluta e não negociável — ZERO INVENÇÃO:
+- As respostas sugeridas têm de estar ancoradas ESTRITAMENTE no conteúdo do CV e da carta fornecidos.
+- NUNCA inventes experiências, empregos, números, resultados ou conquistas que não estejam nos documentos.
+- Quando não houver evidência no CV ou na carta para responder bem a uma pergunta, a resposta sugerida deve dizer isso explicitamente — por exemplo: "Não há no teu CV elemento que suporte isto — considera preparar um exemplo real de [algo relevante]." NUNCA fabriques um exemplo para preencher essa lacuna.
+- Todas as "resposta_sugerida" são sugestões de discurso para o candidato preparar e adaptar por palavras próprias — nunca as apresentes como factos objectivos.
+
+Outras regras:
+- Responde sempre em PORTUGUÊS EUROPEU (PT-PT).
+- Gera entre 8 e 12 perguntas no total, distribuídas pelas 4 categorias.
+- "comportamental": perguntas sobre competências comportamentais e situações passadas (estilo STAR).
+- "tecnica": conhecimento técnico, metodologias e ferramentas exigidas no TdR.
+- "sobre_empresa": motivação, conhecimento da organização/sector, "porquê esta vaga/organização".
+- "eliminatoria": perguntas-filtro sobre requisitos obrigatórios do TdR (ex: anos mínimos de experiência, disponibilidade, idiomas, certificações exigidas).
+- Cada pergunta deve ser específica a esta vaga (usa terminologia do TdR), nunca genérica.
+- Quando houver evidência real, estrutura a "resposta_sugerida" pelo método STAR (Situação, Tarefa, Acção, Resultado) com factos do candidato.`;
+
+const MOCK_INTERVIEW_QUESTIONS: InterviewQuestion[] = [
+  {
+    categoria: "comportamental",
+    pergunta: "⚠️ MOCK — Fala-me de uma situação em que tiveste de gerir uma equipa sob pressão de prazo.",
+    resposta_sugerida:
+      "⚠️ MOCK (sem LOVABLE_API_KEY) — Sugestão de discurso: estrutura pelo método STAR usando um exemplo real de coordenação de equipa que conste no teu CV.",
+  },
+  {
+    categoria: "comportamental",
+    pergunta: "⚠️ MOCK — Descreve um conflito que tiveste com um colega ou parceiro e como o resolveste.",
+    resposta_sugerida:
+      "⚠️ MOCK (sem LOVABLE_API_KEY) — Não há no teu CV elemento que suporte isto — considera preparar um exemplo real de resolução de conflito antes da entrevista.",
+  },
+  {
+    categoria: "comportamental",
+    pergunta: "⚠️ MOCK — Dá um exemplo de uma decisão difícil que tomaste sem supervisão directa.",
+    resposta_sugerida:
+      "⚠️ MOCK (sem LOVABLE_API_KEY) — Sugestão de discurso: ancora num projecto do teu CV em que tiveste autonomia de decisão.",
+  },
+  {
+    categoria: "tecnica",
+    pergunta: "⚠️ MOCK — Que ferramentas usas para monitoria e avaliação de projectos?",
+    resposta_sugerida:
+      "⚠️ MOCK (sem LOVABLE_API_KEY) — Sugestão de discurso: menciona apenas as ferramentas que já usaste, tal como constam no teu CV.",
+  },
+  {
+    categoria: "tecnica",
+    pergunta: "⚠️ MOCK — Como estruturas um relatório para um doador institucional?",
+    resposta_sugerida:
+      "⚠️ MOCK (sem LOVABLE_API_KEY) — Sugestão de discurso: descreve o processo real que seguiste em experiências anteriores de reporte a doadores.",
+  },
+  {
+    categoria: "tecnica",
+    pergunta: "⚠️ MOCK — Que metodologia usaste para gestão de orçamento de projecto?",
+    resposta_sugerida:
+      "⚠️ MOCK (sem LOVABLE_API_KEY) — Não há no teu CV elemento que suporte isto — considera preparar um exemplo real de gestão orçamental.",
+  },
+  {
+    categoria: "sobre_empresa",
+    pergunta: "⚠️ MOCK — Porque queres trabalhar nesta organização especificamente?",
+    resposta_sugerida:
+      "⚠️ MOCK (sem LOVABLE_API_KEY) — Sugestão de discurso: liga a missão da organização a valores ou experiência já presentes no teu percurso.",
+  },
+  {
+    categoria: "sobre_empresa",
+    pergunta: "⚠️ MOCK — O que sabes sobre o sector em que esta organização actua?",
+    resposta_sugerida:
+      "⚠️ MOCK (sem LOVABLE_API_KEY) — Sugestão de discurso: relaciona o teu conhecimento do sector com experiência concreta do teu CV.",
+  },
+  {
+    categoria: "eliminatoria",
+    pergunta: "⚠️ MOCK — Cumpres o requisito mínimo de anos de experiência exigido no TdR?",
+    resposta_sugerida:
+      "⚠️ MOCK (sem LOVABLE_API_KEY) — Sugestão de discurso: confirma o número de anos com base nas datas reais do teu CV; se não cumprires, sê honesto e destaca experiência adjacente.",
+  },
+  {
+    categoria: "eliminatoria",
+    pergunta: "⚠️ MOCK — Tens disponibilidade para viajar ou mudar de localização, conforme exigido no TdR?",
+    resposta_sugerida:
+      "⚠️ MOCK (sem LOVABLE_API_KEY) — Não há no teu CV elemento que suporte isto — confirma a tua disponibilidade real antes da entrevista.",
+  },
+];
+
+export const generateInterviewPrep = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => interviewPrepInputSchema.parse(input))
+  .handler(async ({ data }): Promise<InterviewQuestion[]> => {
+    if (!process.env.LOVABLE_API_KEY) {
+      console.warn("MOCK: LOVABLE_API_KEY ausente, a devolver preparação de entrevista simulada");
+      return MOCK_INTERVIEW_QUESTIONS;
+    }
+
+    const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY);
+
+    const prompt = `## Termos de Referência da vaga\n${data.jobTdr}\n\n## Carta de apresentação do candidato\n${data.coverLetter}\n\n## CV do candidato\n${data.cv}\n\nGera uma simulação de entrevista específica para esta vaga. Responde APENAS com um objecto JSON válido (sem markdown, sem comentários, sem texto antes ou depois) com esta forma exacta:\n{\n  "perguntas": [{ "categoria": "comportamental"|"tecnica"|"sobre_empresa"|"eliminatoria", "pergunta": string, "resposta_sugerida": string }]\n}`;
+
+    const callOnce = async () => {
+      const { text } = await generateText({
+        model: gateway("google/gemini-3-flash-preview"),
+        system: INTERVIEW_PREP_SYSTEM,
+        prompt,
+      });
+      const json = extractJson(text);
+      return interviewPrepOutputSchema.parse(json).perguntas;
+    };
+
+    try {
+      try {
+        return await callOnce();
+      } catch (e) {
+        console.warn("generateInterviewPrep: 1ª tentativa falhou, a repetir.", e);
+        return await callOnce();
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("429"))
+        throw new Error("Limite de pedidos atingido. Tenta de novo dentro de 1 minuto.");
+      if (msg.includes("402"))
+        throw new Error("Créditos de AI esgotados nesta workspace. Adiciona créditos para continuar.");
+      throw new Error(`Falha a gerar preparação de entrevista: ${msg}`);
     }
   });
 
