@@ -300,22 +300,85 @@
   animation: msg-swap 3.5s ease-in-out both;
 }
 
-/* ============ Impressão / PDF ============
- * Quando o utilizador exporta para PDF, escondemos toda a UI excepto a
- * pré-visualização do CV (marcada com data-cv-print).
+/* ============ Rich text (campos longos do CV: resumo, descrições) ============
+ * Partilhado entre o editor TipTap (RichTextField) e a pré-visualização (CvPreview).
  */
+.prose-cv p {
+  margin: 0;
+}
+.prose-cv p + p {
+  margin-top: 0.4em;
+}
+.prose-cv ul,
+.prose-cv ol {
+  margin: 0.3em 0;
+  padding-left: 1.25em;
+}
+.prose-cv ul {
+  list-style: disc;
+}
+.prose-cv ol {
+  list-style: decimal;
+}
+.prose-cv li + li {
+  margin-top: 0.15em;
+}
+.prose-cv li::marker {
+  color: var(--cv-accent-soft, currentColor);
+}
+
+/* ============ Impressão / PDF ============
+ * O botão "Exportar > PDF" (cv-export.ts) e o Ctrl+P nativo imprimem a
+ * partir de #cv-print-root: uma árvore dedicada, sem transform/scale,
+ * montada via React Portal directamente no <body> (CvPagedPreview) só
+ * enquanto a impressão está activa. Por viver fora da hierarquia normal
+ * da app, não sofre com overflow/altura de ancestrais (o painel sticky
+ * da preview no /editor) nem herda nenhum transform de escala para
+ * desfazer — a versão em ecrã e a versão de impressão são árvores
+ * separadas.
+ */
+#cv-print-root {
+  display: none;
+}
+
 @media print {
-  @page { size: A4; margin: 14mm; }
+  @page { size: A4; margin: 0; }
+
+  html, body {
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
   body { background: white !important; }
-  body * { visibility: hidden !important; }
-  [data-cv-print], [data-cv-print] * { visibility: visible !important; }
-  [data-cv-print] {
-    position: absolute !important;
-    inset: 0 !important;
+
+  /* Esconde tudo o resto (sidebar da app, header, formulário, toolbar) —
+   * #cv-print-root é o único outro filho directo do <body> (o resto da
+   * app vive dentro de um único div de topo), por isso este seletor
+   * chega sem ter de listar cada elemento nem forçar display:block em
+   * conteúdo interno (que partiria flex/inline). */
+  body > :not(#cv-print-root) {
+    display: none !important;
+  }
+
+  #cv-print-root {
+    display: block !important;
+  }
+
+  .cv-print-page {
+    width: 210mm !important;
+    min-height: 297mm !important;
     margin: 0 !important;
     box-shadow: none !important;
-    max-width: none !important;
-    width: 100% !important;
+    border-radius: 0 !important;
+    break-after: page;
+    break-inside: avoid;
+  }
+  .cv-print-page:last-child {
+    break-after: auto;
+  }
+
+  [data-cv-page-badge],
+  [data-cv-overflow-badge] {
+    display: none !important;
   }
 }
 

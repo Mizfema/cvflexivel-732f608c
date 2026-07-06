@@ -10,6 +10,7 @@ import {
 import FileSaver from "file-saver";
 const { saveAs } = FileSaver;
 import type { CvDraft } from "./cv-types";
+import { toSafeHtml } from "./rich-text";
 
 function fmtPeriodo(inicio?: string, fim?: string) {
   if (!inicio && !fim) return "";
@@ -36,13 +37,6 @@ function sectionHeading(title: string) {
   });
 }
 
-function bullet(text: string) {
-  return new Paragraph({
-    numbering: { reference: "bullets", level: 0 },
-    children: [new TextRun({ text, size: 22 })],
-  });
-}
-
 function para(text: string, opts?: { bold?: boolean; size?: number }) {
   return new Paragraph({
     spacing: { after: 60 },
@@ -50,6 +44,87 @@ function para(text: string, opts?: { bold?: boolean; size?: number }) {
       new TextRun({ text, bold: opts?.bold, size: opts?.size ?? 22 }),
     ],
   });
+}
+
+type Marks = { bold?: boolean; italics?: boolean; underline?: boolean };
+
+function textRunsFromNode(node: ChildNode, marks: Marks): TextRun[] {
+  if (node.nodeType === Node.TEXT_NODE) {
+    const text = node.textContent ?? "";
+    if (!text) return [];
+    return [
+      new TextRun({
+        text,
+        bold: marks.bold,
+        italics: marks.italics,
+        underline: marks.underline ? {} : undefined,
+        size: 22,
+      }),
+    ];
+  }
+  if (node.nodeType !== Node.ELEMENT_NODE) return [];
+  const el = node as Element;
+  const tag = el.tagName.toLowerCase();
+  if (tag === "br") return [new TextRun({ text: "", break: 1 })];
+
+  const nextMarks: Marks = {
+    bold: marks.bold || tag === "strong" || tag === "b",
+    italics: marks.italics || tag === "em" || tag === "i",
+    underline: marks.underline || tag === "u",
+  };
+  const runs: TextRun[] = [];
+  el.childNodes.forEach((child) => runs.push(...textRunsFromNode(child, nextMarks)));
+  return runs;
+}
+
+function alignmentFromStyle(el: Element) {
+  const style = el.getAttribute("style") ?? "";
+  const match = style.match(/text-align:\s*(left|center|right|justify)/i);
+  switch (match?.[1]?.toLowerCase()) {
+    case "center":
+      return AlignmentType.CENTER;
+    case "right":
+      return AlignmentType.RIGHT;
+    case "justify":
+      return AlignmentType.JUSTIFIED;
+    case "left":
+      return AlignmentType.LEFT;
+    default:
+      return undefined;
+  }
+}
+
+/** Converte o HTML restrito de um campo de CV (p, ul, ol, li, strong, em, u) em parágrafos docx. */
+function htmlToParagraphs(html: string | undefined): Paragraph[] {
+  const safe = toSafeHtml(html);
+  if (!safe) return [];
+  const doc = new DOMParser().parseFromString(`<body>${safe}</body>`, "text/html");
+  const paragraphs: Paragraph[] = [];
+
+  doc.body.childNodes.forEach((node) => {
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    const el = node as Element;
+    const tag = el.tagName.toLowerCase();
+
+    if (tag === "p") {
+      const runs = textRunsFromNode(el, {});
+      if (runs.length === 0) return;
+      paragraphs.push(
+        new Paragraph({ spacing: { after: 60 }, alignment: alignmentFromStyle(el), children: runs }),
+      );
+    } else if (tag === "ul" || tag === "ol") {
+      const reference = tag === "ul" ? "bullets" : "numbers";
+      Array.from(el.children)
+        .filter((child) => child.tagName === "LI")
+        .forEach((li) => {
+          const runs = textRunsFromNode(li, {});
+          if (runs.length === 0) return;
+          paragraphs.push(new Paragraph({ numbering: { reference, level: 0 }, children: runs }));
+        });
+    }
+  });
+
+  return paragraphs;
 }
 
 export async function exportCvDocx(draft: CvDraft) {
@@ -86,7 +161,7 @@ export async function exportCvDocx(draft: CvDraft) {
 
   if (perfil.resumo) {
     children.push(sectionHeading("Perfil"));
-    children.push(para(perfil.resumo));
+    children.push(...htmlToParagraphs(perfil.resumo));
   }
 
   if (experiencia.length) {
@@ -98,12 +173,7 @@ export async function exportCvDocx(draft: CvDraft) {
         .join(" · ");
       children.push(para(titulo, { bold: true }));
       if (meta) children.push(para(meta, { size: 20 }));
-      if (e.descricao) {
-        e.descricao
-          .split(/\n+/)
-          .filter(Boolean)
-          .forEach((line) => children.push(bullet(line.replace(/^[-•]\s*/, ""))));
-      }
+      children.push(...htmlToParagraphs(e.descricao));
     });
   }
 
@@ -119,7 +189,7 @@ export async function exportCvDocx(draft: CvDraft) {
         .filter(Boolean)
         .join(" · ");
       if (meta) children.push(para(meta, { size: 20 }));
-      if (f.descricao) children.push(para(f.descricao));
+      children.push(...htmlToParagraphs(f.descricao));
     });
   }
 
@@ -151,7 +221,7 @@ export async function exportCvDocx(draft: CvDraft) {
     sec.itens.forEach((it) => {
       children.push(para(it.titulo, { bold: true }));
       if (it.data) children.push(para(it.data, { size: 20 }));
-      if (it.descricao) children.push(para(it.descricao));
+      children.push(...htmlToParagraphs(it.descricao));
     });
   });
 
@@ -169,6 +239,18 @@ export async function exportCvDocx(draft: CvDraft) {
               level: 0,
               format: LevelFormat.BULLET,
               text: "•",
+              alignment: AlignmentType.LEFT,
+              style: { paragraph: { indent: { left: 360, hanging: 180 } } },
+            },
+          ],
+        },
+        {
+          reference: "numbers",
+          levels: [
+            {
+              level: 0,
+              format: LevelFormat.DECIMAL,
+              text: "%1.",
               alignment: AlignmentType.LEFT,
               style: { paragraph: { indent: { left: 360, hanging: 180 } } },
             },
@@ -193,10 +275,28 @@ export async function exportCvDocx(draft: CvDraft) {
   saveAs(blob, `${slugify(perfil.nome || draft.title)}.docx`);
 }
 
+function filenameSafeTitle(s: string) {
+  return s.replace(/[\\/:*?"<>|]/g, "").trim() || "CV";
+}
+
 /**
- * Exportar PDF via diálogo de impressão do navegador.
- * Funciona bem para CVs ATS porque o texto é seleccionável.
+ * Exportar PDF via diálogo de impressão do navegador (print CSS sobre as
+ * páginas reais em `.cv-print-page`, ver @media print em styles.css).
+ * Funciona bem para CVs ATS porque o texto é seleccionável. Client-side only.
  */
-export function exportCvPdf() {
+export async function exportCvPdf(draft: CvDraft) {
+  if (typeof window === "undefined") return;
+
+  await document.fonts.ready;
+
+  const previousTitle = document.title;
+  document.title = filenameSafeTitle(draft.sections.perfil.nome || draft.title);
+
+  const restoreTitle = () => {
+    document.title = previousTitle;
+    window.removeEventListener("afterprint", restoreTitle);
+  };
+  window.addEventListener("afterprint", restoreTitle);
+
   window.print();
 }

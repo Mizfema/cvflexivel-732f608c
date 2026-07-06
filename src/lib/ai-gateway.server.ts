@@ -88,7 +88,7 @@ const MOCK_CV_SECTIONS = {
     telefone: "+258 84 000 0000",
     cidade: "Maputo",
     pais: "Moçambique",
-    resumo: "⚠️ MOCK — CV gerado localmente sem IA. Profissional com experiência em gestão de projectos no setor de desenvolvimento.",
+    resumo: "<p>⚠️ MOCK — CV gerado localmente sem IA. Profissional com experiência em gestão de projectos no setor de desenvolvimento.</p>",
   },
   experiencia: [
     {
@@ -97,7 +97,7 @@ const MOCK_CV_SECTIONS = {
       local: "Maputo",
       inicio: "2020-01",
       fim: "atual",
-      descricao: "Coordenação de actividades de projecto e elaboração de relatórios.",
+      descricao: "<ul><li>Coordenação de actividades de projecto e elaboração de relatórios.</li></ul>",
     },
   ],
   formacao: [
@@ -190,8 +190,8 @@ function buildMockAlignment(userPrompt: string) {
       cidade,
       pais: "Moçambique",
       resumo:
-        `⚠️ MOCK (sem LOVABLE_API_KEY) — Este CV foi devolvido sem processamento IA. ` +
-        `${nome} com experiência em ${cargo.toLowerCase()} e formação em ${curso.toLowerCase()}.`,
+        `<p>⚠️ MOCK (sem LOVABLE_API_KEY) — Este CV foi devolvido sem processamento IA. ` +
+        `${nome} com experiência em ${cargo.toLowerCase()} e formação em ${curso.toLowerCase()}.</p>`,
     },
     experiencia: [
       {
@@ -201,8 +201,8 @@ function buildMockAlignment(userPrompt: string) {
         inicio: "2020-01",
         fim: "atual",
         descricao:
-          "Liderou a implementação de actividades programáticas; " +
-          "elaborou relatórios de monitoria para doadores institucionais.",
+          "<ul><li>Liderou a implementação de actividades programáticas</li>" +
+          "<li>Elaborou relatórios de monitoria para doadores institucionais</li></ul>",
       },
     ],
     formacao: [{ curso, instituicao: inst, inicio: "2014", fim: "2018" }],

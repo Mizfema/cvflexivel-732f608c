@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextField } from "@/components/ui/RichTextField";
 import {
   Select,
   SelectContent,
@@ -55,6 +55,7 @@ export function EditorForm({
           key={sec.id}
           sec={sec}
           update={update}
+          cvHeadline={draft.sections.perfil.headline}
         />
       ))}
       <AdicionarSecao update={update} />
@@ -189,11 +190,16 @@ function PerfilSection({ draft, update }: { draft: CvDraft; update: Updater }) {
         </Field>
         <div className="sm:col-span-2">
           <Field label="Resumo profissional">
-            <Textarea
-              rows={4}
+            <RichTextField
               value={p.resumo ?? ""}
-              onChange={(e) => set("resumo", e.target.value)}
+              onChange={(html) => set("resumo", html)}
               placeholder="2-4 frases que resumem o teu percurso, focando o que é relevante para o setor."
+              minHeight={110}
+              aiSuggestions={{
+                sectionType: "summary",
+                fieldContext: { cargo: p.headline || undefined },
+                cvHeadline: p.headline,
+              }}
             />
           </Field>
         </div>
@@ -211,6 +217,7 @@ function ExperienciaSection({
   update: Updater;
 }) {
   const items = draft.sections.experiencia;
+  const cvHeadline = draft.sections.perfil.headline;
   const setItems = (next: CvExperience[]) =>
     update((prev) => ({
       ...prev,
@@ -316,19 +323,26 @@ function ExperienciaSection({
               </div>
               <div className="sm:col-span-2">
                 <Field label="Descrição / responsabilidades">
-                  <Textarea
-                    rows={3}
+                  <RichTextField
                     value={it.descricao ?? ""}
-                    onChange={(e) =>
+                    onChange={(html) =>
                       setItems(
                         items.map((x) =>
-                          x.id === it.id
-                            ? { ...x, descricao: e.target.value }
-                            : x,
+                          x.id === it.id ? { ...x, descricao: html } : x,
                         ),
                       )
                     }
-                    placeholder="• Liderança de equipa de X pessoas&#10;• Resultado mensurável"
+                    placeholder="Liderança de equipa de X pessoas, resultado mensurável…"
+                    minHeight={90}
+                    aiSuggestions={{
+                      sectionType: "experience",
+                      fieldContext: {
+                        cargo: it.cargo || undefined,
+                        organizacao: it.organizacao || undefined,
+                        local: it.local || undefined,
+                      },
+                      cvHeadline,
+                    }}
                   />
                 </Field>
               </div>
@@ -357,6 +371,7 @@ function FormacaoSection({
   update: Updater;
 }) {
   const items = draft.sections.formacao;
+  const cvHeadline = draft.sections.perfil.headline;
   const setItems = (next: CvFormacao[]) =>
     update((prev) => ({
       ...prev,
@@ -443,18 +458,25 @@ function FormacaoSection({
               </Field>
               <div className="sm:col-span-2">
                 <Field label="Descrição">
-                  <Textarea
-                    rows={2}
+                  <RichTextField
                     value={it.descricao ?? ""}
-                    onChange={(e) =>
+                    onChange={(html) =>
                       setItems(
                         items.map((x) =>
-                          x.id === it.id
-                            ? { ...x, descricao: e.target.value }
-                            : x,
+                          x.id === it.id ? { ...x, descricao: html } : x,
                         ),
                       )
                     }
+                    minHeight={70}
+                    aiSuggestions={{
+                      sectionType: "education",
+                      fieldContext: {
+                        cargo: it.curso || undefined,
+                        organizacao: it.instituicao || undefined,
+                        local: it.local || undefined,
+                      },
+                      cvHeadline,
+                    }}
                   />
                 </Field>
               </div>
@@ -624,9 +646,11 @@ function IdiomasSection({ draft, update }: { draft: CvDraft; update: Updater }) 
 function ExtraSection({
   sec,
   update,
+  cvHeadline,
 }: {
   sec: CvSecaoExtra;
   update: Updater;
+  cvHeadline?: string;
 }) {
   const setSec = (next: CvSecaoExtra) =>
     update((prev) => ({
@@ -707,19 +731,25 @@ function ExtraSection({
               </Field>
               <div className="sm:col-span-2">
                 <Field label="Descrição">
-                  <Textarea
-                    rows={2}
+                  <RichTextField
                     value={it.descricao ?? ""}
-                    onChange={(e) =>
+                    onChange={(html) =>
                       setSec({
                         ...sec,
                         itens: sec.itens.map((x) =>
-                          x.id === it.id
-                            ? { ...x, descricao: e.target.value }
-                            : x,
+                          x.id === it.id ? { ...x, descricao: html } : x,
                         ),
                       })
                     }
+                    minHeight={70}
+                    aiSuggestions={{
+                      sectionType: "extra",
+                      fieldContext: {
+                        cargo: it.titulo || undefined,
+                        organizacao: sec.titulo || undefined,
+                      },
+                      cvHeadline,
+                    }}
                   />
                 </Field>
               </div>

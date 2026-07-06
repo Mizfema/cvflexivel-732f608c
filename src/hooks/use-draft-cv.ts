@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
-import { type CvDraft, EMPTY_CV } from '@/lib/cv-types';
+import { useCallback, useEffect, useState } from "react";
+import { type CvDraft, EMPTY_CV } from "@/lib/cv-types";
+import { normalizeCvDesign } from "@/lib/cv-design-presets";
 
-const DRAFT_KEY = 'cv-flexivel:draft';
+const DRAFT_KEY = "cv-flexivel:draft";
 
 function readDraft(): CvDraft {
-  if (typeof window === 'undefined') return EMPTY_CV;
+  if (typeof window === "undefined") return EMPTY_CV;
   try {
     const raw = window.localStorage.getItem(DRAFT_KEY);
     if (!raw) return EMPTY_CV;
@@ -13,7 +14,7 @@ function readDraft(): CvDraft {
       ...EMPTY_CV,
       ...parsed,
       sections: { ...EMPTY_CV.sections, ...(parsed.sections ?? {}) },
-      design: { ...EMPTY_CV.design, ...(parsed.design ?? {}) },
+      design: normalizeCvDesign(parsed.design),
     };
   } catch {
     return EMPTY_CV;
@@ -21,7 +22,7 @@ function readDraft(): CvDraft {
 }
 
 function writeDraft(draft: CvDraft) {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
   window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
 }
 
@@ -41,7 +42,7 @@ export function useDraftCv() {
 
   // Sincronizar entre tabs
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
     const onStorage = (e: StorageEvent) => {
       if (e.key === DRAFT_KEY && e.newValue) {
         try {
@@ -51,8 +52,8 @@ export function useDraftCv() {
         }
       }
     };
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   const update = useCallback((updater: (prev: CvDraft) => CvDraft) => {

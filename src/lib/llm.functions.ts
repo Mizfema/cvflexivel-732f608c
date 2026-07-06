@@ -5,6 +5,7 @@ import { createLovableAiGatewayProvider } from "./ai-gateway.server";
 import type { CvDraft, CvSections, AlignmentResult } from "./cv-types";
 import type { CoverageAnalysis } from "./coverage-types";
 import type { InterviewQuestion } from "./interview-types";
+import { htmlToPlainText, toSafeHtml } from "./rich-text";
 
 const inputSchema = z.object({
   cv: z.any(),
@@ -62,14 +63,14 @@ function cvToText(cv: CvDraft): string {
   const p = cv.sections.perfil;
   const lines: string[] = [];
   lines.push(`# ${p.nome || "Sem nome"} — ${p.headline || ""}`.trim());
-  if (p.resumo) lines.push(`\nResumo: ${p.resumo}`);
+  if (p.resumo) lines.push(`\nResumo: ${htmlToPlainText(p.resumo)}`);
   if (cv.sections.experiencia.length) {
     lines.push("\n## Experiência");
     cv.sections.experiencia.forEach((e) => {
       lines.push(
         `- ${e.cargo} · ${e.organizacao} (${e.inicio || ""}—${e.fim || ""}) ${e.local || ""}`,
       );
-      if (e.descricao) lines.push(`  ${e.descricao}`);
+      if (e.descricao) lines.push(`  ${htmlToPlainText(e.descricao)}`);
     });
   }
   if (cv.sections.formacao.length) {
@@ -95,7 +96,9 @@ function cvToText(cv: CvDraft): string {
   cv.sections.extras.forEach((sec) => {
     lines.push(`\n## ${sec.titulo}`);
     sec.itens.forEach((it) =>
-      lines.push(`- ${it.titulo}${it.descricao ? " — " + it.descricao : ""}`),
+      lines.push(
+        `- ${it.titulo}${it.descricao ? " — " + htmlToPlainText(it.descricao) : ""}`,
+      ),
     );
   });
   return lines.join("\n");
@@ -247,8 +250,9 @@ Regras absolutas:
 - Responde sempre em PORTUGUÊS EUROPEU (PT-PT).
 - NUNCA inventes experiência, datas, organizações, formação, certificações ou números. Se a pessoa não disse, deixa em branco.
 - Podes reformular, profissionalizar e estruturar — não podes acrescentar factos.
-- Para "descricao" das experiências, usa bullets curtos começando por verbos de ação (Coordenei, Implementei, Geri), só com informação que veio na entrevista.
-- "resumo" do perfil: 2-3 frases ancoradas estritamente no que foi dito.
+- Os campos "resumo" e "descricao" devem ser devolvidos em HTML restrito, usando APENAS estas tags: <p>, <ul>, <li>, <strong>, <em>, <u>. Nunca uses markdown, nunca uses outras tags (sem <br>, sem atributos, sem classes).
+- Para "descricao" das experiências, usa uma lista <ul><li> com bullets curtos começando por verbos de ação (Coordenei, Implementei, Geri), só com informação que veio na entrevista. Ex.: "<ul><li>Coordenei equipa de 5 pessoas</li></ul>".
+- "resumo" do perfil: 2-3 frases ancoradas estritamente no que foi dito, dentro de um único <p>.
 - Se o utilizador deu nome, contactos, cidade, usa-os tal e qual.
 - Se houve TdR, prioriza realçar competências/experiências da pessoa que se cruzam com o TdR — sem fabricar.`;
 
@@ -275,7 +279,21 @@ export const generateCvFromInterview = createServerFn({ method: "POST" })
         prompt,
         experimental_output: Output.object({ schema: cvDraftSectionsSchema }),
       });
-      return experimental_output;
+      return {
+        ...experimental_output,
+        perfil: {
+          ...experimental_output.perfil,
+          resumo: toSafeHtml(experimental_output.perfil.resumo),
+        },
+        experiencia: experimental_output.experiencia.map((e) => ({
+          ...e,
+          descricao: toSafeHtml(e.descricao),
+        })),
+        formacao: experimental_output.formacao.map((f) => ({
+          ...f,
+          descricao: toSafeHtml(f.descricao),
+        })),
+      };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("429"))
@@ -481,8 +499,9 @@ O que DEVES fazer (dentro do que existe):
 - Reescrever descrições de experiência para realçar as competências e responsabilidades pedidas no TdR que o candidato efectivamente exerceu.
 - Reordenar secções e experiências para que as mais relevantes ao TdR apareçam primeiro.
 - Ajustar o "headline" para reflectir o cargo/área da vaga, mantendo-se fiel ao perfil real.
-- Reescrever o "resumo" do perfil (2-3 frases) orientado à vaga, ancorado na experiência real.
-- Para "descricao", usar bullets curtos começando por verbos de ação (Coordenei, Implementei, Geri), realçando resultados e competências relevantes ao TdR que já existam no CV.
+- Reescrever o "resumo" do perfil (2-3 frases) orientado à vaga, ancorado na experiência real, dentro de um único <p>.
+- Os campos "resumo" e "descricao" devem ser devolvidos em HTML restrito, usando APENAS estas tags: <p>, <ul>, <li>, <strong>, <em>, <u>. Nunca uses markdown, nunca uses outras tags (sem <br>, sem atributos, sem classes).
+- Para "descricao", usar uma lista <ul><li> com bullets curtos começando por verbos de ação (Coordenei, Implementei, Geri), realçando resultados e competências relevantes ao TdR que já existam no CV.
 - Priorizar em "competencias" as que casam com o TdR — sem acrescentar novas.
 - Se o CV contém informação dispersa (cursos, certificações, voluntariado) que não encaixa nas secções standard, incorporá-la na secção mais relevante.
 
@@ -506,7 +525,7 @@ export const alignCvToTdr = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<AlignmentResult> => {
     const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY);
 
-    const prompt = `## CV actual do candidato\n${data.cv}\n\n## Termos de Referência da vaga\n${data.jobTdr}\n\nReescreve o CV para o alinhar ao máximo com este TdR. Responde APENAS com um objecto JSON válido (sem markdown, sem comentários, sem texto antes ou depois) nesta forma exacta:\n{\n  "perfil": { "nome": string, "headline": string, "email": string, "telefone": string, "cidade": string, "pais": string, "linkedin": string, "website": string, "resumo": string },\n  "experiencia": [{ "cargo": string, "organizacao": string, "local": string, "inicio": string, "fim": string, "descricao": string }],\n  "formacao": [{ "curso": string, "instituicao": string, "local": string, "inicio": string, "fim": string, "descricao": string }],\n  "competencias": [{ "nome": string }],\n  "idiomas": [{ "idioma": string, "nivel": "basico"|"intermedio"|"avancado"|"fluente"|"nativo" }],\n  "alteracoes": [{ "tipo": "reformulado"|"recontextualizado", "campo": string, "de": string, "para": string, "justificacao": string }]\n}\nNunca uses arrays em campos de texto como "descricao"; junta bullets numa única string com quebras de linha.`;
+    const prompt = `## CV actual do candidato\n${data.cv}\n\n## Termos de Referência da vaga\n${data.jobTdr}\n\nReescreve o CV para o alinhar ao máximo com este TdR. Responde APENAS com um objecto JSON válido (sem markdown, sem comentários, sem texto antes ou depois) nesta forma exacta:\n{\n  "perfil": { "nome": string, "headline": string, "email": string, "telefone": string, "cidade": string, "pais": string, "linkedin": string, "website": string, "resumo": string },\n  "experiencia": [{ "cargo": string, "organizacao": string, "local": string, "inicio": string, "fim": string, "descricao": string }],\n  "formacao": [{ "curso": string, "instituicao": string, "local": string, "inicio": string, "fim": string, "descricao": string }],\n  "competencias": [{ "nome": string }],\n  "idiomas": [{ "idioma": string, "nivel": "basico"|"intermedio"|"avancado"|"fluente"|"nativo" }],\n  "alteracoes": [{ "tipo": "reformulado"|"recontextualizado", "campo": string, "de": string, "para": string, "justificacao": string }]\n}\nNunca uses arrays em campos de texto como "descricao": devolve uma única string em HTML restrito (<p>, <ul>, <li>, <strong>, <em>, <u> apenas), com os bullets dentro de <ul><li>.`;
 
     const callOnce = async () => {
       const { text } = await generateText({
@@ -538,10 +557,18 @@ export const alignCvToTdr = createServerFn({ method: "POST" })
           pais: raw.perfil.pais || "Moçambique",
           linkedin: raw.perfil.linkedin,
           website: raw.perfil.website,
-          resumo: raw.perfil.resumo,
+          resumo: toSafeHtml(raw.perfil.resumo),
         },
-        experiencia: raw.experiencia.map((e) => ({ id: addId(), ...e })),
-        formacao: raw.formacao.map((f) => ({ id: addId(), ...f })),
+        experiencia: raw.experiencia.map((e) => ({
+          id: addId(),
+          ...e,
+          descricao: toSafeHtml(e.descricao),
+        })),
+        formacao: raw.formacao.map((f) => ({
+          id: addId(),
+          ...f,
+          descricao: toSafeHtml(f.descricao),
+        })),
         competencias: raw.competencias.map((c) => ({ id: addId(), ...c })),
         idiomas: raw.idiomas.map((i) => ({ id: addId(), ...i })),
         extras: [],
@@ -709,6 +736,138 @@ export const generateInterviewPrep = createServerFn({ method: "POST" })
       if (msg.includes("402"))
         throw new Error("Créditos de AI esgotados nesta workspace. Adiciona créditos para continuar.");
       throw new Error(`Falha a gerar preparação de entrevista: ${msg}`);
+    }
+  });
+
+// =================== Sugestões de IA para campos ===================
+
+const fieldSuggestionSectionTypes = ["summary", "experience", "education", "extra"] as const;
+export type FieldSuggestionSectionType = (typeof fieldSuggestionSectionTypes)[number];
+
+const fieldSuggestionsInputSchema = z.object({
+  sectionType: z.enum(fieldSuggestionSectionTypes),
+  fieldContext: z
+    .object({
+      cargo: z.string().optional(),
+      organizacao: z.string().optional(),
+      local: z.string().optional(),
+    })
+    .optional()
+    .default({}),
+  existingHtml: z.string().optional().default(""),
+  cvHeadline: z.string().optional().default(""),
+  language: z.literal("pt").optional().default("pt"),
+});
+
+const fieldSuggestionsOutputSchema = z.object({
+  suggestions: z.array(z.string()).min(4).max(6),
+});
+
+const FIELD_SUGGESTION_LABELS: Record<FieldSuggestionSectionType, string> = {
+  summary: "resumo profissional do perfil do CV",
+  experience: "descrição de uma experiência profissional",
+  education: "descrição de uma formação académica",
+  extra: "descrição de um item de uma secção adicional do CV (curso, certificado, atividade, etc.)",
+};
+
+const FIELD_SUGGESTIONS_SYSTEM = `És um redator de CVs especializado em ONGs, desenvolvimento, consultoria e administração pública em Moçambique e PALOP. Geras sugestões de bullets para um campo específico de um CV, para o utilizador escolher e inserir.
+
+Regras absolutas:
+- Responde sempre em PORTUGUÊS EUROPEU (PT-PT).
+- Gera entre 4 e 6 sugestões. Cada sugestão é UMA frase-bullet curta em texto simples (sem HTML, sem markdown, sem marcador "-" ou "•" no início), começada por um verbo de ação (Coordenei, Geri, Implementei, Elaborei, Apoiei, etc.).
+- As sugestões são responsabilidades ou realizações TÍPICAS do cargo/contexto indicado, redigidas de forma profissional.
+- PROIBIDO inventar números, percentagens, nomes de projetos, organizações, tecnologias ou quaisquer factos específicos que não tenham sido fornecidos — usa formulações genéricas que o utilizador possa adaptar e completar com os seus próprios factos.
+- Nunca repitas ideias que já constam do texto atual do campo (fornecido em "Texto atual do campo") — as sugestões devem ser complementares, nunca duplicadas.
+- Se não houver cargo/organização/contexto específico fornecido (ex: resumo sem cargo definido), baseia-te no que existir de contexto geral do CV (ex: título/cargo geral do perfil) para gerares sugestões genéricas mas plausíveis; se não houver contexto nenhum, sugere responsabilidades genéricas de qualquer profissional.`;
+
+function sanitizePlainSuggestion(text: string): string {
+  return text
+    .replace(/<[^>]+>/g, "")
+    .replace(/^[-•*]\s*/, "")
+    .trim();
+}
+
+const MOCK_FIELD_SUGGESTIONS: Record<FieldSuggestionSectionType, string[]> = {
+  summary: [
+    "⚠️ MOCK — Profissional com sólida experiência na coordenação de equipas e projetos multidisciplinares.",
+    "⚠️ MOCK — Combina competências técnicas e de gestão para entregar resultados dentro dos prazos definidos.",
+    "⚠️ MOCK — Reconhecido(a) pela capacidade de comunicação, organização e resolução de problemas complexos.",
+    "⚠️ MOCK — Focado(a) em melhoria contínua de processos e na qualidade da entrega final.",
+    "⚠️ MOCK — Experiência de trabalho em equipas multiculturais e ambientes multidisciplinares.",
+  ],
+  experience: [
+    "⚠️ MOCK — Coordenei as atividades diárias da equipa, garantindo o cumprimento de prazos e objetivos.",
+    "⚠️ MOCK — Elaborei relatórios periódicos de acompanhamento para a direção e outras partes interessadas.",
+    "⚠️ MOCK — Implementei melhorias nos processos internos de trabalho da equipa.",
+    "⚠️ MOCK — Colaborei com outras áreas da organização para assegurar o alinhamento de prioridades.",
+    "⚠️ MOCK — Participei na definição e monitorização de indicadores de desempenho.",
+    "⚠️ MOCK — Apoiei a integração e formação de novos membros da equipa.",
+  ],
+  education: [
+    "⚠️ MOCK — Desenvolvi competências analíticas e de resolução de problemas ao longo do curso.",
+    "⚠️ MOCK — Participei em projetos académicos em equipa, com apresentação de resultados.",
+    "⚠️ MOCK — Aprofundei conhecimentos teóricos e práticos na área de estudo.",
+    "⚠️ MOCK — Concluí trabalhos de investigação sob orientação de docentes da área.",
+  ],
+  extra: [
+    "⚠️ MOCK — Contribuí ativamente para os objetivos definidos nesta atividade.",
+    "⚠️ MOCK — Desenvolvi competências relevantes através de participação contínua.",
+    "⚠️ MOCK — Colaborei com outros participantes para alcançar os resultados esperados.",
+    "⚠️ MOCK — Apliquei conhecimentos adquiridos em contexto prático.",
+  ],
+};
+
+export const generateFieldSuggestions = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => fieldSuggestionsInputSchema.parse(input))
+  .handler(async ({ data }): Promise<{ suggestions: string[] }> => {
+    if (!process.env.LOVABLE_API_KEY) {
+      console.warn("MOCK: LOVABLE_API_KEY ausente, a devolver sugestões de campo simuladas");
+      return { suggestions: MOCK_FIELD_SUGGESTIONS[data.sectionType] };
+    }
+
+    const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY);
+
+    const existingPlain = data.existingHtml ? htmlToPlainText(data.existingHtml) : "";
+    const prompt = [
+      `Campo a sugerir: ${FIELD_SUGGESTION_LABELS[data.sectionType]}.`,
+      data.fieldContext.cargo ? `Cargo/título: ${data.fieldContext.cargo}` : "",
+      data.fieldContext.organizacao ? `Organização/instituição: ${data.fieldContext.organizacao}` : "",
+      data.fieldContext.local ? `Local: ${data.fieldContext.local}` : "",
+      data.cvHeadline ? `Cargo/título geral do perfil no CV: ${data.cvHeadline}` : "",
+      `Texto atual do campo: ${existingPlain || "(vazio)"}`,
+      "",
+      'Responde APENAS com um objecto JSON válido (sem markdown, sem comentários, sem texto antes ou depois) com esta forma exacta: { "suggestions": string[] } — entre 4 e 6 strings.',
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const callOnce = async () => {
+      const { text } = await generateText({
+        model: gateway("google/gemini-3-flash-preview"),
+        system: FIELD_SUGGESTIONS_SYSTEM,
+        prompt,
+      });
+      const json = extractJson(text);
+      const parsed = fieldSuggestionsOutputSchema.parse(json);
+      return parsed.suggestions.map(sanitizePlainSuggestion).filter(Boolean);
+    };
+
+    try {
+      let suggestions: string[];
+      try {
+        suggestions = await callOnce();
+      } catch (e) {
+        console.warn("generateFieldSuggestions: 1ª tentativa falhou, a repetir.", e);
+        suggestions = await callOnce();
+      }
+      return { suggestions };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("429"))
+        throw new Error("Limite de pedidos atingido. Tenta de novo dentro de 1 minuto.");
+      if (msg.includes("402"))
+        throw new Error("Créditos de AI esgotados nesta workspace. Adiciona créditos para continuar.");
+      throw new Error(`Falha a gerar sugestões: ${msg}`);
     }
   });
 

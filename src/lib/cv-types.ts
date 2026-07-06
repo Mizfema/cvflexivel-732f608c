@@ -23,18 +23,18 @@ export type CvFormacao = {
 export type CvCompetencia = {
   id: string;
   nome: string;
-  nivel?: 'basico' | 'intermedio' | 'avancado' | 'especialista';
+  nivel?: "basico" | "intermedio" | "avancado" | "especialista";
 };
 
 export type CvIdioma = {
   id: string;
   idioma: string;
-  nivel?: 'basico' | 'intermedio' | 'avancado' | 'fluente' | 'nativo';
+  nivel?: "basico" | "intermedio" | "avancado" | "fluente" | "nativo";
 };
 
 export type CvSecaoExtra = {
   id: string;
-  tipo: 'cursos' | 'estagios' | 'certificados' | 'realizacoes' | 'atividades' | 'qualidades';
+  tipo: "cursos" | "estagios" | "certificados" | "realizacoes" | "atividades" | "qualidades";
   titulo: string;
   itens: Array<{ id: string; titulo: string; descricao?: string; data?: string }>;
 };
@@ -58,10 +58,19 @@ export type CvSections = {
   extras: CvSecaoExtra[];
 };
 
+export type SpacingSize = "S" | "M" | "L";
+
+export type CvSpacing = {
+  lineHeight: number; // 1.0–1.6, passo 0.05
+  itemGap: SpacingSize;
+  sectionGap: SpacingSize;
+  pageMargin: SpacingSize;
+};
+
 export type CvDesign = {
-  fonte: 'inter' | 'lato' | 'georgia' | 'source-serif';
-  paleta: 'ardosia' | 'marinho' | 'esmeralda' | 'bordeaux' | 'grafite';
-  densidade: 'compacto' | 'normal' | 'espacoso';
+  fontFamily: string;
+  accentColor: string;
+  spacing: CvSpacing;
 };
 
 export type CvDraft = {
@@ -74,7 +83,7 @@ export type CvDraft = {
 
 // Alterações feitas pelo alinhamento CV ↔ TdR
 
-export type AlignmentChangeType = 'reformulado' | 'recontextualizado';
+export type AlignmentChangeType = "reformulado" | "recontextualizado";
 
 export type AlignmentChange = {
   tipo: AlignmentChangeType;
@@ -90,15 +99,15 @@ export type AlignmentResult = {
 };
 
 export const EMPTY_CV: CvDraft = {
-  title: 'CV sem título',
+  title: "CV sem título",
   sections: {
     perfil: {
-      nome: '',
-      headline: '',
-      email: '',
-      telefone: '',
-      cidade: '',
-      pais: 'Moçambique',
+      nome: "",
+      headline: "",
+      email: "",
+      telefone: "",
+      cidade: "",
+      pais: "Moçambique",
     },
     experiencia: [],
     formacao: [],
@@ -106,7 +115,11 @@ export const EMPTY_CV: CvDraft = {
     idiomas: [],
     extras: [],
   },
-  template: 'classico',
-  design: { fonte: 'inter', paleta: 'marinho', densidade: 'normal' },
+  template: "classico",
+  design: {
+    fontFamily: "inter",
+    accentColor: "#1e3a5f",
+    spacing: { lineHeight: 1.55, itemGap: "M", sectionGap: "M", pageMargin: "M" },
+  },
   updatedAt: new Date(0).toISOString(),
 };

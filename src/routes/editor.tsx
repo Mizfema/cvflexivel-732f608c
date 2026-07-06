@@ -2,25 +2,23 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { ArrowRight, X, PenLine, Shuffle } from "lucide-react";
-import { CvPreview } from "@/components/editor/CvPreview";
+import { CvPagedPreview } from "@/components/editor/CvPagedPreview";
 import { EditorForm } from "@/components/editor/EditorForm";
 import { InterviewMode } from "@/components/editor/InterviewMode";
-import { CvDesignDialog } from "@/components/editor/CvDesignDialog";
+import { CvPreviewToolbar } from "@/components/editor/preview-toolbar/CvPreviewToolbar";
+import { FullscreenPreviewOverlay } from "@/components/editor/preview-toolbar/FullscreenPreviewOverlay";
 import { ExportMenu } from "@/components/editor/ExportMenu";
 import { useDraftCv } from "@/hooks/use-draft-cv";
 import { useAuth } from "@/hooks/use-auth";
+import { useCvAutosave } from "@/hooks/use-cv-autosave";
 import { exportCvDocx, exportCvPdf } from "@/lib/cv-export";
 import { getCv } from "@/lib/cvs.functions";
+import { normalizeCvDesign } from "@/lib/cv-design-presets";
 import { useServerFn } from "@tanstack/react-start";
-import type { CvDesign, CvSections, AlignmentChange } from "@/lib/cv-types";
-import { Button } from "@/components/ui/button";
-
-
+import type { CvSections, AlignmentChange } from "@/lib/cv-types";
 
 const editorSearchSchema = z.object({
-  modo: z
-    .enum(["cv-vaga", "cv", "entrevista-vaga", "entrevista-zero"])
-    .optional(),
+  modo: z.enum(["cv-vaga", "cv", "entrevista-vaga", "entrevista-zero"]).optional(),
   jobId: z.string().optional(),
   id: z.string().uuid().optional(),
   export: z.enum(["pdf", "docx"]).optional(),
@@ -51,13 +49,23 @@ export const Route = createFileRoute("/editor")({
 function EditorPage() {
   const { modo, id, export: autoExport } = Route.useSearch();
   const navigate = useNavigate();
-  const { draft, update, hydrated, reset } = useDraftCv();
+  const { draft, update, hydrated } = useDraftCv();
   const { session } = useAuth();
   const fetchCv = useServerFn(getCv);
   const [tab, setTab] = useState<"editar" | "preview">("editar");
   const [interviewDone, setInterviewDone] = useState(false);
   const [cvId, setCvId] = useState<string | undefined>(id);
   const [alignChanges, setAlignChanges] = useState<AlignmentChange[] | null>(null);
+  const [loadingCv, setLoadingCv] = useState(!!id);
+  const [fullscreen, setFullscreen] = useState(false);
+
+  const autosaveStatus = useCvAutosave({
+    draft,
+    cvId,
+    onSaved: setCvId,
+    enabled: hydrated && !!session,
+    skip: loadingCv,
+  });
 
   useEffect(() => {
     if (modo !== "cv-vaga") return;
@@ -67,13 +75,19 @@ function EditorPage() {
         setAlignChanges(JSON.parse(raw));
         window.localStorage.removeItem("cv-flexivel:align-changes");
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [modo]);
 
   // Carregar CV existente quando ?id= e sessão presentes
   useEffect(() => {
-    if (!hydrated || !session || !id) return;
+    if (!hydrated || !session || !id) {
+      setLoadingCv(false);
+      return;
+    }
     let cancelled = false;
+    setLoadingCv(true);
     fetchCv({ data: { id } })
       .then((row) => {
         if (cancelled || !row) return;
@@ -82,12 +96,15 @@ function EditorPage() {
           title: row.title,
           template: row.template,
           sections: row.sections as CvSections,
-          design: row.design as CvDesign,
+          design: normalizeCvDesign(row.design),
           updatedAt: row.updated_at,
         }));
       })
       .catch(() => {
         /* silencioso: mantém rascunho local */
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingCv(false);
       });
     return () => {
       cancelled = true;
@@ -99,13 +116,11 @@ function EditorPage() {
   useEffect(() => {
     if (!hydrated || !session || !autoExport) return;
     if (autoExport === "docx") exportCvDocx(draft);
-    else exportCvPdf();
+    else exportCvPdf(draft);
     navigate({ to: "/editor", search: { modo: "cv" }, replace: true });
   }, [hydrated, session, autoExport, draft, navigate]);
 
-  const isInterview =
-    (modo === "entrevista-vaga" || modo === "entrevista-zero") &&
-    !interviewDone;
+  const isInterview = (modo === "entrevista-vaga" || modo === "entrevista-zero") && !interviewDone;
 
   if (hydrated && isInterview) {
     return (
@@ -125,7 +140,6 @@ function EditorPage() {
     );
   }
 
-
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:py-12">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
@@ -137,26 +151,31 @@ function EditorPage() {
             {draft.sections.perfil.nome || "O teu CV"}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Edita à esquerda, vê a pré-visualização à direita. Guardado
-            automaticamente neste dispositivo.
+            Edita à esquerda, vê a pré-visualização à direita. Guardado automaticamente neste
+            dispositivo.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <CvDesignDialog draft={draft} update={update} />
+          {session && (
+            <span className="text-xs text-muted-foreground">
+              {autosaveStatus === "saving"
+                ? "A guardar…"
+                : autosaveStatus === "saved"
+                  ? "Guardado"
+                  : autosaveStatus === "error"
+                    ? "Falha ao guardar"
+                    : ""}
+            </span>
+          )}
+          <CvPreviewToolbar
+            draft={draft}
+            update={update}
+            fullscreen={false}
+            onToggleFullscreen={() => setFullscreen(true)}
+            className="shadow-none"
+          />
           <ExportMenu draft={draft} cvId={cvId} onSaved={setCvId} />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              if (confirm("Limpar tudo? O rascunho neste dispositivo será apagado.")) {
-                reset();
-              }
-            }}
-          >
-            Limpar
-          </Button>
         </div>
-
       </header>
 
       {/* Mobile tabs */}
@@ -164,9 +183,7 @@ function EditorPage() {
         <button
           onClick={() => setTab("editar")}
           className={`flex-1 rounded px-3 py-1.5 text-sm font-medium transition-colors ${
-            tab === "editar"
-              ? "bg-navy text-paper"
-              : "text-muted-foreground hover:text-foreground"
+            tab === "editar" ? "bg-navy text-paper" : "text-muted-foreground hover:text-foreground"
           }`}
         >
           Editar
@@ -174,9 +191,7 @@ function EditorPage() {
         <button
           onClick={() => setTab("preview")}
           className={`flex-1 rounded px-3 py-1.5 text-sm font-medium transition-colors ${
-            tab === "preview"
-              ? "bg-navy text-paper"
-              : "text-muted-foreground hover:text-foreground"
+            tab === "preview" ? "bg-navy text-paper" : "text-muted-foreground hover:text-foreground"
           }`}
         >
           Pré-visualizar
@@ -200,12 +215,22 @@ function EditorPage() {
             <EditorForm draft={draft} update={update} />
           </section>
           <section
-            className={`${tab === "preview" ? "block" : "hidden"} lg:block lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto`}
+            className={`${tab === "preview" ? "block" : "hidden"} lg:block lg:sticky lg:top-20`}
             aria-label="Pré-visualização"
           >
-            <CvPreview draft={draft} />
+            <div className="relative lg:h-[calc(100vh_-_6rem)] lg:overflow-y-auto">
+              <CvPagedPreview draft={draft} />
+            </div>
           </section>
         </div>
+      )}
+
+      {fullscreen && (
+        <FullscreenPreviewOverlay
+          draft={draft}
+          update={update}
+          onClose={() => setFullscreen(false)}
+        />
       )}
     </div>
   );
@@ -321,11 +346,17 @@ function ChangeGroup({
             <p className="text-xs font-medium text-muted-foreground mb-1.5">{change.campo}</p>
             <div className="grid gap-1.5 sm:grid-cols-2">
               <div className="rounded-md bg-white/80 border border-gray-200 px-2.5 py-1.5">
-                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-0.5">Antes</p>
+                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-0.5">
+                  Antes
+                </p>
                 <p className="text-xs text-ink-soft line-through decoration-red-300">{change.de}</p>
               </div>
               <div className={`rounded-md bg-white/80 border ${borderColor} px-2.5 py-1.5`}>
-                <p className={`text-[10px] font-medium uppercase tracking-wider ${textColor} mb-0.5`}>Depois</p>
+                <p
+                  className={`text-[10px] font-medium uppercase tracking-wider ${textColor} mb-0.5`}
+                >
+                  Depois
+                </p>
                 <p className="text-xs text-foreground">{change.para}</p>
               </div>
             </div>

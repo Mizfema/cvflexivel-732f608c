@@ -58,7 +58,7 @@ export function ExportMenu({
       if (kind === "docx") {
         await exportCvDocx(draft);
       } else {
-        exportCvPdf();
+        await exportCvPdf(draft);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falha ao exportar.");
