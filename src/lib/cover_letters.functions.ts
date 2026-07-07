@@ -8,6 +8,7 @@ const saveSchema = z.object({
   cvId: z.string().uuid().optional().nullable(),
   jobTdr: z.string().optional().nullable(),
   content: z.string(),
+  template: z.string().min(1).max(50).default("classico"),
 });
 
 /**
@@ -24,6 +25,7 @@ export const saveCoverLetter = createServerFn({ method: "POST" })
       cv_id: data.cvId ?? null,
       job_tdr: data.jobTdr ?? null,
       content: data.content,
+      template: data.template,
       updated_at: new Date().toISOString(),
     };
 
@@ -55,7 +57,7 @@ export const listCoverLetters = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const { data, error } = await supabase
       .from("cover_letters")
-      .select("id, title, job_tdr, content, updated_at, created_at")
+      .select("id, title, job_tdr, content, template, updated_at, created_at")
       .eq("user_id", userId)
       .order("updated_at", { ascending: false });
     if (error) throw new Error(error.message);
@@ -70,7 +72,7 @@ export const getCoverLetter = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { data: row, error } = await supabase
       .from("cover_letters")
-      .select("id, title, cv_id, job_tdr, content, updated_at, created_at")
+      .select("id, title, cv_id, job_tdr, content, template, updated_at, created_at")
       .eq("id", data.id)
       .eq("user_id", userId)
       .single();

@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { MessageSquare, Plus, ChevronDown, Loader2 } from "lucide-react";
 import { listInterviewPreps, getInterviewPrep } from "@/lib/interview-preps.functions";
 import { InterviewPrepResult } from "@/components/InterviewPrepResult";
+import { InterviewPrepExport } from "@/components/entrevista/InterviewPrepExport";
 import type { InterviewQuestion } from "@/lib/interview-types";
 
 type PrepRow = {
@@ -161,7 +162,12 @@ function EntrevistasPage() {
                         <Loader2 className="h-4 w-4 animate-spin" />A carregar perguntas…
                       </div>
                     ) : detail[row.id] ? (
-                      <InterviewPrepResult questions={detail[row.id]} />
+                      <div className="space-y-4">
+                        <div className="flex justify-end">
+                          <InterviewPrepExport questions={detail[row.id]} jobTdr={row.job_tdr} />
+                        </div>
+                        <InterviewPrepResult questions={detail[row.id]} />
+                      </div>
                     ) : null}
                   </div>
                 )}

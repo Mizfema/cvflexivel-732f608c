@@ -48,14 +48,15 @@ export const saveCv = createServerFn({ method: "POST" })
     return { id: row.id };
   });
 
-/** Lista CVs do utilizador, ordenados por updated_at desc. */
+/** Lista CVs do utilizador, ordenados por updated_at desc. Inclui `sections`/
+ * `design` para a grelha "Os meus CVs" poder renderizar uma miniatura real. */
 export const listCvs = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
     const { data, error } = await supabase
       .from("cvs")
-      .select("id, title, template, updated_at, created_at")
+      .select("id, title, template, sections, design, updated_at, created_at")
       .eq("user_id", userId)
       .order("updated_at", { ascending: false });
     if (error) throw new Error(error.message);

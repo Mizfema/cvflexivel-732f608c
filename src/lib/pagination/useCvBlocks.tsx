@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import type { CvDraft } from "@/lib/cv-types";
 import type { TemplateInfo } from "@/lib/cv-design-presets";
 import { toSafeHtml } from "@/lib/rich-text";
+import { headerBorderStyle, sectionLabelClass } from "@/lib/templates/themes";
 import type { CvBlock } from "./types";
 import { FIRST_ITEM_GAP, type PageMetrics } from "./metrics";
 
@@ -26,14 +27,6 @@ function fmtPeriodo(inicio?: string, fim?: string) {
   if (!i && !f) return "";
   if (i && f) return `${i} — ${f}`;
   return i || f;
-}
-
-function sectionLabelClass(headerStyle: TemplateInfo["headerStyle"]) {
-  return headerStyle === "underline"
-    ? "border-b pb-1 text-[10px] font-semibold uppercase tracking-[0.2em]"
-    : headerStyle === "accent"
-      ? "text-[10px] font-semibold uppercase tracking-[0.22em]"
-      : "text-[10px] font-medium uppercase tracking-[0.18em]";
 }
 
 export type CvBlocks = {
@@ -97,15 +90,7 @@ export function useCvBlocks(
       sectionId: "header",
       marginBefore: 0,
       node: (
-        <header
-          style={{
-            borderBottom:
-              template.headerStyle === "underline"
-                ? "2px solid var(--cv-accent)"
-                : "none",
-            paddingBottom: template.headerStyle === "underline" ? "10px" : "0",
-          }}
-        >
+        <header style={headerBorderStyle(template.headerStyle)}>
           <h1
             className="text-[calc(var(--cv-base-size)*2.15)] leading-tight"
             style={{

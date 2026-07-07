@@ -1,7 +1,7 @@
 // Export PDF da carta de motivação — reutiliza o mecanismo de impressão da F12
 // (createPortal para #cv-print-root, ver @media print em styles.css e
-// CvPagedPreview.tsx), mas com um layout de página única e sem paginação:
-// a carta tem sempre ~250-400 palavras e cabe numa folha A4.
+// CvPagedPreview.tsx), mas desenha o documento via CartaDocument (layout de
+// carta: cabeçalho, data, corpo — sem paginação, a carta cabe sempre numa A4).
 
 import { useEffect, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
@@ -9,11 +9,9 @@ import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { getCv } from "@/lib/cvs.functions";
 import { setRichTextPrintBypass } from "@/lib/rich-text";
-
-type HeaderInfo = {
-  nome: string;
-  linhas: string[];
-};
+import { ensureGoogleFont } from "@/lib/google-fonts";
+import { getTemplateTheme } from "@/lib/templates/themes";
+import { CartaDocument, type CartaHeaderInfo } from "@/components/carta/CartaDocument";
 
 function buildHeaderInfo(p: {
   nome?: string | null;
@@ -21,7 +19,7 @@ function buildHeaderInfo(p: {
   telefone?: string | null;
   cidade?: string | null;
   pais?: string | null;
-}): HeaderInfo {
+}): CartaHeaderInfo {
   const linhas = [p.email, p.telefone, [p.cidade, p.pais].filter(Boolean).join(", ")].filter(
     (v): v is string => !!v && v.trim().length > 0,
   );
@@ -31,13 +29,19 @@ function buildHeaderInfo(p: {
 export function CoverLetterPrintPortal({
   content,
   cvId,
+  template,
 }: {
   content: string;
   cvId: string | null;
+  template: string;
 }) {
   const fetchCv = useServerFn(getCv);
-  const [header, setHeader] = useState<HeaderInfo>({ nome: "", linhas: [] });
+  const [header, setHeader] = useState<CartaHeaderInfo>({ nome: "", linhas: [] });
   const [isPrinting, setIsPrinting] = useState(false);
+
+  useEffect(() => {
+    ensureGoogleFont(getTemplateTheme(template).fontFamily);
+  }, [template]);
 
   useEffect(() => {
     let cancelled = false;
@@ -117,33 +121,7 @@ export function CoverLetterPrintPortal({
 
   return createPortal(
     <div id="cv-print-root">
-      <div
-        className="cv-print-page"
-        style={{
-          width: "210mm",
-          minHeight: "297mm",
-          padding: "30mm 28mm",
-          background: "white",
-          fontFamily: 'var(--font-serif, "Libre Baskerville", Georgia, serif)',
-          color: "#242320",
-        }}
-      >
-        <header>
-          {header.nome && <p style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>{header.nome}</p>}
-          {header.linhas.length > 0 && (
-            <p style={{ margin: "4px 0 0", fontSize: 11, color: "#5F5E5A" }}>
-              {header.linhas.join(" · ")}
-            </p>
-          )}
-        </header>
-
-        <p style={{ margin: "28px 0 0", fontSize: 11, color: "#5F5E5A" }}>{today}</p>
-
-        <div
-          style={{ marginTop: 28, fontSize: 12.5, lineHeight: 1.7 }}
-          dangerouslySetInnerHTML={{ __html: content }}
-        />
-      </div>
+      <CartaDocument draft={{ template, header, date: today, content }} />
     </div>,
     document.body,
   );

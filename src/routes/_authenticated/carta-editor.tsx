@@ -12,6 +12,9 @@ import {
   readPendingCoverLetterDraft,
   clearPendingCoverLetterDraft,
 } from "@/lib/cover-letter-draft";
+import { TEMPLATE_THEMES } from "@/lib/templates/themes";
+
+const DEFAULT_TEMPLATE = "classico";
 
 const searchSchema = z.object({
   id: z.string().uuid().optional(),
@@ -41,6 +44,7 @@ function CartaEditorPage() {
   const [content, setContent] = useState("");
   const [cvId, setCvId] = useState<string | null>(null);
   const [jobTdr, setJobTdr] = useState<string | null>(null);
+  const [template, setTemplate] = useState(DEFAULT_TEMPLATE);
 
   useEffect(() => {
     if (id) {
@@ -54,6 +58,7 @@ function CartaEditorPage() {
           setContent(row.content);
           setCvId(row.cv_id);
           setJobTdr(row.job_tdr);
+          setTemplate(row.template);
         })
         .catch(() => setNotFound(true))
         .finally(() => {
@@ -85,6 +90,7 @@ function CartaEditorPage() {
           cvId,
           jobTdr,
           content,
+          template,
         },
       }) as Promise<{ id: string }>,
     onSuccess: (res) => {
@@ -145,6 +151,25 @@ function CartaEditorPage() {
         </p>
       )}
 
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium uppercase tracking-[0.18em] text-navy-mid">Tema</span>
+        {TEMPLATE_THEMES.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTemplate(t.id)}
+            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+              template === t.id
+                ? "border-transparent text-white"
+                : "border-navy-rule bg-background text-foreground hover:bg-surface"
+            }`}
+            style={template === t.id ? { backgroundColor: t.accentColor } : undefined}
+          >
+            {t.nome}
+          </button>
+        ))}
+      </div>
+
       <div className="mt-6">
         <RichTextField
           value={content}
@@ -187,7 +212,7 @@ function CartaEditorPage() {
         </button>
       </div>
 
-      <CoverLetterPrintPortal content={content} cvId={cvId} />
+      <CoverLetterPrintPortal content={content} cvId={cvId} template={template} />
     </div>
   );
 }

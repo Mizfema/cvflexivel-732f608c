@@ -4,14 +4,30 @@ import { useServerFn } from "@tanstack/react-start";
 import { FileText, Plus } from "lucide-react";
 import { listCvs, deleteCv, duplicateCv } from "@/lib/cvs.functions";
 import { Button } from "@/components/ui/button";
+import { CvThumbnail, THUMB_W } from "@/components/cv/CvThumbnail";
+import { DocumentCard, DocumentCardGrid } from "@/components/library/DocumentCardGrid";
+import { normalizeCvDesign } from "@/lib/cv-design-presets";
+import { EMPTY_CV, type CvDraft, type CvSections } from "@/lib/cv-types";
 
 type CvRow = {
   id: string;
   title: string;
   template: string;
+  sections: unknown;
+  design: unknown;
   updated_at: string;
   created_at: string;
 };
+
+function toThumbnailDraft(cv: CvRow): CvDraft {
+  return {
+    title: cv.title,
+    template: cv.template,
+    sections: { ...EMPTY_CV.sections, ...(cv.sections as Partial<CvSections>) },
+    design: normalizeCvDesign(cv.design),
+    updatedAt: cv.updated_at,
+  };
+}
 
 export const Route = createFileRoute("/_authenticated/meus-cvs")({
   head: () => ({
@@ -121,54 +137,50 @@ function MeusCvsPage() {
           </Link>
         </div>
       ) : (
-        <ul className="divide-y divide-navy-rule rounded-lg border border-navy-rule bg-card">
+        <DocumentCardGrid>
           {rows.map((cv) => (
-            <li
+            <DocumentCard
               key={cv.id}
-              className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6"
-            >
-              <div className="min-w-0">
-                <p className="truncate font-serif text-lg text-foreground">
-                  {cv.title}
-                </p>
-                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                  {cv.template} ·{" "}
-                  {new Date(cv.updated_at).toLocaleDateString("pt-PT", {
-                    day: "2-digit",
-                    month: "short",
-                    year: "numeric",
-                  })}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Link
-                  to="/editor"
-                  search={{ id: cv.id }}
-                  className="inline-flex items-center justify-center rounded-[10px] border border-navy-rule bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface"
-                >
-                  Abrir
-                </Link>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={busy === cv.id}
-                  onClick={() => onDuplicate(cv.id)}
-                >
-                  Duplicar
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={busy === cv.id}
-                  onClick={() => onDelete(cv.id)}
-                  className="text-destructive hover:text-destructive"
-                >
-                  Apagar
-                </Button>
-              </div>
-            </li>
+              thumbnail={<CvThumbnail draft={toThumbnailDraft(cv)} />}
+              thumbnailWidth={THUMB_W}
+              title={cv.title || "CV sem título"}
+              badge={cv.template}
+              date={new Date(cv.updated_at).toLocaleDateString("pt-PT", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              })}
+              actions={
+                <>
+                  <Link
+                    to="/editor"
+                    search={{ id: cv.id }}
+                    className="inline-flex items-center justify-center rounded-[10px] border border-navy-rule bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface"
+                  >
+                    Abrir
+                  </Link>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={busy === cv.id}
+                    onClick={() => onDuplicate(cv.id)}
+                  >
+                    Duplicar
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={busy === cv.id}
+                    onClick={() => onDelete(cv.id)}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    Apagar
+                  </Button>
+                </>
+              }
+            />
           ))}
-        </ul>
+        </DocumentCardGrid>
       )}
     </div>
   );

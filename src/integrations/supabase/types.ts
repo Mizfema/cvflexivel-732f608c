@@ -84,6 +84,7 @@ export type Database = {
           cv_id: string | null
           id: string
           job_tdr: string | null
+          template: string
           title: string
           updated_at: string
           user_id: string
@@ -94,6 +95,7 @@ export type Database = {
           cv_id?: string | null
           id?: string
           job_tdr?: string | null
+          template?: string
           title?: string
           updated_at?: string
           user_id: string
@@ -104,6 +106,7 @@ export type Database = {
           cv_id?: string | null
           id?: string
           job_tdr?: string | null
+          template?: string
           title?: string
           updated_at?: string
           user_id?: string

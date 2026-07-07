@@ -5,15 +5,28 @@ import { FileSignature, Plus } from "lucide-react";
 import { listCoverLetters, deleteCoverLetter } from "@/lib/cover_letters.functions";
 import { NovaCartaStepper } from "@/components/cartas/NovaCartaStepper";
 import { Button } from "@/components/ui/button";
+import { CartaThumbnail, CARTA_THUMB_W } from "@/components/carta/CartaThumbnail";
+import type { CartaDraft } from "@/components/carta/CartaDocument";
+import { DocumentCard, DocumentCardGrid } from "@/components/library/DocumentCardGrid";
 
 type LetterRow = {
   id: string;
   title: string;
   job_tdr: string | null;
   content: string;
+  template: string;
   updated_at: string;
   created_at: string;
 };
+
+function toThumbnailDraft(letter: LetterRow): CartaDraft {
+  return {
+    template: letter.template,
+    header: { nome: "", linhas: [] },
+    date: "",
+    content: letter.content,
+  };
+}
 
 export const Route = createFileRoute("/_authenticated/cartas")({
   head: () => ({
@@ -24,16 +37,6 @@ export const Route = createFileRoute("/_authenticated/cartas")({
   }),
   component: CartasPage,
 });
-
-function contentPreview(content: string): string {
-  const firstLines = content
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .slice(0, 2)
-    .join(" ");
-  return firstLines.length > 140 ? firstLines.slice(0, 140) + "…" : firstLines;
-}
 
 function CartasPage() {
   const navigate = useNavigate();
@@ -126,49 +129,42 @@ function CartasPage() {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <DocumentCardGrid>
           {rows.map((letter) => (
-            <div
+            <DocumentCard
               key={letter.id}
-              className="flex flex-col rounded-lg border border-navy-rule bg-card p-4 sm:p-5"
-            >
-              <p className="truncate font-serif text-lg text-foreground">{letter.title}</p>
-              {letter.job_tdr && (
-                <p className="mt-0.5 truncate text-xs uppercase tracking-[0.18em] text-navy-mid">
-                  {letter.job_tdr}
-                </p>
-              )}
-              <p className="mt-1 text-xs text-muted-foreground">
-                {new Date(letter.updated_at).toLocaleDateString("pt-PT", {
-                  day: "2-digit",
-                  month: "short",
-                  year: "numeric",
-                })}
-              </p>
-              <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">
-                {contentPreview(letter.content)}
-              </p>
-              <div className="mt-4 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => navigate({ to: "/carta-editor", search: { id: letter.id } })}
-                  className="inline-flex items-center justify-center rounded-[10px] border border-navy-rule bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface"
-                >
-                  Abrir
-                </button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={busy === letter.id}
-                  onClick={() => onDelete(letter.id)}
-                  className="text-destructive hover:text-destructive"
-                >
-                  Apagar
-                </Button>
-              </div>
-            </div>
+              thumbnail={<CartaThumbnail draft={toThumbnailDraft(letter)} />}
+              thumbnailWidth={CARTA_THUMB_W}
+              title={letter.title || "Carta sem título"}
+              badge={letter.template}
+              date={new Date(letter.updated_at).toLocaleDateString("pt-PT", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              })}
+              actions={
+                <>
+                  <button
+                    type="button"
+                    onClick={() => navigate({ to: "/carta-editor", search: { id: letter.id } })}
+                    className="inline-flex items-center justify-center rounded-[10px] border border-navy-rule bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface"
+                  >
+                    Abrir
+                  </button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={busy === letter.id}
+                    onClick={() => onDelete(letter.id)}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    Apagar
+                  </Button>
+                </>
+              }
+            />
           ))}
-        </div>
+        </DocumentCardGrid>
       )}
 
       <NovaCartaStepper

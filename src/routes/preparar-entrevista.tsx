@@ -14,6 +14,7 @@ import {
 import { FileTextInput } from "@/components/ui/file-text-input";
 import { ScannerAnimation } from "@/components/ScannerAnimation";
 import { InterviewPrepResult } from "@/components/InterviewPrepResult";
+import { InterviewPrepExport } from "@/components/entrevista/InterviewPrepExport";
 import { generateInterviewPrep } from "@/lib/llm.functions";
 import { saveInterviewPrep } from "@/lib/interview-preps.functions";
 import { useAuth } from "@/hooks/use-auth";
@@ -421,6 +422,7 @@ function PrepararEntrevistaPage() {
                 <InterviewPrepResult questions={mutation.data} />
 
                 <div className="flex flex-wrap justify-end gap-2 border-t border-[#E3DFD7] pt-4">
+                  <InterviewPrepExport questions={mutation.data} jobTdr={tdrText} />
                   <button onClick={resetAll} className={SECONDARY_BTN}>
                     Nova simulação
                   </button>
