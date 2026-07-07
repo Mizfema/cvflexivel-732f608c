@@ -124,13 +124,12 @@ function AuthPage() {
     setError(null);
     setGoogleLoading(true);
     try {
-      const redirectTo =
-        (next && next.startsWith("/")
-          ? window.location.origin + next
-          : window.location.origin + "/editor");
+      const target = next && next.startsWith("/") ? next : "/editor";
+      const redirectUrl = new URL("/auth", window.location.origin);
+      redirectUrl.searchParams.set("next", target);
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo },
+        options: { redirectTo: redirectUrl.toString() },
       });
       if (error) throw error;
     } catch (err) {
@@ -152,10 +151,14 @@ function AuthPage() {
         });
         if (error) throw error;
       } else {
+        const emailRedirectUrl = new URL("/auth", window.location.origin);
+        if (next && next.startsWith("/")) {
+          emailRedirectUrl.searchParams.set("next", next);
+        }
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: window.location.origin + "/auth" },
+          options: { emailRedirectTo: emailRedirectUrl.toString() },
         });
         if (error) throw error;
         if (!data.session) {
