@@ -5,6 +5,7 @@ import { createLovableAiGatewayProvider } from "./ai-gateway.server";
 import type { CvDraft, CvSections, AlignmentResult } from "./cv-types";
 import type { CoverageAnalysis } from "./coverage-types";
 import type { InterviewQuestion } from "./interview-types";
+import type { CoverLetterMode, GeneratedCoverLetter } from "./cover-letter-types";
 import { htmlToPlainText, toSafeHtml } from "./rich-text";
 
 const inputSchema = z.object({
@@ -30,16 +31,16 @@ const outputSchema = z.object({
             .enum(["tem_nao_mostrou", "parcial_transferivel", "lacuna_real"])
             .describe(
               "tem_nao_mostrou = CV tem evidência clara mas não a destaca; " +
-              "parcial_transferivel = experiência relacionada mas não idêntica; " +
-              "lacuna_real = sem qualquer evidência no CV.",
+                "parcial_transferivel = experiência relacionada mas não idêntica; " +
+                "lacuna_real = sem qualquer evidência no CV.",
             ),
           accao_sugerida: z
             .string()
             .describe(
               "Para tem_nao_mostrou: sugere reformulação/destaque no CV. " +
-              "Para parcial_transferivel: sugere como recontextualizar a experiência adjacente. " +
-              "Para lacuna_real: sugere APENAS vias legítimas (curso, certificação, menção na carta, declarar nível real) " +
-              "— NUNCA instruas a adicionar ao CV algo que não existe.",
+                "Para parcial_transferivel: sugere como recontextualizar a experiência adjacente. " +
+                "Para lacuna_real: sugere APENAS vias legítimas (curso, certificação, menção na carta, declarar nível real) " +
+                "— NUNCA instruas a adicionar ao CV algo que não existe.",
             ),
         }),
       ),
@@ -76,16 +77,11 @@ function cvToText(cv: CvDraft): string {
   if (cv.sections.formacao.length) {
     lines.push("\n## Formação");
     cv.sections.formacao.forEach((f) =>
-      lines.push(
-        `- ${f.curso} · ${f.instituicao} (${f.inicio || ""}—${f.fim || ""})`,
-      ),
+      lines.push(`- ${f.curso} · ${f.instituicao} (${f.inicio || ""}—${f.fim || ""})`),
     );
   }
   if (cv.sections.competencias.length) {
-    lines.push(
-      "\n## Competências: " +
-        cv.sections.competencias.map((c) => c.nome).join(", "),
-    );
+    lines.push("\n## Competências: " + cv.sections.competencias.map((c) => c.nome).join(", "));
   }
   if (cv.sections.idiomas.length) {
     lines.push(
@@ -96,9 +92,7 @@ function cvToText(cv: CvDraft): string {
   cv.sections.extras.forEach((sec) => {
     lines.push(`\n## ${sec.titulo}`);
     sec.itens.forEach((it) =>
-      lines.push(
-        `- ${it.titulo}${it.descricao ? " — " + htmlToPlainText(it.descricao) : ""}`,
-      ),
+      lines.push(`- ${it.titulo}${it.descricao ? " — " + htmlToPlainText(it.descricao) : ""}`),
     );
   });
   return lines.join("\n");
@@ -150,8 +144,7 @@ export const analyzeCoverage = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<CoverageAnalysis> => {
     const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY!);
 
-    const cvText =
-      typeof data.cv === "string" ? data.cv : cvToText(data.cv as CvDraft);
+    const cvText = typeof data.cv === "string" ? data.cv : cvToText(data.cv as CvDraft);
     const prompt = `## CV do candidato\n${cvText}\n\n## Termos de Referência da vaga\n${data.jobTdr}\n\nResponde APENAS com um objecto JSON válido (sem markdown, sem comentários, sem texto antes ou depois) com esta forma exacta:
 {
   "resumo": string,
@@ -184,7 +177,9 @@ export const analyzeCoverage = createServerFn({ method: "POST" })
       if (msg.includes("429"))
         throw new Error("Limite de pedidos atingido. Tenta de novo dentro de 1 minuto.");
       if (msg.includes("402"))
-        throw new Error("Créditos de AI esgotados nesta workspace. Adiciona créditos para continuar.");
+        throw new Error(
+          "Créditos de AI esgotados nesta workspace. Adiciona créditos para continuar.",
+        );
       throw new Error(`Falha na análise: ${msg}`);
     }
   });
@@ -237,9 +232,7 @@ const cvDraftSectionsSchema = z.object({
   idiomas: z.array(
     z.object({
       idioma: z.string(),
-      nivel: z
-        .enum(["basico", "intermedio", "avancado", "fluente", "nativo"])
-        .optional(),
+      nivel: z.enum(["basico", "intermedio", "avancado", "fluente", "nativo"]).optional(),
     }),
   ),
 });
@@ -298,8 +291,7 @@ export const generateCvFromInterview = createServerFn({ method: "POST" })
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("429"))
         throw new Error("Limite de pedidos atingido. Tenta dentro de 1 minuto.");
-      if (msg.includes("402"))
-        throw new Error("Créditos de AI esgotados nesta workspace.");
+      if (msg.includes("402")) throw new Error("Créditos de AI esgotados nesta workspace.");
       throw new Error(`Falha a gerar CV: ${msg}`);
     }
   });
@@ -347,9 +339,7 @@ const alignOutputSchema = z.object({
   idiomas: z.array(
     z.object({
       idioma: z.string(),
-      nivel: z
-        .enum(["basico", "intermedio", "avancado", "fluente", "nativo"])
-        .optional(),
+      nivel: z.enum(["basico", "intermedio", "avancado", "fluente", "nativo"]).optional(),
     }),
   ),
   alteracoes: z.array(
@@ -358,16 +348,20 @@ const alignOutputSchema = z.object({
         .enum(["reformulado", "recontextualizado"])
         .describe(
           "reformulado = texto reescrito para usar terminologia do TdR, sem mudar o significado. " +
-          "recontextualizado = experiência adjacente reposicionada para evidenciar relevância ao TdR.",
+            "recontextualizado = experiência adjacente reposicionada para evidenciar relevância ao TdR.",
         ),
       campo: z
         .string()
-        .describe("Secção e item afectado, e.g. 'Experiência · UNICEF — Gestor de Projectos' ou 'Perfil · headline'."),
+        .describe(
+          "Secção e item afectado, e.g. 'Experiência · UNICEF — Gestor de Projectos' ou 'Perfil · headline'.",
+        ),
       de: z.string().describe("Texto original (trecho relevante, não o campo inteiro)."),
       para: z.string().describe("Texto reescrito correspondente."),
       justificacao: z
         .string()
-        .describe("1 frase curta a explicar porquê — que requisito do TdR esta alteração visa cobrir."),
+        .describe(
+          "1 frase curta a explicar porquê — que requisito do TdR esta alteração visa cobrir.",
+        ),
     }),
   ),
 });
@@ -375,9 +369,7 @@ const alignOutputSchema = z.object({
 type JsonRecord = Record<string, unknown>;
 
 function asRecord(value: unknown): JsonRecord {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as JsonRecord)
-    : {};
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : {};
 }
 
 function asString(value: unknown): string {
@@ -404,17 +396,23 @@ function normalizeIdiomaNivel(value: unknown) {
 function normalizeAlignmentJson(value: unknown): unknown {
   const root = asRecord(value);
   const source = asRecord(root.sections ?? root.cv ?? root.curriculo ?? root);
-  const perfil = asRecord(source.perfil ?? source.profile ?? source.dadosPessoais ?? source.dados_pessoais);
+  const perfil = asRecord(
+    source.perfil ?? source.profile ?? source.dadosPessoais ?? source.dados_pessoais,
+  );
   const experiencia = Array.isArray(source.experiencia ?? source.experiências ?? source.experience)
     ? (source.experiencia ?? source.experiências ?? source.experience)
     : [];
-  const formacao = Array.isArray(source.formacao ?? source.formação ?? source.educacao ?? source.education)
+  const formacao = Array.isArray(
+    source.formacao ?? source.formação ?? source.educacao ?? source.education,
+  )
     ? (source.formacao ?? source.formação ?? source.educacao ?? source.education)
     : [];
   const competencias = Array.isArray(source.competencias ?? source.competências ?? source.skills)
     ? (source.competencias ?? source.competências ?? source.skills)
     : [];
-  const idiomas = Array.isArray(source.idiomas ?? source.linguas ?? source.línguas ?? source.languages)
+  const idiomas = Array.isArray(
+    source.idiomas ?? source.linguas ?? source.línguas ?? source.languages,
+  )
     ? (source.idiomas ?? source.linguas ?? source.línguas ?? source.languages)
     : [];
 
@@ -434,18 +432,36 @@ function normalizeAlignmentJson(value: unknown): unknown {
       const exp = asRecord(item);
       return {
         cargo: asString(exp.cargo ?? exp.funcao ?? exp.função ?? exp.title ?? exp.position),
-        organizacao: asString(exp.organizacao ?? exp.organização ?? exp.empresa ?? exp.instituicao ?? exp.instituição ?? exp.organization),
+        organizacao: asString(
+          exp.organizacao ??
+            exp.organização ??
+            exp.empresa ??
+            exp.instituicao ??
+            exp.instituição ??
+            exp.organization,
+        ),
         local: asString(exp.local ?? exp.location) || undefined,
         inicio: asString(exp.inicio ?? exp.início ?? exp.start ?? exp.periodo_inicio) || undefined,
         fim: asString(exp.fim ?? exp.end ?? exp.periodo_fim) || undefined,
-        descricao: asString(exp.descricao ?? exp.descrição ?? exp.description ?? exp.responsabilidades ?? exp.bullets) || undefined,
+        descricao:
+          asString(
+            exp.descricao ??
+              exp.descrição ??
+              exp.description ??
+              exp.responsabilidades ??
+              exp.bullets,
+          ) || undefined,
       };
     }),
     formacao: (formacao as unknown[]).map((item) => {
       const edu = asRecord(item);
       return {
-        curso: asString(edu.curso ?? edu.grau ?? edu.titulo ?? edu.título ?? edu.degree ?? edu.nome) || "Formação",
-        instituicao: asString(edu.instituicao ?? edu.instituição ?? edu.escola ?? edu.universidade ?? edu.institution),
+        curso:
+          asString(edu.curso ?? edu.grau ?? edu.titulo ?? edu.título ?? edu.degree ?? edu.nome) ||
+          "Formação",
+        instituicao: asString(
+          edu.instituicao ?? edu.instituição ?? edu.escola ?? edu.universidade ?? edu.institution,
+        ),
         local: asString(edu.local ?? edu.location) || undefined,
         inicio: asString(edu.inicio ?? edu.início ?? edu.start) || undefined,
         fim: asString(edu.fim ?? edu.end) || undefined,
@@ -459,13 +475,22 @@ function normalizeAlignmentJson(value: unknown): unknown {
       .map((item) => {
         const idioma = asRecord(item);
         return {
-          idioma: asString(idioma.idioma ?? idioma.lingua ?? idioma.língua ?? idioma.language ?? item),
+          idioma: asString(
+            idioma.idioma ?? idioma.lingua ?? idioma.língua ?? idioma.language ?? item,
+          ),
           nivel: normalizeIdiomaNivel(idioma.nivel ?? idioma.level),
         };
       })
       .filter((item) => item.idioma),
-    alteracoes: Array.isArray(root.alteracoes ?? root.alterações ?? source.alteracoes ?? source.alterações)
-      ? ((root.alteracoes ?? root.alterações ?? source.alteracoes ?? source.alterações) as unknown[]).map((item) => {
+    alteracoes: Array.isArray(
+      root.alteracoes ?? root.alterações ?? source.alteracoes ?? source.alterações,
+    )
+      ? (
+          (root.alteracoes ??
+            root.alterações ??
+            source.alteracoes ??
+            source.alterações) as unknown[]
+        ).map((item) => {
           const change = asRecord(item);
           const tipo = asString(change.tipo ?? change.type);
           return {
@@ -473,7 +498,9 @@ function normalizeAlignmentJson(value: unknown): unknown {
             campo: asString(change.campo ?? change.field),
             de: asString(change.de ?? change.from ?? change.original),
             para: asString(change.para ?? change.to ?? change.reescrito),
-            justificacao: asString(change.justificacao ?? change.justificação ?? change.reason ?? change.motivo),
+            justificacao: asString(
+              change.justificacao ?? change.justificação ?? change.reason ?? change.motivo,
+            ),
           };
         })
       : [],
@@ -588,20 +615,14 @@ export const alignCvToTdr = createServerFn({ method: "POST" })
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("429"))
         throw new Error("Limite de pedidos atingido. Tenta dentro de 1 minuto.");
-      if (msg.includes("402"))
-        throw new Error("Créditos de AI esgotados nesta workspace.");
+      if (msg.includes("402")) throw new Error("Créditos de AI esgotados nesta workspace.");
       throw new Error(`Falha ao alinhar CV: ${msg}`);
     }
   });
 
 // =================== Preparação de entrevista ===================
 
-const interviewCategorias = [
-  "comportamental",
-  "tecnica",
-  "sobre_empresa",
-  "eliminatoria",
-] as const;
+const interviewCategorias = ["comportamental", "tecnica", "sobre_empresa", "eliminatoria"] as const;
 
 const interviewPrepInputSchema = z.object({
   jobTdr: z.string().min(20, "Cola um TdR mais detalhado."),
@@ -640,13 +661,15 @@ Outras regras:
 const MOCK_INTERVIEW_QUESTIONS: InterviewQuestion[] = [
   {
     categoria: "comportamental",
-    pergunta: "⚠️ MOCK — Fala-me de uma situação em que tiveste de gerir uma equipa sob pressão de prazo.",
+    pergunta:
+      "⚠️ MOCK — Fala-me de uma situação em que tiveste de gerir uma equipa sob pressão de prazo.",
     resposta_sugerida:
       "⚠️ MOCK (sem LOVABLE_API_KEY) — Sugestão de discurso: estrutura pelo método STAR usando um exemplo real de coordenação de equipa que conste no teu CV.",
   },
   {
     categoria: "comportamental",
-    pergunta: "⚠️ MOCK — Descreve um conflito que tiveste com um colega ou parceiro e como o resolveste.",
+    pergunta:
+      "⚠️ MOCK — Descreve um conflito que tiveste com um colega ou parceiro e como o resolveste.",
     resposta_sugerida:
       "⚠️ MOCK (sem LOVABLE_API_KEY) — Não há no teu CV elemento que suporte isto — considera preparar um exemplo real de resolução de conflito antes da entrevista.",
   },
@@ -694,7 +717,8 @@ const MOCK_INTERVIEW_QUESTIONS: InterviewQuestion[] = [
   },
   {
     categoria: "eliminatoria",
-    pergunta: "⚠️ MOCK — Tens disponibilidade para viajar ou mudar de localização, conforme exigido no TdR?",
+    pergunta:
+      "⚠️ MOCK — Tens disponibilidade para viajar ou mudar de localização, conforme exigido no TdR?",
     resposta_sugerida:
       "⚠️ MOCK (sem LOVABLE_API_KEY) — Não há no teu CV elemento que suporte isto — confirma a tua disponibilidade real antes da entrevista.",
   },
@@ -734,7 +758,9 @@ export const generateInterviewPrep = createServerFn({ method: "POST" })
       if (msg.includes("429"))
         throw new Error("Limite de pedidos atingido. Tenta de novo dentro de 1 minuto.");
       if (msg.includes("402"))
-        throw new Error("Créditos de AI esgotados nesta workspace. Adiciona créditos para continuar.");
+        throw new Error(
+          "Créditos de AI esgotados nesta workspace. Adiciona créditos para continuar.",
+        );
       throw new Error(`Falha a gerar preparação de entrevista: ${msg}`);
     }
   });
@@ -831,7 +857,9 @@ export const generateFieldSuggestions = createServerFn({ method: "POST" })
     const prompt = [
       `Campo a sugerir: ${FIELD_SUGGESTION_LABELS[data.sectionType]}.`,
       data.fieldContext.cargo ? `Cargo/título: ${data.fieldContext.cargo}` : "",
-      data.fieldContext.organizacao ? `Organização/instituição: ${data.fieldContext.organizacao}` : "",
+      data.fieldContext.organizacao
+        ? `Organização/instituição: ${data.fieldContext.organizacao}`
+        : "",
       data.fieldContext.local ? `Local: ${data.fieldContext.local}` : "",
       data.cvHeadline ? `Cargo/título geral do perfil no CV: ${data.cvHeadline}` : "",
       `Texto atual do campo: ${existingPlain || "(vazio)"}`,
@@ -866,8 +894,112 @@ export const generateFieldSuggestions = createServerFn({ method: "POST" })
       if (msg.includes("429"))
         throw new Error("Limite de pedidos atingido. Tenta de novo dentro de 1 minuto.");
       if (msg.includes("402"))
-        throw new Error("Créditos de AI esgotados nesta workspace. Adiciona créditos para continuar.");
+        throw new Error(
+          "Créditos de AI esgotados nesta workspace. Adiciona créditos para continuar.",
+        );
       throw new Error(`Falha a gerar sugestões: ${msg}`);
     }
   });
 
+// =================== Carta de motivação ===================
+
+const coverLetterInputSchema = z
+  .object({
+    cvContent: z.any(),
+    jobTdr: z.string().optional(),
+    mode: z.enum(["targeted", "generic"]),
+  })
+  .refine((v) => v.mode !== "targeted" || (v.jobTdr?.trim().length ?? 0) >= 20, {
+    message: "Cola um TdR mais detalhado para uma carta direcionada.",
+    path: ["jobTdr"],
+  });
+
+const coverLetterOutputSchema = z.object({
+  content: z.string(),
+});
+
+const COVER_LETTER_SYSTEM = `És um redator de cartas de motivação especializado em ONGs, desenvolvimento, consultoria e administração pública em Moçambique e PALOP. Escreves o corpo de cartas de motivação profissionais ancoradas estritamente no CV do candidato.
+
+Regra absoluta e não negociável — ZERO INVENÇÃO:
+- A carta tem de se ancorar ESTRITAMENTE no conteúdo do CV fornecido.
+- PROIBIDO inventar experiência profissional, cargos, organizações, formação académica, certificações, competências, resultados quantitativos ou qualquer outro facto que não conste do CV.
+- Se o CV não tiver evidência suficiente para um parágrafo forte, escreve com o que existe — nunca preenchas a lacuna com invenção.
+
+Regras por modo:
+- Modo "targeted" (carta para uma vaga específica): espelha os requisitos-chave dos Termos de Referência (TdR) fornecidos, usando APENAS evidência que já existe no CV. Estrutura: (1) parágrafo de abertura que refere a vaga e a organização (usa o nome da organização/título da vaga tal como aparecem no TdR, se identificáveis); (2) dois parágrafos de evidência que ligam experiência/competências reais do CV aos requisitos do TdR; (3) parágrafo de fecho com disponibilidade para entrevista. Entre 250 e 400 palavras no total.
+- Modo "generic" (carta genérica, adaptável a qualquer vaga): mesma disciplina de zero invenção e mesma estrutura geral (abertura, evidência, fecho), mas SEM referir uma vaga ou organização concreta — usa marcadores claros para o candidato personalizar antes de enviar, exactamente assim: [Nome da Organização] e [Título da Vaga]. Entre 250 e 400 palavras.
+
+Tom e forma:
+- Responde sempre em PORTUGUÊS EUROPEU (PT-PT), tom profissional e directo, primeira pessoa.
+- O campo "content" da resposta é HTML restrito, usando APENAS estas tags: <p>, <strong>, <em>, <ul>, <li>. Nunca uses markdown, nunca outras tags (sem <br>, sem atributos, sem classes, sem cabeçalhos).
+- Não incluas saudação nem despedida formais de carta (ex: "Exmo. Senhor", "Atenciosamente") — o utilizador compõe isso fora do corpo gerado; escreve apenas o corpo do texto.`;
+
+function buildCoverLetterPrompt(cvText: string, mode: CoverLetterMode, jobTdr?: string): string {
+  const parts = [`## CV do candidato\n${cvText}`];
+  if (mode === "targeted" && jobTdr) {
+    parts.push(`## Termos de Referência da vaga\n${jobTdr}`);
+  }
+  parts.push(
+    `Escreve o corpo de uma carta de motivação em modo "${mode}". Responde APENAS com um objecto JSON válido (sem markdown, sem comentários, sem texto antes ou depois) com esta forma exacta:\n{ "content": string }\nO valor de "content" é HTML restrito (<p>, <strong>, <em>, <ul>, <li> apenas).`,
+  );
+  return parts.join("\n\n");
+}
+
+const MOCK_COVER_LETTER_TARGETED: GeneratedCoverLetter = {
+  content:
+    "<p>⚠️ MOCK (sem LOVABLE_API_KEY) — Escrevo para manifestar o meu interesse na vaga anunciada nos Termos de Referência partilhados, cuja missão e áreas de actuação se alinham directamente com o meu percurso profissional.</p>" +
+    "<p>Ao longo da minha carreira, tal como reflectido no meu CV, desenvolvi experiência relevante para os requisitos desta posição, incluindo responsabilidades de coordenação, gestão e elaboração de relatórios que constam do meu percurso documentado.</p>" +
+    "<p>Complementarmente, as competências e a formação registadas no meu CV reforçam a minha adequação a este papel, permitindo-me contribuir desde o primeiro momento para os objectivos da organização.</p>" +
+    "<p>Fico disponível para uma entrevista a qualquer momento e agradeço desde já a atenção dispensada à minha candidatura.</p>",
+};
+
+const MOCK_COVER_LETTER_GENERIC: GeneratedCoverLetter = {
+  content:
+    "<p>⚠️ MOCK (sem LOVABLE_API_KEY) — Escrevo para manifestar o meu interesse na vaga de [Título da Vaga] na [Nome da Organização], cuja missão considero alinhada com o meu percurso profissional.</p>" +
+    "<p>Tal como reflectido no meu CV, desenvolvi experiência relevante em funções anteriores, incluindo responsabilidades de coordenação, gestão e elaboração de relatórios.</p>" +
+    "<p>As competências e a formação registadas no meu CV reforçam a minha adequação a este tipo de posição, permitindo-me contribuir desde o primeiro momento para os objectivos da organização.</p>" +
+    "<p>Fico disponível para uma entrevista a qualquer momento e agradeço desde já a atenção dispensada à minha candidatura.</p>",
+};
+
+export const generateCoverLetter = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => coverLetterInputSchema.parse(input))
+  .handler(async ({ data }): Promise<GeneratedCoverLetter> => {
+    if (!process.env.LOVABLE_API_KEY) {
+      console.warn("MOCK: LOVABLE_API_KEY ausente, a devolver carta de motivação simulada");
+      return data.mode === "targeted" ? MOCK_COVER_LETTER_TARGETED : MOCK_COVER_LETTER_GENERIC;
+    }
+
+    const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY);
+    const cvText =
+      typeof data.cvContent === "string" ? data.cvContent : cvToText(data.cvContent as CvDraft);
+    const prompt = buildCoverLetterPrompt(cvText, data.mode, data.jobTdr);
+
+    const callOnce = async () => {
+      const { text } = await generateText({
+        model: gateway("google/gemini-3-flash-preview"),
+        system: COVER_LETTER_SYSTEM,
+        prompt,
+      });
+      const json = extractJson(text);
+      const parsed = coverLetterOutputSchema.parse(json);
+      return { content: toSafeHtml(parsed.content) };
+    };
+
+    try {
+      try {
+        return await callOnce();
+      } catch (e) {
+        console.warn("generateCoverLetter: 1ª tentativa falhou, a repetir.", e);
+        return await callOnce();
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("429"))
+        throw new Error("Limite de pedidos atingido. Tenta de novo dentro de 1 minuto.");
+      if (msg.includes("402"))
+        throw new Error(
+          "Créditos de AI esgotados nesta workspace. Adiciona créditos para continuar.",
+        );
+      throw new Error(`Falha a gerar carta de motivação: ${msg}`);
+    }
+  });

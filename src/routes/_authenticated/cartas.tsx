@@ -1,8 +1,9 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { FileSignature, Plus, Loader2 } from "lucide-react";
-import { listCoverLetters, getCoverLetter, deleteCoverLetter } from "@/lib/cover_letters.functions";
+import { FileSignature, Plus } from "lucide-react";
+import { listCoverLetters, deleteCoverLetter } from "@/lib/cover_letters.functions";
+import { NovaCartaStepper } from "@/components/cartas/NovaCartaStepper";
 import { Button } from "@/components/ui/button";
 
 type LetterRow = {
@@ -35,16 +36,14 @@ function contentPreview(content: string): string {
 }
 
 function CartasPage() {
+  const navigate = useNavigate();
   const fetchList = useServerFn(listCoverLetters);
-  const fetchOne = useServerFn(getCoverLetter);
   const removeFn = useServerFn(deleteCoverLetter);
 
   const [rows, setRows] = useState<LetterRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [fullContent, setFullContent] = useState<Record<string, string>>({});
-  const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [novaCartaOpen, setNovaCartaOpen] = useState(false);
 
   const reload = async () => {
     try {
@@ -71,25 +70,6 @@ function CartasPage() {
     }
   };
 
-  const onToggleOpen = async (id: string) => {
-    if (expandedId === id) {
-      setExpandedId(null);
-      return;
-    }
-    setExpandedId(id);
-    if (!fullContent[id]) {
-      setLoadingId(id);
-      try {
-        const row = await fetchOne({ data: { id } });
-        setFullContent((prev) => ({ ...prev, [id]: row.content }));
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Erro a carregar carta");
-      } finally {
-        setLoadingId(null);
-      }
-    }
-  };
-
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:py-12">
       <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
@@ -106,7 +86,7 @@ function CartasPage() {
         </div>
         <button
           type="button"
-          onClick={() => alert("Geração de cartas em breve.")}
+          onClick={() => setNovaCartaOpen(true)}
           className="inline-flex items-center gap-2 rounded-[10px] bg-[#1b1b19] px-4 py-2 text-sm font-medium text-[#F1EFE8] transition-opacity hover:opacity-90"
         >
           <Plus className="h-4 w-4" />
@@ -133,16 +113,17 @@ function CartasPage() {
             Ainda não tens cartas guardadas
           </h2>
           <p className="mt-2 max-w-xs text-[13px] leading-relaxed text-[#5F5E5A]">
-            As cartas de motivação geradas a partir dos teus CVs aparecerão aqui quando estiver
-            disponível.
+            Cria a tua primeira carta de motivação a partir de uma vaga, de forma genérica ou do
+            zero.
           </p>
-          <Link
-            to="/editor"
+          <button
+            type="button"
+            onClick={() => setNovaCartaOpen(true)}
             className="mt-6 inline-flex items-center gap-2 rounded-[10px] bg-[#1b1b19] px-5 py-2.5 text-sm font-medium text-[#F1EFE8] transition-opacity hover:opacity-90"
           >
             <Plus className="h-4 w-4" />
-            Ir para o editor
-          </Link>
+            Nova carta
+          </button>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -170,10 +151,10 @@ function CartasPage() {
               <div className="mt-4 flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => onToggleOpen(letter.id)}
+                  onClick={() => navigate({ to: "/carta-editor", search: { id: letter.id } })}
                   className="inline-flex items-center justify-center rounded-[10px] border border-navy-rule bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface"
                 >
-                  {expandedId === letter.id ? "Fechar" : "Abrir"}
+                  Abrir
                 </button>
                 <Button
                   variant="ghost"
@@ -185,23 +166,18 @@ function CartasPage() {
                   Apagar
                 </Button>
               </div>
-              {expandedId === letter.id && (
-                <div className="mt-4 border-t border-navy-rule pt-4">
-                  {loadingId === letter.id ? (
-                    <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" />A carregar…
-                    </div>
-                  ) : (
-                    <p className="whitespace-pre-wrap text-sm text-foreground">
-                      {fullContent[letter.id]}
-                    </p>
-                  )}
-                </div>
-              )}
             </div>
           ))}
         </div>
       )}
+
+      <NovaCartaStepper
+        open={novaCartaOpen}
+        onOpenChange={(v) => {
+          setNovaCartaOpen(v);
+          if (!v) reload();
+        }}
+      />
     </div>
   );
 }

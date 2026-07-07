@@ -19,6 +19,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedMeusCvsRouteImport } from './routes/_authenticated/meus-cvs'
 import { Route as AuthenticatedEntrevistasRouteImport } from './routes/_authenticated/entrevistas'
 import { Route as AuthenticatedCartasRouteImport } from './routes/_authenticated/cartas'
+import { Route as AuthenticatedCartaEditorRouteImport } from './routes/_authenticated/carta-editor'
 
 const VagasRoute = VagasRouteImport.update({
   id: '/vagas',
@@ -70,6 +71,12 @@ const AuthenticatedCartasRoute = AuthenticatedCartasRouteImport.update({
   path: '/cartas',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedCartaEditorRoute =
+  AuthenticatedCartaEditorRouteImport.update({
+    id: '/carta-editor',
+    path: '/carta-editor',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -78,6 +85,7 @@ export interface FileRoutesByFullPath {
   '/editor': typeof EditorRoute
   '/preparar-entrevista': typeof PrepararEntrevistaRoute
   '/vagas': typeof VagasRoute
+  '/carta-editor': typeof AuthenticatedCartaEditorRoute
   '/cartas': typeof AuthenticatedCartasRoute
   '/entrevistas': typeof AuthenticatedEntrevistasRoute
   '/meus-cvs': typeof AuthenticatedMeusCvsRoute
@@ -89,6 +97,7 @@ export interface FileRoutesByTo {
   '/editor': typeof EditorRoute
   '/preparar-entrevista': typeof PrepararEntrevistaRoute
   '/vagas': typeof VagasRoute
+  '/carta-editor': typeof AuthenticatedCartaEditorRoute
   '/cartas': typeof AuthenticatedCartasRoute
   '/entrevistas': typeof AuthenticatedEntrevistasRoute
   '/meus-cvs': typeof AuthenticatedMeusCvsRoute
@@ -102,6 +111,7 @@ export interface FileRoutesById {
   '/editor': typeof EditorRoute
   '/preparar-entrevista': typeof PrepararEntrevistaRoute
   '/vagas': typeof VagasRoute
+  '/_authenticated/carta-editor': typeof AuthenticatedCartaEditorRoute
   '/_authenticated/cartas': typeof AuthenticatedCartasRoute
   '/_authenticated/entrevistas': typeof AuthenticatedEntrevistasRoute
   '/_authenticated/meus-cvs': typeof AuthenticatedMeusCvsRoute
@@ -115,6 +125,7 @@ export interface FileRouteTypes {
     | '/editor'
     | '/preparar-entrevista'
     | '/vagas'
+    | '/carta-editor'
     | '/cartas'
     | '/entrevistas'
     | '/meus-cvs'
@@ -126,6 +137,7 @@ export interface FileRouteTypes {
     | '/editor'
     | '/preparar-entrevista'
     | '/vagas'
+    | '/carta-editor'
     | '/cartas'
     | '/entrevistas'
     | '/meus-cvs'
@@ -138,6 +150,7 @@ export interface FileRouteTypes {
     | '/editor'
     | '/preparar-entrevista'
     | '/vagas'
+    | '/_authenticated/carta-editor'
     | '/_authenticated/cartas'
     | '/_authenticated/entrevistas'
     | '/_authenticated/meus-cvs'
@@ -225,16 +238,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCartasRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/carta-editor': {
+      id: '/_authenticated/carta-editor'
+      path: '/carta-editor'
+      fullPath: '/carta-editor'
+      preLoaderRoute: typeof AuthenticatedCartaEditorRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedCartaEditorRoute: typeof AuthenticatedCartaEditorRoute
   AuthenticatedCartasRoute: typeof AuthenticatedCartasRoute
   AuthenticatedEntrevistasRoute: typeof AuthenticatedEntrevistasRoute
   AuthenticatedMeusCvsRoute: typeof AuthenticatedMeusCvsRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedCartaEditorRoute: AuthenticatedCartaEditorRoute,
   AuthenticatedCartasRoute: AuthenticatedCartasRoute,
   AuthenticatedEntrevistasRoute: AuthenticatedEntrevistasRoute,
   AuthenticatedMeusCvsRoute: AuthenticatedMeusCvsRoute,
