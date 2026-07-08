@@ -727,7 +727,7 @@ export const alignCvToTdr = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<AlignmentResult> => {
     const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY);
 
-    const prompt = `## CV actual do candidato\n${data.cv}\n\n## Termos de Referência da vaga\n${data.jobTdr}\n\nReescreve o CV para o alinhar ao máximo com este TdR. Responde APENAS com um objecto JSON válido (sem markdown, sem comentários, sem texto antes ou depois) nesta forma exacta:\n{\n  "perfil": { "nome": string, "headline": string, "email": string, "telefone": string, "cidade": string, "pais": string, "linkedin": string, "website": string, "resumo": string },\n  "experiencia": [{ "cargo": string, "organizacao": string, "local": string, "inicio": string, "fim": string, "descricao": string }],\n  "formacao": [{ "curso": string, "instituicao": string, "local": string, "inicio": string, "fim": string, "descricao": string }],\n  "competencias": [{ "nome": string }],\n  "idiomas": [{ "idioma": string, "nivel": "basico"|"intermedio"|"avancado"|"fluente"|"nativo" }],\n  "alteracoes": [{ "tipo": "reformulado"|"recontextualizado", "campo": string, "de": string, "para": string, "justificacao": string }]\n}\nNunca uses arrays em campos de texto como "descricao": devolve uma única string em HTML restrito (<p>, <ul>, <li>, <strong>, <em>, <u> apenas), com os bullets dentro de <ul><li>.`;
+    const prompt = `## CV actual do candidato\n${compactForAi(data.cv)}\n\n## Termos de Referência da vaga\n${compactForAi(data.jobTdr)}\n\nReescreve o CV para o alinhar ao máximo com este TdR. Responde APENAS com um objecto JSON válido (sem markdown, sem comentários, sem texto antes ou depois) nesta forma exacta:\n{\n  "perfil": { "nome": string, "headline": string, "email": string, "telefone": string, "cidade": string, "pais": string, "linkedin": string, "website": string, "resumo": string },\n  "experiencia": [{ "cargo": string, "organizacao": string, "local": string, "inicio": string, "fim": string, "descricao": string }],\n  "formacao": [{ "curso": string, "instituicao": string, "local": string, "inicio": string, "fim": string, "descricao": string }],\n  "competencias": [{ "nome": string }],\n  "idiomas": [{ "idioma": string, "nivel": "basico"|"intermedio"|"avancado"|"fluente"|"nativo" }],\n  "alteracoes": [{ "tipo": "reformulado"|"recontextualizado", "campo": string, "de": string, "para": string, "justificacao": string }]\n}\nNunca uses arrays em campos de texto como "descricao": devolve uma única string em HTML restrito (<p>, <ul>, <li>, <strong>, <em>, <u> apenas), com os bullets dentro de <ul><li>.`;
 
     const callOnce = async () => {
       const { text } = await generateText({
@@ -905,7 +905,7 @@ export const generateInterviewPrep = createServerFn({ method: "POST" })
 
     const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY);
 
-    const prompt = `## Termos de Referência da vaga\n${data.jobTdr}\n\n## Carta de apresentação do candidato\n${data.coverLetter}\n\n## CV do candidato\n${data.cv}\n\nGera uma simulação de entrevista específica para esta vaga. Responde APENAS com um objecto JSON válido (sem markdown, sem comentários, sem texto antes ou depois) com esta forma exacta:\n{\n  "perguntas": [{ "categoria": "comportamental"|"tecnica"|"sobre_empresa"|"eliminatoria", "pergunta": string, "resposta_sugerida": string }]\n}`;
+    const prompt = `## Termos de Referência da vaga\n${compactForAi(data.jobTdr)}\n\n## Carta de apresentação do candidato\n${compactForAi(data.coverLetter, 9000)}\n\n## CV do candidato\n${compactForAi(data.cv)}\n\nGera uma simulação de entrevista específica para esta vaga. Responde APENAS com um objecto JSON válido (sem markdown, sem comentários, sem texto antes ou depois) com esta forma exacta:\n{\n  "perguntas": [{ "categoria": "comportamental"|"tecnica"|"sobre_empresa"|"eliminatoria", "pergunta": string, "resposta_sugerida": string }]\n}`;
 
     const callOnce = async () => {
       const { text } = await generateText({
@@ -1149,8 +1149,9 @@ export const generateCoverLetter = createServerFn({ method: "POST" })
     }
 
     const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY);
-    const cvText =
-      typeof data.cvContent === "string" ? data.cvContent : cvToText(data.cvContent as CvDraft);
+    const cvText = compactForAi(
+      typeof data.cvContent === "string" ? data.cvContent : cvToText(data.cvContent as CvDraft),
+    );
     const prompt = buildCoverLetterPrompt(cvText, data.mode, data.jobTdr);
 
     const callOnce = async () => {
