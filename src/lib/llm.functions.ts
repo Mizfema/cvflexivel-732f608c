@@ -222,6 +222,14 @@ function extractJson(response: string): unknown {
   }
 }
 
+function extractJsonOrText(response: string): unknown {
+  try {
+    return extractJson(response);
+  } catch {
+    return response;
+  }
+}
+
 function normalizeArray(value: unknown): unknown[] {
   if (Array.isArray(value)) return value;
   if (value == null) return [];
@@ -512,7 +520,17 @@ function normalizeIdiomaNivel(value: unknown) {
 
 function normalizeAlignmentJson(value: unknown): unknown {
   const root = asRecord(value);
-  const source = asRecord(root.sections ?? root.cv ?? root.curriculo ?? root);
+  const source = asRecord(
+    root.sections ??
+      root.cv ??
+      root.curriculo ??
+      root.currículo ??
+      root.cv_alinhado ??
+      root.cvAlinhado ??
+      root.resultado ??
+      root.result ??
+      root,
+  );
   const perfil = asRecord(
     source.perfil ?? source.profile ?? source.dadosPessoais ?? source.dados_pessoais,
   );
@@ -621,6 +639,37 @@ function normalizeAlignmentJson(value: unknown): unknown {
           };
         })
       : [],
+  };
+}
+
+function normalizeInterviewCategory(value: unknown): (typeof interviewCategorias)[number] {
+  const raw = asString(value).toLowerCase();
+  if (raw.includes("técn") || raw.includes("tecn") || raw.includes("technical")) return "tecnica";
+  if (raw.includes("empresa") || raw.includes("organiza") || raw.includes("company")) {
+    return "sobre_empresa";
+  }
+  if (raw.includes("elimin") || raw.includes("filtro") || raw.includes("obrig")) return "eliminatoria";
+  return "comportamental";
+}
+
+function normalizeInterviewPrepJson(value: unknown): unknown {
+  const root = asRecord(value);
+  const perguntasRaw = normalizeArray(
+    root.perguntas ?? root.questions ?? root.entrevista ?? root.interview ?? value,
+  );
+  return {
+    perguntas: perguntasRaw
+      .map((item) => {
+        const q = asRecord(item);
+        return {
+          categoria: normalizeInterviewCategory(q.categoria ?? q.category ?? q.tipo),
+          pergunta: asString(q.pergunta ?? q.question ?? q.titulo ?? q.title ?? item),
+          resposta_sugerida: asString(
+            q.resposta_sugerida ?? q.respostaSugerida ?? q.answer ?? q.suggested_answer ?? q.sugestao,
+          ),
+        };
+      })
+      .filter((q) => q.pergunta),
   };
 }
 
