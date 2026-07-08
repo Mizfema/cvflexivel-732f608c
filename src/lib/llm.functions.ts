@@ -778,11 +778,7 @@ export const alignCvToTdr = createServerFn({ method: "POST" })
         })),
       };
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("429"))
-        throw new Error("Limite de pedidos atingido. Tenta dentro de 1 minuto.");
-      if (msg.includes("402")) throw new Error("Créditos de AI esgotados nesta workspace.");
-      throw new Error(`Falha ao alinhar CV: ${msg}`);
+      throw new Error(`Falha ao alinhar CV: ${friendlyAiError(err).message}`);
     }
   });
 
@@ -909,7 +905,7 @@ export const generateInterviewPrep = createServerFn({ method: "POST" })
         prompt,
       });
       const json = extractJson(text);
-      return interviewPrepOutputSchema.parse(json).perguntas;
+      return interviewPrepOutputSchema.parse(normalizeInterviewPrepJson(json)).perguntas;
     };
 
     try {
@@ -920,14 +916,7 @@ export const generateInterviewPrep = createServerFn({ method: "POST" })
         return await callOnce();
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("429"))
-        throw new Error("Limite de pedidos atingido. Tenta de novo dentro de 1 minuto.");
-      if (msg.includes("402"))
-        throw new Error(
-          "Créditos de AI esgotados nesta workspace. Adiciona créditos para continuar.",
-        );
-      throw new Error(`Falha a gerar preparação de entrevista: ${msg}`);
+      throw new Error(`Falha a gerar preparação de entrevista: ${friendlyAiError(err).message}`);
     }
   });
 
@@ -977,6 +966,18 @@ function sanitizePlainSuggestion(text: string): string {
     .replace(/<[^>]+>/g, "")
     .replace(/^[-•*]\s*/, "")
     .trim();
+}
+
+function normalizeSuggestionsJson(value: unknown): unknown {
+  const root = asRecord(value);
+  const suggestions = normalizeArray(
+    root.suggestions ?? root.sugestoes ?? root.sugestões ?? root.items ?? value,
+  )
+    .map(asString)
+    .map(sanitizePlainSuggestion)
+    .filter(Boolean)
+    .slice(0, 6);
+  return { suggestions };
 }
 
 const MOCK_FIELD_SUGGESTIONS: Record<FieldSuggestionSectionType, string[]> = {
@@ -1042,7 +1043,7 @@ export const generateFieldSuggestions = createServerFn({ method: "POST" })
         prompt,
       });
       const json = extractJson(text);
-      const parsed = fieldSuggestionsOutputSchema.parse(json);
+      const parsed = fieldSuggestionsOutputSchema.parse(normalizeSuggestionsJson(json));
       return parsed.suggestions.map(sanitizePlainSuggestion).filter(Boolean);
     };
 
@@ -1056,14 +1057,7 @@ export const generateFieldSuggestions = createServerFn({ method: "POST" })
       }
       return { suggestions };
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("429"))
-        throw new Error("Limite de pedidos atingido. Tenta de novo dentro de 1 minuto.");
-      if (msg.includes("402"))
-        throw new Error(
-          "Créditos de AI esgotados nesta workspace. Adiciona créditos para continuar.",
-        );
-      throw new Error(`Falha a gerar sugestões: ${msg}`);
+      throw new Error(`Falha a gerar sugestões: ${friendlyAiError(err).message}`);
     }
   });
 
