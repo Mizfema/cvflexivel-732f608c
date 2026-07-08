@@ -25,6 +25,19 @@ type Step =
       tipo?: "texto" | "input";
     };
 
+type InterviewCvResult = {
+  perfil: CvDraft["sections"]["perfil"];
+  experiencia: Array<Omit<CvDraft["sections"]["experiencia"][number], "id">>;
+  formacao: Array<Omit<CvDraft["sections"]["formacao"][number], "id">>;
+  competencias: Array<Omit<CvDraft["sections"]["competencias"][number], "id">>;
+  idiomas: Array<Omit<CvDraft["sections"]["idiomas"][number], "id">>;
+};
+
+type InterviewMutationInput = {
+  answers: { pergunta: string; resposta: string }[];
+  jobTdr?: string;
+};
+
 const PERGUNTAS_BASE: Step[] = [
   {
     kind: "pergunta",
@@ -113,9 +126,8 @@ export function InterviewMode({
   const [current, setCurrent] = useState("");
 
   const gen = useServerFn(generateCvFromInterview);
-  const mut = useMutation({
-    mutationFn: (input: { answers: { pergunta: string; resposta: string }[]; jobTdr?: string }) =>
-      gen({ data: input }),
+  const mut = useMutation<InterviewCvResult, Error, InterviewMutationInput>({
+    mutationFn: (input) => gen({ data: input }) as Promise<InterviewCvResult>,
 
     onSuccess: (data) => {
       const sections: CvDraft["sections"] = {

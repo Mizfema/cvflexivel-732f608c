@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { generateText, Output } from "ai";
+import { generateText } from "ai";
 import { z } from "zod";
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
 import type { CvDraft, CvSections, AlignmentResult } from "./cv-types";
@@ -59,6 +59,81 @@ const outputSchema = z.object({
   totalRequisitos: z.number().int().min(0),
   requisitosCobertos: z.number().int().min(0),
 });
+
+function normalizeGapType(value: unknown): "tem_nao_mostrou" | "parcial_transferivel" | "lacuna_real" {
+  const raw = asString(value).toLowerCase();
+  if (raw.includes("transfer") || raw.includes("adjacent") || raw.includes("parcial")) {
+    return "parcial_transferivel";
+  }
+  if (raw.includes("real") || raw.includes("ausente") || raw.includes("lacuna") || raw.includes("missing")) {
+    return "lacuna_real";
+  }
+  return "tem_nao_mostrou";
+}
+
+function normalizeCoverageJson(value: unknown): unknown {
+  const root = asRecord(value);
+  const source = asRecord(root.analysis ?? root.analise ?? root.análise ?? root.result ?? root);
+  const coberturaRaw = normalizeArray(
+    source.cobertura ?? source.coverage ?? source.seccoes ?? source.seções ?? source.sections,
+  );
+  const keywords = asRecord(source.keywords ?? source.palavras_chave ?? source.palavrasChave);
+  const eliminatorios = normalizeArray(
+    source.requisitosEliminatoriosNaoCumpridos ??
+      source.requisitos_eliminatorios_nao_cumpridos ??
+      source.eliminatorios ??
+      source.requisitosObrigatoriosNaoCumpridos,
+  );
+
+  const cobertura = coberturaRaw.map((item) => {
+    const c = asRecord(item);
+    const emFalta = normalizeArray(c.emFalta ?? c.em_falta ?? c.missing ?? c.gaps).map((gap) => {
+      const g = asRecord(gap);
+      return {
+        requisito: asString(g.requisito ?? g.requirement ?? g.nome ?? gap) || "Requisito em falta",
+        tipo: normalizeGapType(g.tipo ?? g.type),
+        accao_sugerida: asString(
+          g.accao_sugerida ?? g.ação_sugerida ?? g.acao_sugerida ?? g.sugestao ?? g.suggestion,
+        ),
+      };
+    });
+    return {
+      secao: asString(c.secao ?? c.secção ?? c.section ?? c.nome) || "Secção",
+      score: clampNumber(c.score ?? c.pontuacao ?? c.pontuação, 0, 3, 0),
+      presentes: normalizeArray(c.presentes ?? c.found ?? c.cobertos).map(asString).filter(Boolean),
+      emFalta,
+    };
+  });
+
+  const presentes = normalizeArray(keywords.presentes ?? keywords.found ?? keywords.cobertas)
+    .map(asString)
+    .filter(Boolean);
+  const emFalta = normalizeArray(keywords.emFalta ?? keywords.em_falta ?? keywords.missing)
+    .map(asString)
+    .filter(Boolean);
+  const total = clampNumber(source.totalRequisitos ?? source.total_requisitos, 0, 999, cobertura.length);
+  const covered = clampNumber(
+    source.requisitosCobertos ?? source.requisitos_cobertos,
+    0,
+    total || 999,
+    cobertura.filter((c) => c.score >= 2).length,
+  );
+
+  return {
+    resumo: asString(source.resumo ?? source.summary) || "Análise concluída com base no CV e no TdR fornecidos.",
+    cobertura,
+    keywords: { presentes, emFalta },
+    requisitosEliminatoriosNaoCumpridos: eliminatorios.map((item) => {
+      const r = asRecord(item);
+      return {
+        requisito: asString(r.requisito ?? r.requirement ?? r.nome ?? item),
+        mitigacao: asString(r.mitigacao ?? r.mitigação ?? r.mitigation ?? r.sugestao),
+      };
+    }),
+    totalRequisitos: total,
+    requisitosCobertos: covered,
+  };
+}
 
 function cvToText(cv: CvDraft): string {
   const p = cv.sections.perfil;
@@ -121,12 +196,20 @@ function extractJson(response: string): unknown {
     .replace(/```json\s*/gi, "")
     .replace(/```\s*/g, "")
     .trim();
+  if (!cleaned) throw new Error("Resposta vazia da IA.");
+
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    // continue with boundary extraction below
+  }
+
   const start = cleaned.search(/[\{\[]/);
   if (start === -1) throw new Error("Resposta sem JSON.");
   const openChar = cleaned[start];
   const closeChar = openChar === "[" ? "]" : "}";
   const end = cleaned.lastIndexOf(closeChar);
-  if (end === -1) throw new Error("JSON truncado na resposta.");
+  if (end === -1 || end <= start) throw new Error("JSON truncado na resposta.");
   cleaned = cleaned.substring(start, end + 1);
   try {
     return JSON.parse(cleaned);
@@ -139,13 +222,64 @@ function extractJson(response: string): unknown {
   }
 }
 
+function extractJsonOrText(response: string): unknown {
+  try {
+    return extractJson(response);
+  } catch {
+    return response;
+  }
+}
+
+function normalizeArray(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  if (value == null) return [];
+  return [value];
+}
+
+function clampNumber(value: unknown, min: number, max: number, fallback = min): number {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(n)));
+}
+
+function friendlyAiError(err: unknown): Error {
+  const msg = err instanceof Error ? err.message : String(err);
+  console.warn("Resposta de IA inválida", err);
+  if (msg.includes("429")) {
+    return new Error("Limite de pedidos atingido. Tenta de novo dentro de 1 minuto.");
+  }
+  if (msg.includes("402")) {
+    return new Error("Créditos de AI esgotados nesta workspace. Adiciona créditos para continuar.");
+  }
+  if (msg.toLowerCase().includes("truncado") || msg.toLowerCase().includes("truncated")) {
+    return new Error(
+      "A IA devolveu uma resposta incompleta. Tenta novamente ou reduz o tamanho do CV/TdR.",
+    );
+  }
+  if (msg.includes("Expected") || msg.includes("Required") || msg.includes("invalid_type")) {
+    return new Error(
+      "A IA devolveu uma resposta num formato inesperado. Já tentámos corrigir automaticamente, mas não foi possível.",
+    );
+  }
+  return new Error(msg);
+}
+
+function compactForAi(text: string, limit = 18000): string {
+  const normalized = text.replace(/\s+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  if (normalized.length <= limit) return normalized;
+  const head = normalized.slice(0, Math.floor(limit * 0.62));
+  const tail = normalized.slice(-Math.floor(limit * 0.32));
+  return `${head}\n\n[... conteúdo encurtado para evitar resposta truncada ...]\n\n${tail}`;
+}
+
 export const analyzeCoverage = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => inputSchema.parse(input))
   .handler(async ({ data }): Promise<CoverageAnalysis> => {
     const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY!);
 
-    const cvText = typeof data.cv === "string" ? data.cv : cvToText(data.cv as CvDraft);
-    const prompt = `## CV do candidato\n${cvText}\n\n## Termos de Referência da vaga\n${data.jobTdr}\n\nResponde APENAS com um objecto JSON válido (sem markdown, sem comentários, sem texto antes ou depois) com esta forma exacta:
+    const cvText = compactForAi(typeof data.cv === "string" ? data.cv : cvToText(data.cv as CvDraft));
+    const jobTdr = compactForAi(data.jobTdr);
+    const prompt = `## CV do candidato\n${cvText}\n\n## Termos de Referência da vaga\n${jobTdr}\n\nResponde APENAS com um objecto JSON válido (sem markdown, sem comentários, sem texto antes ou depois) com esta forma exacta:
 {
   "resumo": string,
   "cobertura": [{ "secao": string, "score": 0|1|2|3, "presentes": string[], "emFalta": [{ "requisito": string, "tipo": "tem_nao_mostrou"|"parcial_transferivel"|"lacuna_real", "accao_sugerida": string }] }],
@@ -162,7 +296,7 @@ export const analyzeCoverage = createServerFn({ method: "POST" })
         prompt,
       });
       const json = extractJson(text);
-      return outputSchema.parse(json) as CoverageAnalysis;
+      return outputSchema.parse(normalizeCoverageJson(json)) as CoverageAnalysis;
     };
 
     try {
@@ -173,14 +307,7 @@ export const analyzeCoverage = createServerFn({ method: "POST" })
         return await callOnce();
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("429"))
-        throw new Error("Limite de pedidos atingido. Tenta de novo dentro de 1 minuto.");
-      if (msg.includes("402"))
-        throw new Error(
-          "Créditos de AI esgotados nesta workspace. Adiciona créditos para continuar.",
-        );
-      throw new Error(`Falha na análise: ${msg}`);
+      throw new Error(`Falha na análise: ${friendlyAiError(err).message}`);
     }
   });
 
@@ -251,7 +378,7 @@ Regras absolutas:
 
 export const generateCvFromInterview = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => interviewInputSchema.parse(input))
-  .handler(async ({ data }) => {
+  .handler(async ({ data }): Promise<z.infer<typeof cvDraftSectionsSchema>> => {
     const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY);
 
     const answersBlock = data.answers
@@ -261,38 +388,45 @@ export const generateCvFromInterview = createServerFn({ method: "POST" })
     const prompt = [
       "## Respostas da entrevista",
       answersBlock,
-      data.jobTdr ? `\n## Termos de Referência da vaga\n${data.jobTdr}` : "",
-      "\nGera as secções do CV em JSON estruturado, ancorado nestas respostas.",
+      data.jobTdr ? `\n## Termos de Referência da vaga\n${compactForAi(data.jobTdr)}` : "",
+      '\nGera as secções do CV em JSON estruturado, ancorado nestas respostas. Responde APENAS com um objecto JSON válido nesta forma: { "perfil": { "nome": string, "headline": string, "email": string, "telefone": string, "cidade": string, "pais": string, "resumo": string }, "experiencia": [{ "cargo": string, "organizacao": string, "local": string, "inicio": string, "fim": string, "descricao": string }], "formacao": [{ "curso": string, "instituicao": string, "local": string, "inicio": string, "fim": string, "descricao": string }], "competencias": [{ "nome": string }], "idiomas": [{ "idioma": string, "nivel": "basico"|"intermedio"|"avancado"|"fluente"|"nativo" }] }. Nunca uses arrays em campos de texto como descricao; usa uma string HTML restrita.',
     ].join("\n");
 
-    try {
-      const { experimental_output } = await generateText({
+    const callOnce = async () => {
+      const { text } = await generateText({
         model: gateway("google/gemini-3-flash-preview"),
         system: INTERVIEW_SYSTEM,
         prompt,
-        experimental_output: Output.object({ schema: cvDraftSectionsSchema }),
       });
+      const json = extractJson(text);
+      return cvDraftSectionsSchema.parse(normalizeAlignmentJson(json));
+    };
+
+    try {
+      let raw: z.infer<typeof cvDraftSectionsSchema>;
+      try {
+        raw = await callOnce();
+      } catch (e) {
+        console.warn("generateCvFromInterview: 1ª tentativa falhou, a repetir.", e);
+        raw = await callOnce();
+      }
       return {
-        ...experimental_output,
+        ...raw,
         perfil: {
-          ...experimental_output.perfil,
-          resumo: toSafeHtml(experimental_output.perfil.resumo),
+          ...raw.perfil,
+          resumo: toSafeHtml(raw.perfil.resumo),
         },
-        experiencia: experimental_output.experiencia.map((e) => ({
+        experiencia: raw.experiencia.map((e) => ({
           ...e,
           descricao: toSafeHtml(e.descricao),
         })),
-        formacao: experimental_output.formacao.map((f) => ({
+        formacao: raw.formacao.map((f) => ({
           ...f,
           descricao: toSafeHtml(f.descricao),
         })),
       };
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("429"))
-        throw new Error("Limite de pedidos atingido. Tenta dentro de 1 minuto.");
-      if (msg.includes("402")) throw new Error("Créditos de AI esgotados nesta workspace.");
-      throw new Error(`Falha a gerar CV: ${msg}`);
+      throw new Error(`Falha a gerar CV: ${friendlyAiError(err).message}`);
     }
   });
 
@@ -395,7 +529,17 @@ function normalizeIdiomaNivel(value: unknown) {
 
 function normalizeAlignmentJson(value: unknown): unknown {
   const root = asRecord(value);
-  const source = asRecord(root.sections ?? root.cv ?? root.curriculo ?? root);
+  const source = asRecord(
+    root.sections ??
+      root.cv ??
+      root.curriculo ??
+      root.currículo ??
+      root.cv_alinhado ??
+      root.cvAlinhado ??
+      root.resultado ??
+      root.result ??
+      root,
+  );
   const perfil = asRecord(
     source.perfil ?? source.profile ?? source.dadosPessoais ?? source.dados_pessoais,
   );
@@ -507,6 +651,37 @@ function normalizeAlignmentJson(value: unknown): unknown {
   };
 }
 
+function normalizeInterviewCategory(value: unknown): (typeof interviewCategorias)[number] {
+  const raw = asString(value).toLowerCase();
+  if (raw.includes("técn") || raw.includes("tecn") || raw.includes("technical")) return "tecnica";
+  if (raw.includes("empresa") || raw.includes("organiza") || raw.includes("company")) {
+    return "sobre_empresa";
+  }
+  if (raw.includes("elimin") || raw.includes("filtro") || raw.includes("obrig")) return "eliminatoria";
+  return "comportamental";
+}
+
+function normalizeInterviewPrepJson(value: unknown): unknown {
+  const root = asRecord(value);
+  const perguntasRaw = normalizeArray(
+    root.perguntas ?? root.questions ?? root.entrevista ?? root.interview ?? value,
+  );
+  return {
+    perguntas: perguntasRaw
+      .map((item) => {
+        const q = asRecord(item);
+        return {
+          categoria: normalizeInterviewCategory(q.categoria ?? q.category ?? q.tipo),
+          pergunta: asString(q.pergunta ?? q.question ?? q.titulo ?? q.title ?? item),
+          resposta_sugerida: asString(
+            q.resposta_sugerida ?? q.respostaSugerida ?? q.answer ?? q.suggested_answer ?? q.sugestao,
+          ),
+        };
+      })
+      .filter((q) => q.pergunta),
+  };
+}
+
 const ALIGN_SYSTEM = `És um redator de CVs especializado em ONGs, desenvolvimento, consultoria e administração pública em Moçambique e PALOP. Recebes um CV existente e os Termos de Referência (TdR) de uma vaga, e REESCREVES o CV para o alinhar ao máximo com o TdR — usando EXCLUSIVAMENTE informação que já consta no CV de entrada.
 
 Princípio central — ZERO INVENÇÃO:
@@ -552,7 +727,7 @@ export const alignCvToTdr = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<AlignmentResult> => {
     const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY);
 
-    const prompt = `## CV actual do candidato\n${data.cv}\n\n## Termos de Referência da vaga\n${data.jobTdr}\n\nReescreve o CV para o alinhar ao máximo com este TdR. Responde APENAS com um objecto JSON válido (sem markdown, sem comentários, sem texto antes ou depois) nesta forma exacta:\n{\n  "perfil": { "nome": string, "headline": string, "email": string, "telefone": string, "cidade": string, "pais": string, "linkedin": string, "website": string, "resumo": string },\n  "experiencia": [{ "cargo": string, "organizacao": string, "local": string, "inicio": string, "fim": string, "descricao": string }],\n  "formacao": [{ "curso": string, "instituicao": string, "local": string, "inicio": string, "fim": string, "descricao": string }],\n  "competencias": [{ "nome": string }],\n  "idiomas": [{ "idioma": string, "nivel": "basico"|"intermedio"|"avancado"|"fluente"|"nativo" }],\n  "alteracoes": [{ "tipo": "reformulado"|"recontextualizado", "campo": string, "de": string, "para": string, "justificacao": string }]\n}\nNunca uses arrays em campos de texto como "descricao": devolve uma única string em HTML restrito (<p>, <ul>, <li>, <strong>, <em>, <u> apenas), com os bullets dentro de <ul><li>.`;
+    const prompt = `## CV actual do candidato\n${compactForAi(data.cv)}\n\n## Termos de Referência da vaga\n${compactForAi(data.jobTdr)}\n\nReescreve o CV para o alinhar ao máximo com este TdR. Responde APENAS com um objecto JSON válido (sem markdown, sem comentários, sem texto antes ou depois) nesta forma exacta:\n{\n  "perfil": { "nome": string, "headline": string, "email": string, "telefone": string, "cidade": string, "pais": string, "linkedin": string, "website": string, "resumo": string },\n  "experiencia": [{ "cargo": string, "organizacao": string, "local": string, "inicio": string, "fim": string, "descricao": string }],\n  "formacao": [{ "curso": string, "instituicao": string, "local": string, "inicio": string, "fim": string, "descricao": string }],\n  "competencias": [{ "nome": string }],\n  "idiomas": [{ "idioma": string, "nivel": "basico"|"intermedio"|"avancado"|"fluente"|"nativo" }],\n  "alteracoes": [{ "tipo": "reformulado"|"recontextualizado", "campo": string, "de": string, "para": string, "justificacao": string }]\n}\nNunca uses arrays em campos de texto como "descricao": devolve uma única string em HTML restrito (<p>, <ul>, <li>, <strong>, <em>, <u> apenas), com os bullets dentro de <ul><li>.`;
 
     const callOnce = async () => {
       const { text } = await generateText({
@@ -612,11 +787,7 @@ export const alignCvToTdr = createServerFn({ method: "POST" })
         })),
       };
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("429"))
-        throw new Error("Limite de pedidos atingido. Tenta dentro de 1 minuto.");
-      if (msg.includes("402")) throw new Error("Créditos de AI esgotados nesta workspace.");
-      throw new Error(`Falha ao alinhar CV: ${msg}`);
+      throw new Error(`Falha ao alinhar CV: ${friendlyAiError(err).message}`);
     }
   });
 
@@ -734,7 +905,7 @@ export const generateInterviewPrep = createServerFn({ method: "POST" })
 
     const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY);
 
-    const prompt = `## Termos de Referência da vaga\n${data.jobTdr}\n\n## Carta de apresentação do candidato\n${data.coverLetter}\n\n## CV do candidato\n${data.cv}\n\nGera uma simulação de entrevista específica para esta vaga. Responde APENAS com um objecto JSON válido (sem markdown, sem comentários, sem texto antes ou depois) com esta forma exacta:\n{\n  "perguntas": [{ "categoria": "comportamental"|"tecnica"|"sobre_empresa"|"eliminatoria", "pergunta": string, "resposta_sugerida": string }]\n}`;
+    const prompt = `## Termos de Referência da vaga\n${compactForAi(data.jobTdr)}\n\n## Carta de apresentação do candidato\n${compactForAi(data.coverLetter, 9000)}\n\n## CV do candidato\n${compactForAi(data.cv)}\n\nGera uma simulação de entrevista específica para esta vaga. Responde APENAS com um objecto JSON válido (sem markdown, sem comentários, sem texto antes ou depois) com esta forma exacta:\n{\n  "perguntas": [{ "categoria": "comportamental"|"tecnica"|"sobre_empresa"|"eliminatoria", "pergunta": string, "resposta_sugerida": string }]\n}`;
 
     const callOnce = async () => {
       const { text } = await generateText({
@@ -743,7 +914,7 @@ export const generateInterviewPrep = createServerFn({ method: "POST" })
         prompt,
       });
       const json = extractJson(text);
-      return interviewPrepOutputSchema.parse(json).perguntas;
+      return interviewPrepOutputSchema.parse(normalizeInterviewPrepJson(json)).perguntas;
     };
 
     try {
@@ -754,14 +925,7 @@ export const generateInterviewPrep = createServerFn({ method: "POST" })
         return await callOnce();
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("429"))
-        throw new Error("Limite de pedidos atingido. Tenta de novo dentro de 1 minuto.");
-      if (msg.includes("402"))
-        throw new Error(
-          "Créditos de AI esgotados nesta workspace. Adiciona créditos para continuar.",
-        );
-      throw new Error(`Falha a gerar preparação de entrevista: ${msg}`);
+      throw new Error(`Falha a gerar preparação de entrevista: ${friendlyAiError(err).message}`);
     }
   });
 
@@ -786,7 +950,7 @@ const fieldSuggestionsInputSchema = z.object({
 });
 
 const fieldSuggestionsOutputSchema = z.object({
-  suggestions: z.array(z.string()).min(4).max(6),
+  suggestions: z.array(z.string()),
 });
 
 const FIELD_SUGGESTION_LABELS: Record<FieldSuggestionSectionType, string> = {
@@ -811,6 +975,18 @@ function sanitizePlainSuggestion(text: string): string {
     .replace(/<[^>]+>/g, "")
     .replace(/^[-•*]\s*/, "")
     .trim();
+}
+
+function normalizeSuggestionsJson(value: unknown): unknown {
+  const root = asRecord(value);
+  const suggestions = normalizeArray(
+    root.suggestions ?? root.sugestoes ?? root.sugestões ?? root.items ?? value,
+  )
+    .map(asString)
+    .map(sanitizePlainSuggestion)
+    .filter(Boolean)
+    .slice(0, 6);
+  return { suggestions };
 }
 
 const MOCK_FIELD_SUGGESTIONS: Record<FieldSuggestionSectionType, string[]> = {
@@ -876,7 +1052,7 @@ export const generateFieldSuggestions = createServerFn({ method: "POST" })
         prompt,
       });
       const json = extractJson(text);
-      const parsed = fieldSuggestionsOutputSchema.parse(json);
+      const parsed = fieldSuggestionsOutputSchema.parse(normalizeSuggestionsJson(json));
       return parsed.suggestions.map(sanitizePlainSuggestion).filter(Boolean);
     };
 
@@ -890,14 +1066,7 @@ export const generateFieldSuggestions = createServerFn({ method: "POST" })
       }
       return { suggestions };
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("429"))
-        throw new Error("Limite de pedidos atingido. Tenta de novo dentro de 1 minuto.");
-      if (msg.includes("402"))
-        throw new Error(
-          "Créditos de AI esgotados nesta workspace. Adiciona créditos para continuar.",
-        );
-      throw new Error(`Falha a gerar sugestões: ${msg}`);
+      throw new Error(`Falha a gerar sugestões: ${friendlyAiError(err).message}`);
     }
   });
 
@@ -917,6 +1086,16 @@ const coverLetterInputSchema = z
 const coverLetterOutputSchema = z.object({
   content: z.string(),
 });
+
+function normalizeCoverLetterJson(value: unknown): unknown {
+  const root = asRecord(value);
+  const nested = asRecord(root.carta ?? root.letter ?? root.coverLetter ?? root.resultado ?? root.result);
+  const content =
+    asString(root.content ?? root.conteudo ?? root.conteúdo ?? root.html ?? root.body) ||
+    asString(nested.content ?? nested.conteudo ?? nested.conteúdo ?? nested.html ?? nested.body) ||
+    asString(value);
+  return { content };
+}
 
 const COVER_LETTER_SYSTEM = `És um redator de cartas de motivação especializado em ONGs, desenvolvimento, consultoria e administração pública em Moçambique e PALOP. Escreves o corpo de cartas de motivação profissionais ancoradas estritamente no CV do candidato.
 
@@ -970,9 +1149,14 @@ export const generateCoverLetter = createServerFn({ method: "POST" })
     }
 
     const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY);
-    const cvText =
-      typeof data.cvContent === "string" ? data.cvContent : cvToText(data.cvContent as CvDraft);
-    const prompt = buildCoverLetterPrompt(cvText, data.mode, data.jobTdr);
+    const cvText = compactForAi(
+      typeof data.cvContent === "string" ? data.cvContent : cvToText(data.cvContent as CvDraft),
+    );
+    const prompt = buildCoverLetterPrompt(
+      cvText,
+      data.mode,
+      data.jobTdr ? compactForAi(data.jobTdr) : undefined,
+    );
 
     const callOnce = async () => {
       const { text } = await generateText({
@@ -980,8 +1164,8 @@ export const generateCoverLetter = createServerFn({ method: "POST" })
         system: COVER_LETTER_SYSTEM,
         prompt,
       });
-      const json = extractJson(text);
-      const parsed = coverLetterOutputSchema.parse(json);
+      const json = extractJsonOrText(text);
+      const parsed = coverLetterOutputSchema.parse(normalizeCoverLetterJson(json));
       return { content: toSafeHtml(parsed.content) };
     };
 
@@ -993,13 +1177,6 @@ export const generateCoverLetter = createServerFn({ method: "POST" })
         return await callOnce();
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("429"))
-        throw new Error("Limite de pedidos atingido. Tenta de novo dentro de 1 minuto.");
-      if (msg.includes("402"))
-        throw new Error(
-          "Créditos de AI esgotados nesta workspace. Adiciona créditos para continuar.",
-        );
-      throw new Error(`Falha a gerar carta de motivação: ${msg}`);
+      throw new Error(`Falha a gerar carta de motivação: ${friendlyAiError(err).message}`);
     }
   });
