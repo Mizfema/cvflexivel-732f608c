@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { generateText, Output } from "ai";
+import { generateText } from "ai";
 import { z } from "zod";
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
 import type { CvDraft, CvSections, AlignmentResult } from "./cv-types";
@@ -121,12 +121,20 @@ function extractJson(response: string): unknown {
     .replace(/```json\s*/gi, "")
     .replace(/```\s*/g, "")
     .trim();
+  if (!cleaned) throw new Error("Resposta vazia da IA.");
+
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    // continue with boundary extraction below
+  }
+
   const start = cleaned.search(/[\{\[]/);
   if (start === -1) throw new Error("Resposta sem JSON.");
   const openChar = cleaned[start];
   const closeChar = openChar === "[" ? "]" : "}";
   const end = cleaned.lastIndexOf(closeChar);
-  if (end === -1) throw new Error("JSON truncado na resposta.");
+  if (end === -1 || end <= start) throw new Error("JSON truncado na resposta.");
   cleaned = cleaned.substring(start, end + 1);
   try {
     return JSON.parse(cleaned);
@@ -137,6 +145,40 @@ function extractJson(response: string): unknown {
       .replace(/[\x00-\x1F\x7F]/g, " ");
     return JSON.parse(repaired);
   }
+}
+
+function normalizeArray(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  if (value == null) return [];
+  return [value];
+}
+
+function clampNumber(value: unknown, min: number, max: number, fallback = min): number {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(n)));
+}
+
+function friendlyAiError(err: unknown): Error {
+  const msg = err instanceof Error ? err.message : String(err);
+  console.warn("Resposta de IA inválida", err);
+  if (msg.includes("429")) {
+    return new Error("Limite de pedidos atingido. Tenta de novo dentro de 1 minuto.");
+  }
+  if (msg.includes("402")) {
+    return new Error("Créditos de AI esgotados nesta workspace. Adiciona créditos para continuar.");
+  }
+  if (msg.toLowerCase().includes("truncado") || msg.toLowerCase().includes("truncated")) {
+    return new Error(
+      "A IA devolveu uma resposta incompleta. Tenta novamente ou reduz o tamanho do CV/TdR.",
+    );
+  }
+  if (msg.includes("Expected") || msg.includes("Required") || msg.includes("invalid_type")) {
+    return new Error(
+      "A IA devolveu uma resposta num formato inesperado. Já tentámos corrigir automaticamente, mas não foi possível.",
+    );
+  }
+  return new Error(msg);
 }
 
 export const analyzeCoverage = createServerFn({ method: "POST" })
