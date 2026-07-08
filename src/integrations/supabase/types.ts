@@ -82,6 +82,7 @@ export type Database = {
           content: string
           created_at: string
           cv_id: string | null
+          design: Json | null
           id: string
           job_tdr: string | null
           template: string
@@ -93,6 +94,7 @@ export type Database = {
           content?: string
           created_at?: string
           cv_id?: string | null
+          design?: Json | null
           id?: string
           job_tdr?: string | null
           template?: string
@@ -104,6 +106,7 @@ export type Database = {
           content?: string
           created_at?: string
           cv_id?: string | null
+          design?: Json | null
           id?: string
           job_tdr?: string | null
           template?: string
