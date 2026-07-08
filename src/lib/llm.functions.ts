@@ -941,7 +941,7 @@ const fieldSuggestionsInputSchema = z.object({
 });
 
 const fieldSuggestionsOutputSchema = z.object({
-  suggestions: z.array(z.string()).min(4).max(6),
+  suggestions: z.array(z.string()),
 });
 
 const FIELD_SUGGESTION_LABELS: Record<FieldSuggestionSectionType, string> = {
@@ -1078,6 +1078,16 @@ const coverLetterOutputSchema = z.object({
   content: z.string(),
 });
 
+function normalizeCoverLetterJson(value: unknown): unknown {
+  const root = asRecord(value);
+  const nested = asRecord(root.carta ?? root.letter ?? root.coverLetter ?? root.resultado ?? root.result);
+  const content =
+    asString(root.content ?? root.conteudo ?? root.conteúdo ?? root.html ?? root.body) ||
+    asString(nested.content ?? nested.conteudo ?? nested.conteúdo ?? nested.html ?? nested.body) ||
+    asString(value);
+  return { content };
+}
+
 const COVER_LETTER_SYSTEM = `És um redator de cartas de motivação especializado em ONGs, desenvolvimento, consultoria e administração pública em Moçambique e PALOP. Escreves o corpo de cartas de motivação profissionais ancoradas estritamente no CV do candidato.
 
 Regra absoluta e não negociável — ZERO INVENÇÃO:
@@ -1140,8 +1150,8 @@ export const generateCoverLetter = createServerFn({ method: "POST" })
         system: COVER_LETTER_SYSTEM,
         prompt,
       });
-      const json = extractJson(text);
-      const parsed = coverLetterOutputSchema.parse(json);
+      const json = extractJsonOrText(text);
+      const parsed = coverLetterOutputSchema.parse(normalizeCoverLetterJson(json));
       return { content: toSafeHtml(parsed.content) };
     };
 
@@ -1153,13 +1163,6 @@ export const generateCoverLetter = createServerFn({ method: "POST" })
         return await callOnce();
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("429"))
-        throw new Error("Limite de pedidos atingido. Tenta de novo dentro de 1 minuto.");
-      if (msg.includes("402"))
-        throw new Error(
-          "Créditos de AI esgotados nesta workspace. Adiciona créditos para continuar.",
-        );
-      throw new Error(`Falha a gerar carta de motivação: ${msg}`);
+      throw new Error(`Falha a gerar carta de motivação: ${friendlyAiError(err).message}`);
     }
   });
