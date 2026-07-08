@@ -60,6 +60,81 @@ const outputSchema = z.object({
   requisitosCobertos: z.number().int().min(0),
 });
 
+function normalizeGapType(value: unknown): "tem_nao_mostrou" | "parcial_transferivel" | "lacuna_real" {
+  const raw = asString(value).toLowerCase();
+  if (raw.includes("transfer") || raw.includes("adjacent") || raw.includes("parcial")) {
+    return "parcial_transferivel";
+  }
+  if (raw.includes("real") || raw.includes("ausente") || raw.includes("lacuna") || raw.includes("missing")) {
+    return "lacuna_real";
+  }
+  return "tem_nao_mostrou";
+}
+
+function normalizeCoverageJson(value: unknown): unknown {
+  const root = asRecord(value);
+  const source = asRecord(root.analysis ?? root.analise ?? root.análise ?? root.result ?? root);
+  const coberturaRaw = normalizeArray(
+    source.cobertura ?? source.coverage ?? source.seccoes ?? source.seções ?? source.sections,
+  );
+  const keywords = asRecord(source.keywords ?? source.palavras_chave ?? source.palavrasChave);
+  const eliminatorios = normalizeArray(
+    source.requisitosEliminatoriosNaoCumpridos ??
+      source.requisitos_eliminatorios_nao_cumpridos ??
+      source.eliminatorios ??
+      source.requisitosObrigatoriosNaoCumpridos,
+  );
+
+  const cobertura = coberturaRaw.map((item) => {
+    const c = asRecord(item);
+    const emFalta = normalizeArray(c.emFalta ?? c.em_falta ?? c.missing ?? c.gaps).map((gap) => {
+      const g = asRecord(gap);
+      return {
+        requisito: asString(g.requisito ?? g.requirement ?? g.nome ?? gap) || "Requisito em falta",
+        tipo: normalizeGapType(g.tipo ?? g.type),
+        accao_sugerida: asString(
+          g.accao_sugerida ?? g.ação_sugerida ?? g.acao_sugerida ?? g.sugestao ?? g.suggestion,
+        ),
+      };
+    });
+    return {
+      secao: asString(c.secao ?? c.secção ?? c.section ?? c.nome) || "Secção",
+      score: clampNumber(c.score ?? c.pontuacao ?? c.pontuação, 0, 3, 0),
+      presentes: normalizeArray(c.presentes ?? c.found ?? c.cobertos).map(asString).filter(Boolean),
+      emFalta,
+    };
+  });
+
+  const presentes = normalizeArray(keywords.presentes ?? keywords.found ?? keywords.cobertas)
+    .map(asString)
+    .filter(Boolean);
+  const emFalta = normalizeArray(keywords.emFalta ?? keywords.em_falta ?? keywords.missing)
+    .map(asString)
+    .filter(Boolean);
+  const total = clampNumber(source.totalRequisitos ?? source.total_requisitos, 0, 999, cobertura.length);
+  const covered = clampNumber(
+    source.requisitosCobertos ?? source.requisitos_cobertos,
+    0,
+    total || 999,
+    cobertura.filter((c) => c.score >= 2).length,
+  );
+
+  return {
+    resumo: asString(source.resumo ?? source.summary) || "Análise concluída com base no CV e no TdR fornecidos.",
+    cobertura,
+    keywords: { presentes, emFalta },
+    requisitosEliminatoriosNaoCumpridos: eliminatorios.map((item) => {
+      const r = asRecord(item);
+      return {
+        requisito: asString(r.requisito ?? r.requirement ?? r.nome ?? item),
+        mitigacao: asString(r.mitigacao ?? r.mitigação ?? r.mitigation ?? r.sugestao),
+      };
+    }),
+    totalRequisitos: total,
+    requisitosCobertos: covered,
+  };
+}
+
 function cvToText(cv: CvDraft): string {
   const p = cv.sections.perfil;
   const lines: string[] = [];
@@ -204,7 +279,7 @@ export const analyzeCoverage = createServerFn({ method: "POST" })
         prompt,
       });
       const json = extractJson(text);
-      return outputSchema.parse(json) as CoverageAnalysis;
+      return outputSchema.parse(normalizeCoverageJson(json)) as CoverageAnalysis;
     };
 
     try {
@@ -215,14 +290,7 @@ export const analyzeCoverage = createServerFn({ method: "POST" })
         return await callOnce();
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("429"))
-        throw new Error("Limite de pedidos atingido. Tenta de novo dentro de 1 minuto.");
-      if (msg.includes("402"))
-        throw new Error(
-          "Créditos de AI esgotados nesta workspace. Adiciona créditos para continuar.",
-        );
-      throw new Error(`Falha na análise: ${msg}`);
+      throw new Error(`Falha na análise: ${friendlyAiError(err).message}`);
     }
   });
 
@@ -293,7 +361,7 @@ Regras absolutas:
 
 export const generateCvFromInterview = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => interviewInputSchema.parse(input))
-  .handler(async ({ data }) => {
+  .handler(async ({ data }): Promise<z.infer<typeof cvDraftSectionsSchema>> => {
     const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY);
 
     const answersBlock = data.answers
@@ -304,37 +372,44 @@ export const generateCvFromInterview = createServerFn({ method: "POST" })
       "## Respostas da entrevista",
       answersBlock,
       data.jobTdr ? `\n## Termos de Referência da vaga\n${data.jobTdr}` : "",
-      "\nGera as secções do CV em JSON estruturado, ancorado nestas respostas.",
+      '\nGera as secções do CV em JSON estruturado, ancorado nestas respostas. Responde APENAS com um objecto JSON válido nesta forma: { "perfil": { "nome": string, "headline": string, "email": string, "telefone": string, "cidade": string, "pais": string, "resumo": string }, "experiencia": [{ "cargo": string, "organizacao": string, "local": string, "inicio": string, "fim": string, "descricao": string }], "formacao": [{ "curso": string, "instituicao": string, "local": string, "inicio": string, "fim": string, "descricao": string }], "competencias": [{ "nome": string }], "idiomas": [{ "idioma": string, "nivel": "basico"|"intermedio"|"avancado"|"fluente"|"nativo" }] }. Nunca uses arrays em campos de texto como descricao; usa uma string HTML restrita.',
     ].join("\n");
 
-    try {
-      const { experimental_output } = await generateText({
+    const callOnce = async () => {
+      const { text } = await generateText({
         model: gateway("google/gemini-3-flash-preview"),
         system: INTERVIEW_SYSTEM,
         prompt,
-        experimental_output: Output.object({ schema: cvDraftSectionsSchema }),
       });
+      const json = extractJson(text);
+      return cvDraftSectionsSchema.parse(normalizeAlignmentJson(json));
+    };
+
+    try {
+      let raw: z.infer<typeof cvDraftSectionsSchema>;
+      try {
+        raw = await callOnce();
+      } catch (e) {
+        console.warn("generateCvFromInterview: 1ª tentativa falhou, a repetir.", e);
+        raw = await callOnce();
+      }
       return {
-        ...experimental_output,
+        ...raw,
         perfil: {
-          ...experimental_output.perfil,
-          resumo: toSafeHtml(experimental_output.perfil.resumo),
+          ...raw.perfil,
+          resumo: toSafeHtml(raw.perfil.resumo),
         },
-        experiencia: experimental_output.experiencia.map((e) => ({
+        experiencia: raw.experiencia.map((e) => ({
           ...e,
           descricao: toSafeHtml(e.descricao),
         })),
-        formacao: experimental_output.formacao.map((f) => ({
+        formacao: raw.formacao.map((f) => ({
           ...f,
           descricao: toSafeHtml(f.descricao),
         })),
       };
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("429"))
-        throw new Error("Limite de pedidos atingido. Tenta dentro de 1 minuto.");
-      if (msg.includes("402")) throw new Error("Créditos de AI esgotados nesta workspace.");
-      throw new Error(`Falha a gerar CV: ${msg}`);
+      throw new Error(`Falha a gerar CV: ${friendlyAiError(err).message}`);
     }
   });
 
