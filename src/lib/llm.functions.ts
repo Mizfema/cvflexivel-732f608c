@@ -264,13 +264,22 @@ function friendlyAiError(err: unknown): Error {
   return new Error(msg);
 }
 
+function compactForAi(text: string, limit = 18000): string {
+  const normalized = text.replace(/\s+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  if (normalized.length <= limit) return normalized;
+  const head = normalized.slice(0, Math.floor(limit * 0.62));
+  const tail = normalized.slice(-Math.floor(limit * 0.32));
+  return `${head}\n\n[... conteúdo encurtado para evitar resposta truncada ...]\n\n${tail}`;
+}
+
 export const analyzeCoverage = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => inputSchema.parse(input))
   .handler(async ({ data }): Promise<CoverageAnalysis> => {
     const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY!);
 
-    const cvText = typeof data.cv === "string" ? data.cv : cvToText(data.cv as CvDraft);
-    const prompt = `## CV do candidato\n${cvText}\n\n## Termos de Referência da vaga\n${data.jobTdr}\n\nResponde APENAS com um objecto JSON válido (sem markdown, sem comentários, sem texto antes ou depois) com esta forma exacta:
+    const cvText = compactForAi(typeof data.cv === "string" ? data.cv : cvToText(data.cv as CvDraft));
+    const jobTdr = compactForAi(data.jobTdr);
+    const prompt = `## CV do candidato\n${cvText}\n\n## Termos de Referência da vaga\n${jobTdr}\n\nResponde APENAS com um objecto JSON válido (sem markdown, sem comentários, sem texto antes ou depois) com esta forma exacta:
 {
   "resumo": string,
   "cobertura": [{ "secao": string, "score": 0|1|2|3, "presentes": string[], "emFalta": [{ "requisito": string, "tipo": "tem_nao_mostrou"|"parcial_transferivel"|"lacuna_real", "accao_sugerida": string }] }],
