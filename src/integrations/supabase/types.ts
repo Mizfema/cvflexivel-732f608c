@@ -85,6 +85,7 @@ export type Database = {
           design: Json | null
           id: string
           job_tdr: string | null
+          photo: Json | null
           template: string
           title: string
           updated_at: string
@@ -97,6 +98,7 @@ export type Database = {
           design?: Json | null
           id?: string
           job_tdr?: string | null
+          photo?: Json | null
           template?: string
           title?: string
           updated_at?: string
@@ -109,6 +111,7 @@ export type Database = {
           design?: Json | null
           id?: string
           job_tdr?: string | null
+          photo?: Json | null
           template?: string
           title?: string
           updated_at?: string
