@@ -388,7 +388,7 @@ export const generateCvFromInterview = createServerFn({ method: "POST" })
     const prompt = [
       "## Respostas da entrevista",
       answersBlock,
-      data.jobTdr ? `\n## Termos de Referência da vaga\n${data.jobTdr}` : "",
+      data.jobTdr ? `\n## Termos de Referência da vaga\n${compactForAi(data.jobTdr)}` : "",
       '\nGera as secções do CV em JSON estruturado, ancorado nestas respostas. Responde APENAS com um objecto JSON válido nesta forma: { "perfil": { "nome": string, "headline": string, "email": string, "telefone": string, "cidade": string, "pais": string, "resumo": string }, "experiencia": [{ "cargo": string, "organizacao": string, "local": string, "inicio": string, "fim": string, "descricao": string }], "formacao": [{ "curso": string, "instituicao": string, "local": string, "inicio": string, "fim": string, "descricao": string }], "competencias": [{ "nome": string }], "idiomas": [{ "idioma": string, "nivel": "basico"|"intermedio"|"avancado"|"fluente"|"nativo" }] }. Nunca uses arrays em campos de texto como descricao; usa uma string HTML restrita.',
     ].join("\n");
 
@@ -1152,7 +1152,11 @@ export const generateCoverLetter = createServerFn({ method: "POST" })
     const cvText = compactForAi(
       typeof data.cvContent === "string" ? data.cvContent : cvToText(data.cvContent as CvDraft),
     );
-    const prompt = buildCoverLetterPrompt(cvText, data.mode, data.jobTdr);
+    const prompt = buildCoverLetterPrompt(
+      cvText,
+      data.mode,
+      data.jobTdr ? compactForAi(data.jobTdr) : undefined,
+    );
 
     const callOnce = async () => {
       const { text } = await generateText({
