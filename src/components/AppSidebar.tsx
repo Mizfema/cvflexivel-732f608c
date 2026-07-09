@@ -1,8 +1,19 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { Home, FileText, FileSignature, MessageSquare, LogOut, X, Menu } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import {
+  Home,
+  FileText,
+  FileSignature,
+  MessageSquare,
+  LogOut,
+  X,
+  Menu,
+  ShieldCheck,
+} from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
+import { getIsAdmin } from "@/lib/admin.functions";
 import { UserAvatar } from "@/components/UserAvatar";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +29,24 @@ const NAV_ITEMS = [
     auth: true,
   },
 ] as const;
+
+function useIsAdmin(userId: string | undefined) {
+  const fetchIsAdmin = useServerFn(getIsAdmin);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    if (!userId) {
+      setIsAdmin(false);
+      return;
+    }
+    fetchIsAdmin()
+      .then(({ isAdmin }) => setIsAdmin(isAdmin))
+      .catch(() => setIsAdmin(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  return isAdmin;
+}
 
 function useProfile(userId: string | undefined) {
   const [profile, setProfile] = useState<{
@@ -45,10 +74,15 @@ interface SidebarContentProps {
 function SidebarContent({ onClose }: SidebarContentProps) {
   const { session, user, ready } = useAuth();
   const profile = useProfile(user?.id);
+  const isAdmin = useIsAdmin(user?.id);
   const fullName = profile?.full_name ?? null;
   const router = useRouterState();
   const navigate = useNavigate();
   const pathname = router.location.pathname;
+
+  const navItems = isAdmin
+    ? [...NAV_ITEMS, { label: "Admin", icon: ShieldCheck, to: "/admin", exact: false, auth: true }]
+    : NAV_ITEMS;
 
   function isActive(to: string, exact: boolean) {
     if (exact) return pathname === to;
@@ -83,7 +117,7 @@ function SidebarContent({ onClose }: SidebarContentProps) {
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-2 py-3">
         <ul className="space-y-0.5">
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const active = isActive(item.to, item.exact);
             const Icon = item.icon;
             return (

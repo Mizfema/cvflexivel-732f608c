@@ -10,7 +10,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const INPUT_PRICE_PER_TOKEN_USD = 0.5 / 1_000_000;
 const OUTPUT_PRICE_PER_TOKEN_USD = 3 / 1_000_000;
 
-async function assertAdmin(userId: string) {
+async function checkIsAdmin(userId: string): Promise<boolean> {
   const { data, error } = await supabaseAdmin
     .from("user_roles")
     .select("id")
@@ -18,12 +18,24 @@ async function assertAdmin(userId: string) {
     .eq("role", "admin")
     .maybeSingle();
   if (error) throw new Error(error.message);
-  if (!data) throw new Error("Acesso restrito a administradores.");
+  return !!data;
+}
+
+async function assertAdmin(userId: string) {
+  if (!(await checkIsAdmin(userId))) {
+    throw new Error("Acesso restrito a administradores.");
+  }
 }
 
 function dayKey(iso: string): string {
   return iso.slice(0, 10);
 }
+
+/** Usado pelo menu para decidir se mostra o link Admin — não expõe nada além
+ * do booleano; a verificação real de acesso ao painel continua em getAdminDashboard. */
+export const getIsAdmin = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => ({ isAdmin: await checkIsAdmin(context.userId) }));
 
 export const getAdminDashboard = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
