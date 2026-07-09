@@ -1,8 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
-import { generateText } from "ai";
+import { generateText, type LanguageModelUsage } from "ai";
 import { z } from "zod";
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
-import { optionalIdentity, requireUsageAllowed } from "./access-control.server";
+import { optionalIdentity, requireUsageAllowed, recordUsageTokens } from "./access-control.server";
 import type { CvDraft, CvSections, AlignmentResult } from "./cv-types";
 import type { CoverageAnalysis } from "./coverage-types";
 import type { InterviewQuestion } from "./interview-types";
@@ -277,7 +277,7 @@ export const analyzeCoverage = createServerFn({ method: "POST" })
   .middleware([optionalIdentity])
   .inputValidator((input: unknown) => inputSchema.parse(input))
   .handler(async ({ data, context }): Promise<CoverageAnalysis> => {
-    await requireUsageAllowed("cv_analysis", context.userId, context.fingerprint);
+    const usageCheck = await requireUsageAllowed("cv_analysis", context.userId, context.fingerprint);
     const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY!);
 
     const cvText = compactForAi(typeof data.cv === "string" ? data.cv : cvToText(data.cv as CvDraft));
@@ -292,23 +292,28 @@ export const analyzeCoverage = createServerFn({ method: "POST" })
   "requisitosCobertos": number
 }`;
 
+    let tokenUsage: LanguageModelUsage | undefined;
     const callOnce = async () => {
-      const { text } = await generateText({
+      const { text, usage } = await generateText({
         model: gateway("google/gemini-3-flash-preview"),
         system: SYSTEM,
         prompt,
       });
+      tokenUsage = usage;
       const json = extractJson(text);
       return outputSchema.parse(normalizeCoverageJson(json)) as CoverageAnalysis;
     };
 
     try {
+      let result: CoverageAnalysis;
       try {
-        return await callOnce();
+        result = await callOnce();
       } catch (e) {
         console.warn("analyzeCoverage: 1ª tentativa falhou, a repetir.", e);
-        return await callOnce();
+        result = await callOnce();
       }
+      await recordUsageTokens(usageCheck.usageId, tokenUsage);
+      return result;
     } catch (err) {
       throw new Error(`Falha na análise: ${friendlyAiError(err).message}`);
     }
@@ -383,7 +388,7 @@ export const generateCvFromInterview = createServerFn({ method: "POST" })
   .middleware([optionalIdentity])
   .inputValidator((input: unknown) => interviewInputSchema.parse(input))
   .handler(async ({ data, context }): Promise<z.infer<typeof cvDraftSectionsSchema>> => {
-    await requireUsageAllowed("ai_suggestions", context.userId, context.fingerprint);
+    const usageCheck = await requireUsageAllowed("ai_suggestions", context.userId, context.fingerprint);
     const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY);
 
     const answersBlock = data.answers
@@ -397,12 +402,14 @@ export const generateCvFromInterview = createServerFn({ method: "POST" })
       '\nGera as secções do CV em JSON estruturado, ancorado nestas respostas. Responde APENAS com um objecto JSON válido nesta forma: { "perfil": { "nome": string, "headline": string, "email": string, "telefone": string, "cidade": string, "pais": string, "resumo": string }, "experiencia": [{ "cargo": string, "organizacao": string, "local": string, "inicio": string, "fim": string, "descricao": string }], "formacao": [{ "curso": string, "instituicao": string, "local": string, "inicio": string, "fim": string, "descricao": string }], "competencias": [{ "nome": string }], "idiomas": [{ "idioma": string, "nivel": "basico"|"intermedio"|"avancado"|"fluente"|"nativo" }] }. Nunca uses arrays em campos de texto como descricao; usa uma string HTML restrita.',
     ].join("\n");
 
+    let tokenUsage: LanguageModelUsage | undefined;
     const callOnce = async () => {
-      const { text } = await generateText({
+      const { text, usage } = await generateText({
         model: gateway("google/gemini-3-flash-preview"),
         system: INTERVIEW_SYSTEM,
         prompt,
       });
+      tokenUsage = usage;
       const json = extractJson(text);
       return cvDraftSectionsSchema.parse(normalizeAlignmentJson(json));
     };
@@ -415,6 +422,7 @@ export const generateCvFromInterview = createServerFn({ method: "POST" })
         console.warn("generateCvFromInterview: 1ª tentativa falhou, a repetir.", e);
         raw = await callOnce();
       }
+      await recordUsageTokens(usageCheck.usageId, tokenUsage);
       return {
         ...raw,
         perfil: {
@@ -731,17 +739,19 @@ export const alignCvToTdr = createServerFn({ method: "POST" })
   .middleware([optionalIdentity])
   .inputValidator((input: unknown) => alignInputSchema.parse(input))
   .handler(async ({ data, context }): Promise<AlignmentResult> => {
-    await requireUsageAllowed("ai_suggestions", context.userId, context.fingerprint);
+    const usageCheck = await requireUsageAllowed("ai_suggestions", context.userId, context.fingerprint);
     const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY);
 
     const prompt = `## CV actual do candidato\n${compactForAi(data.cv)}\n\n## Termos de Referência da vaga\n${compactForAi(data.jobTdr)}\n\nReescreve o CV para o alinhar ao máximo com este TdR. Responde APENAS com um objecto JSON válido (sem markdown, sem comentários, sem texto antes ou depois) nesta forma exacta:\n{\n  "perfil": { "nome": string, "headline": string, "email": string, "telefone": string, "cidade": string, "pais": string, "linkedin": string, "website": string, "resumo": string },\n  "experiencia": [{ "cargo": string, "organizacao": string, "local": string, "inicio": string, "fim": string, "descricao": string }],\n  "formacao": [{ "curso": string, "instituicao": string, "local": string, "inicio": string, "fim": string, "descricao": string }],\n  "competencias": [{ "nome": string }],\n  "idiomas": [{ "idioma": string, "nivel": "basico"|"intermedio"|"avancado"|"fluente"|"nativo" }],\n  "alteracoes": [{ "tipo": "reformulado"|"recontextualizado", "campo": string, "de": string, "para": string, "justificacao": string }]\n}\nNunca uses arrays em campos de texto como "descricao": devolve uma única string em HTML restrito (<p>, <ul>, <li>, <strong>, <em>, <u> apenas), com os bullets dentro de <ul><li>.`;
 
+    let tokenUsage: LanguageModelUsage | undefined;
     const callOnce = async () => {
-      const { text } = await generateText({
+      const { text, usage } = await generateText({
         model: gateway("google/gemini-3-flash-preview"),
         system: ALIGN_SYSTEM,
         prompt,
       });
+      tokenUsage = usage;
       const json = extractJson(text);
       return alignOutputSchema.parse(normalizeAlignmentJson(json));
     };
@@ -754,6 +764,7 @@ export const alignCvToTdr = createServerFn({ method: "POST" })
         console.warn("alignCvToTdr: 1ª tentativa falhou, a repetir.", e);
         raw = await callOnce();
       }
+      await recordUsageTokens(usageCheck.usageId, tokenUsage);
 
       const addId = () => crypto.randomUUID();
       const sections: CvSections = {
@@ -906,7 +917,7 @@ export const generateInterviewPrep = createServerFn({ method: "POST" })
   .middleware([optionalIdentity])
   .inputValidator((input: unknown) => interviewPrepInputSchema.parse(input))
   .handler(async ({ data, context }): Promise<InterviewQuestion[]> => {
-    await requireUsageAllowed("interview_prep", context.userId, context.fingerprint);
+    const usageCheck = await requireUsageAllowed("interview_prep", context.userId, context.fingerprint);
     if (!process.env.LOVABLE_API_KEY) {
       console.warn("MOCK: LOVABLE_API_KEY ausente, a devolver preparação de entrevista simulada");
       return MOCK_INTERVIEW_QUESTIONS;
@@ -916,23 +927,28 @@ export const generateInterviewPrep = createServerFn({ method: "POST" })
 
     const prompt = `## Termos de Referência da vaga\n${compactForAi(data.jobTdr)}\n\n## Carta de apresentação do candidato\n${compactForAi(data.coverLetter, 9000)}\n\n## CV do candidato\n${compactForAi(data.cv)}\n\nGera uma simulação de entrevista específica para esta vaga. Responde APENAS com um objecto JSON válido (sem markdown, sem comentários, sem texto antes ou depois) com esta forma exacta:\n{\n  "perguntas": [{ "categoria": "comportamental"|"tecnica"|"sobre_empresa"|"eliminatoria", "pergunta": string, "resposta_sugerida": string }]\n}`;
 
+    let tokenUsage: LanguageModelUsage | undefined;
     const callOnce = async () => {
-      const { text } = await generateText({
+      const { text, usage } = await generateText({
         model: gateway("google/gemini-3-flash-preview"),
         system: INTERVIEW_PREP_SYSTEM,
         prompt,
       });
+      tokenUsage = usage;
       const json = extractJson(text);
       return interviewPrepOutputSchema.parse(normalizeInterviewPrepJson(json)).perguntas;
     };
 
     try {
+      let result: InterviewQuestion[];
       try {
-        return await callOnce();
+        result = await callOnce();
       } catch (e) {
         console.warn("generateInterviewPrep: 1ª tentativa falhou, a repetir.", e);
-        return await callOnce();
+        result = await callOnce();
       }
+      await recordUsageTokens(usageCheck.usageId, tokenUsage);
+      return result;
     } catch (err) {
       throw new Error(`Falha a gerar preparação de entrevista: ${friendlyAiError(err).message}`);
     }
@@ -1032,7 +1048,7 @@ export const generateFieldSuggestions = createServerFn({ method: "POST" })
   .middleware([optionalIdentity])
   .inputValidator((input: unknown) => fieldSuggestionsInputSchema.parse(input))
   .handler(async ({ data, context }): Promise<{ suggestions: string[] }> => {
-    await requireUsageAllowed("ai_suggestions", context.userId, context.fingerprint);
+    const usageCheck = await requireUsageAllowed("ai_suggestions", context.userId, context.fingerprint);
     if (!process.env.LOVABLE_API_KEY) {
       console.warn("MOCK: LOVABLE_API_KEY ausente, a devolver sugestões de campo simuladas");
       return { suggestions: MOCK_FIELD_SUGGESTIONS[data.sectionType] };
@@ -1056,12 +1072,14 @@ export const generateFieldSuggestions = createServerFn({ method: "POST" })
       .filter(Boolean)
       .join("\n");
 
+    let tokenUsage: LanguageModelUsage | undefined;
     const callOnce = async () => {
-      const { text } = await generateText({
+      const { text, usage } = await generateText({
         model: gateway("google/gemini-3-flash-preview"),
         system: FIELD_SUGGESTIONS_SYSTEM,
         prompt,
       });
+      tokenUsage = usage;
       const json = extractJson(text);
       const parsed = fieldSuggestionsOutputSchema.parse(normalizeSuggestionsJson(json));
       return parsed.suggestions.map(sanitizePlainSuggestion).filter(Boolean);
@@ -1075,6 +1093,7 @@ export const generateFieldSuggestions = createServerFn({ method: "POST" })
         console.warn("generateFieldSuggestions: 1ª tentativa falhou, a repetir.", e);
         suggestions = await callOnce();
       }
+      await recordUsageTokens(usageCheck.usageId, tokenUsage);
       return { suggestions };
     } catch (err) {
       throw new Error(`Falha a gerar sugestões: ${friendlyAiError(err).message}`);
@@ -1155,7 +1174,7 @@ export const generateCoverLetter = createServerFn({ method: "POST" })
   .middleware([optionalIdentity])
   .inputValidator((input: unknown) => coverLetterInputSchema.parse(input))
   .handler(async ({ data, context }): Promise<GeneratedCoverLetter> => {
-    await requireUsageAllowed("cover_letter", context.userId, context.fingerprint);
+    const usageCheck = await requireUsageAllowed("cover_letter", context.userId, context.fingerprint);
     if (!process.env.LOVABLE_API_KEY) {
       console.warn("MOCK: LOVABLE_API_KEY ausente, a devolver carta de motivação simulada");
       return data.mode === "targeted" ? MOCK_COVER_LETTER_TARGETED : MOCK_COVER_LETTER_GENERIC;
@@ -1171,24 +1190,29 @@ export const generateCoverLetter = createServerFn({ method: "POST" })
       data.jobTdr ? compactForAi(data.jobTdr) : undefined,
     );
 
+    let tokenUsage: LanguageModelUsage | undefined;
     const callOnce = async () => {
-      const { text } = await generateText({
+      const { text, usage } = await generateText({
         model: gateway("google/gemini-3-flash-preview"),
         system: COVER_LETTER_SYSTEM,
         prompt,
       });
+      tokenUsage = usage;
       const json = extractJsonOrText(text);
       const parsed = coverLetterOutputSchema.parse(normalizeCoverLetterJson(json));
       return { content: toSafeHtml(parsed.content) };
     };
 
     try {
+      let result: GeneratedCoverLetter;
       try {
-        return await callOnce();
+        result = await callOnce();
       } catch (e) {
         console.warn("generateCoverLetter: 1ª tentativa falhou, a repetir.", e);
-        return await callOnce();
+        result = await callOnce();
       }
+      await recordUsageTokens(usageCheck.usageId, tokenUsage);
+      return result;
     } catch (err) {
       throw new Error(`Falha a gerar carta de motivação: ${friendlyAiError(err).message}`);
     }

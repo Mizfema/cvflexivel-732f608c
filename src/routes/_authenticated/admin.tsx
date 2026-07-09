@@ -76,7 +76,7 @@ function AdminPage() {
         <StatTile label="Total de utilizadores" value={data.totalUsers} />
         <StatTile label="Novos (7 dias)" value={data.newThisWeek} />
         <StatTile label="Ativos (7 dias)" value={data.activeUsers7d} />
-        <StatTile label="Custo IA est. (30d)" value={`$${data.estimatedCostUsd30d}`} />
+        <StatTile label="Custo IA (30d)" value={`$${data.costUsd30d.toFixed(2)}`} />
       </div>
 
       <div className="mb-8 rounded-xl border border-navy-rule bg-card p-5 shadow-card">
@@ -98,7 +98,9 @@ function AdminPage() {
           </BarChart>
         </ChartContainer>
         <p className="mt-3 text-xs text-muted-foreground">
-          Custo estimado é uma aproximação por número de chamadas — ainda não mede tokens reais.
+          Custo real (preço do google/gemini-3-flash-preview, pass-through do Google via Lovable AI
+          Gateway) com base em {data.costTrackedCalls} de {data.totalCallsLast30d} chamadas com
+          tokens registados.
         </p>
       </div>
 

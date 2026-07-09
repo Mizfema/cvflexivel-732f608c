@@ -15,6 +15,7 @@ export interface UsageCheckResult {
   remainingToday: number | null;
   remainingMonth: number | null;
   retryAt: string | null;
+  usageId: string | null;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -126,6 +127,7 @@ export async function checkAndRecordUsage(
           remainingToday: 0,
           remainingMonth: null,
           retryAt: latest ? new Date(new Date(latest).getTime() + DAY_MS).toISOString() : null,
+          usageId: null,
         };
       }
     }
@@ -139,6 +141,7 @@ export async function checkAndRecordUsage(
       remainingToday: 0,
       remainingMonth: 0,
       retryAt: null,
+      usageId: null,
     };
   }
 
@@ -155,6 +158,7 @@ export async function checkAndRecordUsage(
         remainingToday: 0,
         remainingMonth: 0,
         retryAt: oldest ? new Date(new Date(oldest).getTime() + MONTH_MS).toISOString() : null,
+        usageId: null,
       };
     }
   }
@@ -170,15 +174,20 @@ export async function checkAndRecordUsage(
         remainingToday: 0,
         remainingMonth,
         retryAt: latest ? new Date(new Date(latest).getTime() + cooldownMs).toISOString() : null,
+        usageId: null,
       };
     }
   }
 
-  const { error } = await supabaseAdmin.from("ai_usage").insert({
-    user_id: userId,
-    anon_fingerprint: userId ? null : fingerprint,
-    feature,
-  });
+  const { data: inserted, error } = await supabaseAdmin
+    .from("ai_usage")
+    .insert({
+      user_id: userId,
+      anon_fingerprint: userId ? null : fingerprint,
+      feature,
+    })
+    .select("id")
+    .single();
   if (error) throw new Error(error.message);
 
   return {
@@ -187,7 +196,26 @@ export async function checkAndRecordUsage(
     remainingToday: remainingToday != null ? Math.max(0, remainingToday - 1) : null,
     remainingMonth: remainingMonth != null ? Math.max(0, remainingMonth - 1) : null,
     retryAt: null,
+    usageId: inserted.id,
   };
+}
+
+/** Regista os tokens reais da chamada de IA já autorizada (Fase 0.2: custo real
+ * em vez de estimativa por contagem de chamadas). Nunca lança — telemetria não
+ * pode derrubar a resposta ao utilizador. */
+export async function recordUsageTokens(
+  usageId: string | null,
+  usage: { inputTokens?: number; outputTokens?: number } | undefined,
+): Promise<void> {
+  if (!usageId || !usage) return;
+  try {
+    await supabaseAdmin
+      .from("ai_usage")
+      .update({ tokens_in: usage.inputTokens ?? null, tokens_out: usage.outputTokens ?? null })
+      .eq("id", usageId);
+  } catch (err) {
+    console.warn("Falha ao registar tokens de uso de IA", err);
+  }
 }
 
 /** Erro estruturado para a UI (Fase 1.3): a mensagem é o próprio JSON,

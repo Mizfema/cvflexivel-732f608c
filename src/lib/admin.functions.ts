@@ -4,10 +4,11 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Custo por chamada de IA ainda não é medido por token (ai_usage.tokens_in/out
- * fica por preencher desde a Fase 0.1) — esta é uma estimativa grosseira por
- * contagem de chamadas, só para dar ordem de grandeza até isso ser wired. */
-const ESTIMATED_COST_PER_CALL_USD = 0.002;
+/** Preço do google/gemini-3-flash-preview via Lovable AI Gateway: pass-through
+ * do preço do Google, sem markup (US$0.50 / 1M tokens de entrada, US$3.00 / 1M
+ * de saída). Se o modelo usado nas server functions mudar, actualizar aqui. */
+const INPUT_PRICE_PER_TOKEN_USD = 0.5 / 1_000_000;
+const OUTPUT_PRICE_PER_TOKEN_USD = 3 / 1_000_000;
 
 async function assertAdmin(userId: string) {
   const { data, error } = await supabaseAdmin
@@ -44,7 +45,7 @@ export const getAdminDashboard = createServerFn({ method: "GET" })
         supabaseAdmin.from("cvs").select("user_id").gte("updated_at", sevenDaysAgo),
         supabaseAdmin
           .from("ai_usage")
-          .select("feature, created_at")
+          .select("feature, created_at, tokens_in, tokens_out")
           .gte("created_at", thirtyDaysAgo),
       ]);
 
@@ -64,10 +65,18 @@ export const getAdminDashboard = createServerFn({ method: "GET" })
 
     const callsByDayMap = new Map<string, number>();
     const featureCounts = new Map<string, number>();
+    let costUsd30d = 0;
+    let callsWithTokens = 0;
     for (const row of aiUsageRes.data ?? []) {
       const key = dayKey(row.created_at);
       callsByDayMap.set(key, (callsByDayMap.get(key) ?? 0) + 1);
       featureCounts.set(row.feature, (featureCounts.get(row.feature) ?? 0) + 1);
+      if (row.tokens_in != null || row.tokens_out != null) {
+        callsWithTokens += 1;
+        costUsd30d +=
+          (row.tokens_in ?? 0) * INPUT_PRICE_PER_TOKEN_USD +
+          (row.tokens_out ?? 0) * OUTPUT_PRICE_PER_TOKEN_USD;
+      }
     }
 
     const callsByDay: { date: string; calls: number }[] = [];
@@ -88,6 +97,8 @@ export const getAdminDashboard = createServerFn({ method: "GET" })
       activeUsers7d: activeUserIds.size,
       callsByDay,
       topFeatures,
-      estimatedCostUsd30d: Number((totalCallsLast30d * ESTIMATED_COST_PER_CALL_USD).toFixed(2)),
+      costUsd30d: Number(costUsd30d.toFixed(4)),
+      costTrackedCalls: callsWithTokens,
+      totalCallsLast30d,
     };
   });
