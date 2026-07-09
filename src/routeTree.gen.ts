@@ -21,6 +21,7 @@ import { Route as AuthenticatedMeusCvsRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedEntrevistasRouteImport } from './routes/_authenticated/entrevistas'
 import { Route as AuthenticatedCartasRouteImport } from './routes/_authenticated/cartas'
 import { Route as AuthenticatedCartaEditorRouteImport } from './routes/_authenticated/carta-editor'
+import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 
 const VagasRoute = VagasRouteImport.update({
   id: '/vagas',
@@ -83,6 +84,11 @@ const AuthenticatedCartaEditorRoute =
     path: '/carta-editor',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -91,6 +97,7 @@ export interface FileRoutesByFullPath {
   '/editor': typeof EditorRoute
   '/preparar-entrevista': typeof PrepararEntrevistaRoute
   '/vagas': typeof VagasRoute
+  '/admin': typeof AuthenticatedAdminRoute
   '/carta-editor': typeof AuthenticatedCartaEditorRoute
   '/cartas': typeof AuthenticatedCartasRoute
   '/entrevistas': typeof AuthenticatedEntrevistasRoute
@@ -104,6 +111,7 @@ export interface FileRoutesByTo {
   '/editor': typeof EditorRoute
   '/preparar-entrevista': typeof PrepararEntrevistaRoute
   '/vagas': typeof VagasRoute
+  '/admin': typeof AuthenticatedAdminRoute
   '/carta-editor': typeof AuthenticatedCartaEditorRoute
   '/cartas': typeof AuthenticatedCartasRoute
   '/entrevistas': typeof AuthenticatedEntrevistasRoute
@@ -119,6 +127,7 @@ export interface FileRoutesById {
   '/editor': typeof EditorRoute
   '/preparar-entrevista': typeof PrepararEntrevistaRoute
   '/vagas': typeof VagasRoute
+  '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/carta-editor': typeof AuthenticatedCartaEditorRoute
   '/_authenticated/cartas': typeof AuthenticatedCartasRoute
   '/_authenticated/entrevistas': typeof AuthenticatedEntrevistasRoute
@@ -134,6 +143,7 @@ export interface FileRouteTypes {
     | '/editor'
     | '/preparar-entrevista'
     | '/vagas'
+    | '/admin'
     | '/carta-editor'
     | '/cartas'
     | '/entrevistas'
@@ -147,6 +157,7 @@ export interface FileRouteTypes {
     | '/editor'
     | '/preparar-entrevista'
     | '/vagas'
+    | '/admin'
     | '/carta-editor'
     | '/cartas'
     | '/entrevistas'
@@ -161,6 +172,7 @@ export interface FileRouteTypes {
     | '/editor'
     | '/preparar-entrevista'
     | '/vagas'
+    | '/_authenticated/admin'
     | '/_authenticated/carta-editor'
     | '/_authenticated/cartas'
     | '/_authenticated/entrevistas'
@@ -264,10 +276,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCartaEditorRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin': {
+      id: '/_authenticated/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AuthenticatedAdminRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedCartaEditorRoute: typeof AuthenticatedCartaEditorRoute
   AuthenticatedCartasRoute: typeof AuthenticatedCartasRoute
   AuthenticatedEntrevistasRoute: typeof AuthenticatedEntrevistasRoute
@@ -276,6 +296,7 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAdminRoute: AuthenticatedAdminRoute,
   AuthenticatedCartaEditorRoute: AuthenticatedCartaEditorRoute,
   AuthenticatedCartasRoute: AuthenticatedCartasRoute,
   AuthenticatedEntrevistasRoute: AuthenticatedEntrevistasRoute,
