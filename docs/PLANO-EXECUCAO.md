@@ -79,7 +79,7 @@ Executar **em ordem**. Cada fase termina com: `bun run build` passando, commit n
 
 ### FASE 0 — Controle e visão (sem mudança visível para o usuário)
 
-#### [ ] 0.1 — Tabela de política + registro de uso + rate-limit de IA
+#### [x] 0.1 — Tabela de política + registro de uso + rate-limit de IA
 
 ```text
 Leia docs/PLANO-EXECUCAO.md (secções 1.3 e regras de ouro) e implemente a Fase 0.1:
