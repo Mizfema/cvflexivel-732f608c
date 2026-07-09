@@ -137,7 +137,7 @@ Leia docs/PLANO-EXECUCAO.md e implemente a Fase 0.3 (analytics). Tenho a chave d
 
 ### FASE 1 — Funil e receita
 
-#### [ ] 1.1 — Home nova: 3 botões + modal
+#### [x] 1.1 — Home nova: 3 botões + modal
 
 ```text
 Leia docs/PLANO-EXECUCAO.md (secção 1.2, item 4) e implemente a Fase 1.1 (home nova):

@@ -8,6 +8,7 @@ export const EVENT_NAMES = [
   "signup",
   "login",
   "limit_hit",
+  "cta_click",
 ] as const;
 
 export type EventName = (typeof EVENT_NAMES)[number];

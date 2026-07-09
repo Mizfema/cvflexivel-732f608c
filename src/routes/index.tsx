@@ -1,9 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { Search, Target, PenLine, FilePlus, ArrowRight } from "lucide-react";
+import { Search, Target, Sparkles, ArrowRight } from "lucide-react";
 import { AnaliseModal } from "@/components/AnaliseModal";
 import { VagaStepper } from "@/components/VagaStepper";
 import { ImportCvModal } from "@/components/ImportCvModal";
+import { CriarCvModal } from "@/components/CriarCvModal";
+import { CvThumbnail } from "@/components/cv/CvThumbnail";
+import { TEMPLATES } from "@/lib/cv-design-presets";
+import { buildLandingSampleCv } from "@/lib/landing-sample-cv";
+import { track } from "@/lib/analytics";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -25,105 +30,165 @@ export const Route = createFileRoute("/")({
   component: LandingPage,
 });
 
-type Acao = {
-  id: string;
-  titulo: string;
-  descricao: string;
-  Icon: typeof Search;
-  color: string;
-  bgFrom: string;
-  bgTo: string;
-};
-
-const acoes: Acao[] = [
-  {
-    id: "analisar",
-    titulo: "Quero analisar meu CV",
-    descricao:
-      "Faz upload do teu CV e recebe uma análise detalhada com sugestões.",
-    Icon: Search,
-    color: "#1e3a5f",
-    bgFrom: "from-[#1e3a5f]",
-    bgTo: "to-[#2d5a8e]",
-  },
-  {
-    id: "vaga",
-    titulo: "Quero CV para uma vaga específica",
-    descricao:
-      "Cola o anúncio da vaga e cria um CV alinhado aos requisitos.",
-    Icon: Target,
-    color: "#1a5454",
-    bgFrom: "from-[#1a5454]",
-    bgTo: "to-[#247a7a]",
-  },
-  {
-    id: "melhorar",
-    titulo: "Tenho CV, quero apenas melhorar",
-    descricao:
-      "Edita e aperfeiçoa o teu CV existente com ferramentas profissionais.",
-    Icon: PenLine,
-    color: "#6b2142",
-    bgFrom: "from-[#6b2142]",
-    bgTo: "to-[#943060]",
-  },
-  {
-    id: "zero",
-    titulo: "CV do zero",
-    descricao:
-      "Começa com um editor vazio e constrói o teu CV passo a passo.",
-    Icon: FilePlus,
-    color: "#3d4f1e",
-    bgFrom: "from-[#3d4f1e]",
-    bgTo: "to-[#5a7a2e]",
-  },
-];
-
 function LandingPage() {
+  const navigate = useNavigate();
+  const [criarOpen, setCriarOpen] = useState(false);
   const [analiseOpen, setAnaliseOpen] = useState(false);
   const [vagaOpen, setVagaOpen] = useState(false);
   const [importarOpen, setImportarOpen] = useState(false);
 
-  function handleAcaoClick(id: string) {
-    if (id === "analisar") {
-      setAnaliseOpen(true);
-    } else if (id === "vaga") {
-      setVagaOpen(true);
-    } else if (id === "melhorar") {
-      setImportarOpen(true);
-    } else {
-      alert(`"${acoes.find((a) => a.id === id)?.titulo}" — será implementado nas próximas fases.`);
-    }
+  function handleCriarClick() {
+    track("cta_click", { cta: "criar_cv_gratis" });
+    setCriarOpen(true);
+  }
+
+  function handleAnalisarClick() {
+    track("cta_click", { cta: "analisar_cv" });
+    setAnaliseOpen(true);
+  }
+
+  function handleVagaClick() {
+    track("cta_click", { cta: "cv_para_vaga" });
+    setVagaOpen(true);
+  }
+
+  function handleEscolherZero() {
+    window.localStorage.removeItem("cv-flexivel:draft");
+    navigate({ to: "/editor" });
+  }
+
+  function handleEscolherMelhorar() {
+    setImportarOpen(true);
   }
 
   return (
     <>
       <section className="border-b border-navy-rule overflow-hidden">
         <div className="mx-auto grid max-w-7xl gap-8 px-6 py-16 lg:grid-cols-2 lg:gap-16 lg:py-24">
-          <div className="relative flex items-center justify-center min-h-[420px] sm:min-h-[500px] lg:min-h-[580px]">
+          <div className="relative flex items-center justify-center min-h-[420px] sm:min-h-[500px] lg:min-h-[580px] order-2 lg:order-1">
             <CvMockupFan />
           </div>
 
-          <div className="flex flex-col justify-center">
+          <div className="flex flex-col justify-center order-1 lg:order-2">
             <p className="text-xs font-medium uppercase tracking-[0.22em] text-navy-mid">
-              Escolhe o teu caminho
+              CV Flexível
             </p>
             <h1 className="mt-3 font-serif text-3xl leading-tight text-foreground sm:text-4xl lg:text-[2.75rem]">
-              O que precisas{" "}
-              <em className="font-serif text-navy">hoje?</em>
+              O teu próximo <em className="font-serif text-navy">CV, alinhado.</em>
             </h1>
-            <div className="mt-8 flex flex-col gap-3">
-              {acoes.map((acao) => (
-                <AcaoCard key={acao.id} acao={acao} onClick={handleAcaoClick} />
-              ))}
+            <p className="mt-4 text-[15px] leading-relaxed text-ink-soft max-w-md">
+              Cria, melhora ou alinha o teu CV a uma vaga específica. Sem custo para começar.
+            </p>
+
+            <div className="mt-8">
+              <button
+                onClick={handleCriarClick}
+                className="group relative flex w-full items-center justify-between gap-4 overflow-hidden rounded-xl bg-navy px-6 py-5 text-left shadow-elevated transition-all duration-300 hover:shadow-[0_12px_32px_rgba(30,58,95,0.28)] hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-navy focus-visible:ring-offset-2 cursor-pointer"
+              >
+                <span className="flex items-center gap-3.5">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white/12">
+                    <Sparkles className="h-5 w-5 text-white" strokeWidth={1.75} />
+                  </span>
+                  <span>
+                    <span className="block font-serif text-lg text-white leading-snug">
+                      Criar meu CV grátis
+                    </span>
+                    <span className="block text-[13px] text-white/70 mt-0.5">
+                      Do zero ou a partir do que já tens
+                    </span>
+                  </span>
+                </span>
+                <ArrowRight
+                  className="h-5 w-5 shrink-0 text-white/80 transition-transform duration-300 group-hover:translate-x-1"
+                  strokeWidth={1.75}
+                />
+              </button>
+
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <SecundariaButton
+                  Icon={Search}
+                  label="Analisar meu CV"
+                  onClick={handleAnalisarClick}
+                />
+                <SecundariaButton
+                  Icon={Target}
+                  label="CV para uma vaga"
+                  onClick={handleVagaClick}
+                />
+              </div>
             </div>
           </div>
         </div>
       </section>
 
+      <TemplateGallery />
+
+      <CriarCvModal
+        open={criarOpen}
+        onOpenChange={setCriarOpen}
+        onEscolherZero={handleEscolherZero}
+        onEscolherMelhorar={handleEscolherMelhorar}
+      />
       <AnaliseModal open={analiseOpen} onOpenChange={setAnaliseOpen} />
       <VagaStepper open={vagaOpen} onOpenChange={setVagaOpen} />
       <ImportCvModal open={importarOpen} onOpenChange={setImportarOpen} />
     </>
+  );
+}
+
+/* ── Botão secundário do hero ── */
+
+function SecundariaButton({
+  Icon,
+  label,
+  onClick,
+}: {
+  Icon: typeof Search;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="group flex items-center justify-center gap-2.5 rounded-xl border border-navy-rule bg-card px-4 py-3.5 text-sm font-medium text-foreground transition-all duration-200 hover:border-navy/40 hover:bg-navy/[0.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-navy/40 cursor-pointer"
+    >
+      <Icon
+        className="h-4 w-4 text-navy-mid transition-colors duration-200 group-hover:text-navy"
+        strokeWidth={1.75}
+      />
+      {label}
+    </button>
+  );
+}
+
+/* ── Prova visual: grelha de templates com previews reais ── */
+
+function TemplateGallery() {
+  return (
+    <section className="border-b border-navy-rule">
+      <div className="mx-auto max-w-7xl px-6 py-16 lg:py-20">
+        <p className="text-xs font-medium uppercase tracking-[0.22em] text-navy-mid">Modelos</p>
+        <h2 className="mt-2 font-serif text-2xl leading-tight text-foreground sm:text-3xl">
+          Escolhe o visual, o conteúdo é sempre teu
+        </h2>
+
+        <div className="mt-8 grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4">
+          {TEMPLATES.map((template) => (
+            <div key={template.id} className="group flex flex-col items-center gap-2.5">
+              <div className="w-full overflow-hidden rounded-lg shadow-elevated transition-transform duration-300 group-hover:-translate-y-1 flex justify-center bg-white">
+                <CvThumbnail draft={buildLandingSampleCv(template.id)} />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-medium text-foreground">{template.nome}</p>
+                <p className="text-xs text-muted-foreground">
+                  {template.tipo === "ats" ? "Optimizado para ATS" : "Visual"}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -357,16 +422,20 @@ function CvMockup({
                   { org: "Save the Children", role: "Oficial de Projecto", period: "2015 — 2018" },
                 ]
               : variant === 2
-              ? [
-                  { org: "UNDP", role: "Coord. de M&A", period: "2020 — Atual" },
-                  { org: "OIM Moçambique", role: "Analista de Dados", period: "2017 — 2020" },
-                  { org: "Cruz Vermelha", role: "Assistente M&A", period: "2014 — 2017" },
-                ]
-              : [
-                  { org: "PNUD Moçambique", role: "Oficial de Programa", period: "2022 — Atual" },
-                  { org: "Oxfam", role: "Coord. de Campo", period: "2019 — 2022" },
-                  { org: "CARE Internacional", role: "Técnico de Projeto", period: "2016 — 2019" },
-                ]
+                ? [
+                    { org: "UNDP", role: "Coord. de M&A", period: "2020 — Atual" },
+                    { org: "OIM Moçambique", role: "Analista de Dados", period: "2017 — 2020" },
+                    { org: "Cruz Vermelha", role: "Assistente M&A", period: "2014 — 2017" },
+                  ]
+                : [
+                    { org: "PNUD Moçambique", role: "Oficial de Programa", period: "2022 — Atual" },
+                    { org: "Oxfam", role: "Coord. de Campo", period: "2019 — 2022" },
+                    {
+                      org: "CARE Internacional",
+                      role: "Técnico de Projeto",
+                      period: "2016 — 2019",
+                    },
+                  ]
             ).map((exp, i) => (
               <div key={i}>
                 <div className="flex items-center justify-between">
@@ -375,8 +444,14 @@ function CvMockup({
                 </div>
                 <p className="text-[5px] text-gray-500 mt-[1px]">{exp.role}</p>
                 <div className="mt-[2px] space-y-[2px]">
-                  <div className="h-[1.5px] rounded-full w-full" style={{ backgroundColor: "#e8e8e8" }} />
-                  <div className="h-[1.5px] rounded-full w-[85%]" style={{ backgroundColor: "#e8e8e8" }} />
+                  <div
+                    className="h-[1.5px] rounded-full w-full"
+                    style={{ backgroundColor: "#e8e8e8" }}
+                  />
+                  <div
+                    className="h-[1.5px] rounded-full w-[85%]"
+                    style={{ backgroundColor: "#e8e8e8" }}
+                  />
                 </div>
               </div>
             ))}
@@ -397,8 +472,8 @@ function CvMockup({
                   {variant === 1
                     ? "Mestrado em Gestão"
                     : variant === 2
-                    ? "Mestrado em Estatística"
-                    : "Licenciatura em RI"}
+                      ? "Mestrado em Estatística"
+                      : "Licenciatura em RI"}
                 </p>
                 <p className="text-[4.5px] text-gray-400">
                   {variant === 1 ? "2014" : variant === 2 ? "2016" : "2015"}
@@ -408,8 +483,8 @@ function CvMockup({
                 {variant === 1
                   ? "Universidade Eduardo Mondlane"
                   : variant === 2
-                  ? "Universidade Pedagógica"
-                  : "ISCTEM"}
+                    ? "Universidade Pedagógica"
+                    : "ISCTEM"}
               </p>
             </div>
             <div>
@@ -418,8 +493,8 @@ function CvMockup({
                   {variant === 1
                     ? "Licenciatura em Economia"
                     : variant === 2
-                    ? "Lic. Matemática Aplicada"
-                    : "Cert. Gestão de Projectos"}
+                      ? "Lic. Matemática Aplicada"
+                      : "Cert. Gestão de Projectos"}
                 </p>
                 <p className="text-[4.5px] text-gray-400">
                   {variant === 1 ? "2011" : variant === 2 ? "2012" : "2017"}
@@ -429,8 +504,8 @@ function CvMockup({
                 {variant === 1
                   ? "UEM — Faculdade de Economia"
                   : variant === 2
-                  ? "Universidade Lúrio"
-                  : "PMI / Online"}
+                    ? "Universidade Lúrio"
+                    : "PMI / Online"}
               </p>
             </div>
           </div>
@@ -451,61 +526,5 @@ function CvMockup({
         </div>
       </div>
     </div>
-  );
-}
-
-/* ── Cartão de ação ── */
-
-function AcaoCard({ acao, onClick }: { acao: Acao; onClick: (id: string) => void }) {
-  const { Icon } = acao;
-
-  return (
-    <button
-      onClick={() => onClick(acao.id)}
-      className="group relative flex items-start gap-4 rounded-xl border border-navy-rule/60 bg-card p-5 text-left transition-all duration-300 hover:border-transparent hover:shadow-elevated hover:-translate-y-0.5 cursor-pointer overflow-hidden"
-    >
-      <div
-        className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100 rounded-xl"
-        style={{
-          background: `linear-gradient(135deg, ${acao.color}08, ${acao.color}03)`,
-          boxShadow: `inset 0 0 0 1.5px ${acao.color}30`,
-        }}
-      />
-
-      <div
-        className="relative mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg transition-all duration-300 group-hover:scale-110 group-hover:shadow-md"
-        style={{
-          background: `linear-gradient(135deg, ${acao.color}12, ${acao.color}06)`,
-          border: `1px solid ${acao.color}18`,
-        }}
-      >
-        <Icon
-          className="h-5 w-5 transition-colors duration-300"
-          style={{ color: acao.color }}
-          strokeWidth={1.75}
-        />
-      </div>
-
-      <div className="relative flex-1 min-w-0">
-        <h3
-          className="font-serif text-base leading-snug text-foreground group-hover:text-[var(--hover-color)] transition-colors duration-300"
-          style={{ "--hover-color": acao.color } as React.CSSProperties}
-        >
-          {acao.titulo}
-        </h3>
-        <p className="mt-1 text-sm text-ink-soft leading-relaxed">{acao.descricao}</p>
-      </div>
-
-      <div className="relative mt-2.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all duration-300 group-hover:translate-x-1">
-        <div
-          className="absolute inset-0 rounded-full opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-          style={{ backgroundColor: `${acao.color}12` }}
-        />
-        <ArrowRight
-          className="h-4 w-4 text-muted-foreground transition-colors duration-300 group-hover:text-foreground relative z-10"
-          strokeWidth={1.75}
-        />
-      </div>
-    </button>
   );
 }
