@@ -105,7 +105,7 @@ Leia docs/PLANO-EXECUCAO.md (secções 1.3 e regras de ouro) e implemente a Fase
 6. bun run build, commit.
 ```
 
-#### [ ] 0.2 — Painel admin mínimo
+#### [x] 0.2 — Painel admin mínimo
 
 ```text
 Leia docs/PLANO-EXECUCAO.md e implemente a Fase 0.2 (painel admin):
