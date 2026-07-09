@@ -156,7 +156,7 @@ Leia docs/PLANO-EXECUCAO.md (secção 1.2, item 4) e implemente a Fase 1.1 (home
 5. bun run build, commit.
 ```
 
-#### [ ] 1.2 — Templates modernos (6–10 novos) + flag premium
+#### [x] 1.2 — Templates modernos (6–10 novos) + flag premium
 
 ```text
 Leia docs/PLANO-EXECUCAO.md e implemente a Fase 1.2 (templates novos):
@@ -175,7 +175,7 @@ Leia docs/PLANO-EXECUCAO.md e implemente a Fase 1.2 (templates novos):
 5. Teste cada template no preview paginado e no export DOCX. bun run build, commit.
 ```
 
-#### [ ] 1.3 — Gates progressivos (implementar a matriz na UI)
+#### [x] 1.3 — Gates progressivos (implementar a matriz na UI)
 
 ```text
 Leia docs/PLANO-EXECUCAO.md (matriz 1.3 COMPLETA e regras de ouro) e implemente a

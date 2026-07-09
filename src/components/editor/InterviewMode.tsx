@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { generateCvFromInterview } from "@/lib/llm.functions";
 import type { CvDraft } from "@/lib/cv-types";
+import { parseLimitError } from "@/lib/usage-error";
+import { UsageLimitNotice } from "@/components/UsageLimitNotice";
 
 const uid = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -279,12 +281,17 @@ export function InterviewMode({
           )}
         </div>
 
-        {mut.isError && (
-          <div className="mt-4 flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-            <AlertCircle className="mt-0.5 h-4 w-4 flex-none" />
-            <span>{(mut.error as Error).message}</span>
-          </div>
-        )}
+        {mut.isError &&
+          (parseLimitError(mut.error) ? (
+            <div className="mt-4">
+              <UsageLimitNotice feature="ai_suggestions" {...parseLimitError(mut.error)!} />
+            </div>
+          ) : (
+            <div className="mt-4 flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+              <AlertCircle className="mt-0.5 h-4 w-4 flex-none" />
+              <span>{(mut.error as Error).message}</span>
+            </div>
+          ))}
 
         <div className="mt-6 flex items-center justify-between gap-3">
           <Button type="button" variant="ghost" onClick={goBack}>

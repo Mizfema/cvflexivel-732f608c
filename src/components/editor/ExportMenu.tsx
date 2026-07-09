@@ -5,6 +5,7 @@ import { Download, FileText, FileType2, Loader2 } from "lucide-react";
 import type { CvDraft } from "@/lib/cv-types";
 import { useAuth } from "@/hooks/use-auth";
 import { saveCv } from "@/lib/cvs.functions";
+import { checkDownloadAllowed } from "@/lib/download-gate.functions";
 import { exportCvDocx, exportCvPdf } from "@/lib/cv-export";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +14,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { parseLimitError, type LimitInfo } from "@/lib/usage-error";
+import { UsageLimitNotice } from "@/components/UsageLimitNotice";
 
 export function ExportMenu({
   draft,
@@ -26,11 +29,14 @@ export function ExportMenu({
   const { session, ready } = useAuth();
   const navigate = useNavigate();
   const save = useServerFn(saveCv);
+  const checkDownload = useServerFn(checkDownloadAllowed);
   const [busy, setBusy] = useState<"pdf" | "docx" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [limitInfo, setLimitInfo] = useState<LimitInfo | null>(null);
 
   async function handleExport(kind: "pdf" | "docx") {
     setError(null);
+    setLimitInfo(null);
 
     // Único gate: login obrigatório antes de exportar.
     if (!session) {
@@ -43,6 +49,9 @@ export function ExportMenu({
 
     setBusy(kind);
     try {
+      // Verificação server-side de limite/plano (Fase 1.3) — antes de gerar o arquivo.
+      await checkDownload({ data: { templateId: draft.template } });
+
       // Guardar (ou upsert) o CV antes de exportar.
       const res = await save({
         data: {
@@ -61,7 +70,12 @@ export function ExportMenu({
         await exportCvPdf(draft);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao exportar.");
+      const limit = parseLimitError(err);
+      if (limit) {
+        setLimitInfo(limit);
+      } else {
+        setError(err instanceof Error ? err.message : "Falha ao exportar.");
+      }
     } finally {
       setBusy(null);
     }
@@ -93,6 +107,14 @@ export function ExportMenu({
       </DropdownMenu>
       {error && (
         <p className="max-w-xs text-right text-xs text-destructive">{error}</p>
+      )}
+      {limitInfo && (
+        <div className="max-w-xs">
+          <UsageLimitNotice
+            feature={limitInfo.reason === "not_allowed_tier" ? "download_premium" : "download_free"}
+            {...limitInfo}
+          />
+        </div>
       )}
     </div>
   );

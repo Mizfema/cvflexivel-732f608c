@@ -10,6 +10,7 @@ import {
   XCircle,
   Sparkles,
   Loader2,
+  Lock,
 } from "lucide-react";
 import { FileTextInput } from "@/components/ui/file-text-input";
 import { ScannerAnimation } from "@/components/ScannerAnimation";
@@ -19,6 +20,8 @@ import { generateInterviewPrep } from "@/lib/llm.functions";
 import { saveInterviewPrep } from "@/lib/interview-preps.functions";
 import { useAuth } from "@/hooks/use-auth";
 import type { InterviewQuestion } from "@/lib/interview-types";
+import { parseLimitError } from "@/lib/usage-error";
+import { UsageLimitNotice } from "@/components/UsageLimitNotice";
 
 const PREP_MESSAGES = [
   "A ler os Termos de Referência…",
@@ -59,7 +62,78 @@ function ErrorBox({ msg }: { msg: string }) {
   );
 }
 
+/** Fase 1.3: interview_prep está desabilitado para anónimo e grátis na
+ * matriz de acesso (access_policies) — só "premium" está habilitado, e esse
+ * tier é inatingível até a Fase 1.4a ligar hasActivePlan() ao cálculo de
+ * tier. Por isso a página mostra vitrine em vez do stepper interativo; a
+ * lógica de geração abaixo fica intacta para quando a 1.4a ligar o tier real. */
+const INTERVIEW_PREP_AVAILABLE = false;
+
 function PrepararEntrevistaPage() {
+  return INTERVIEW_PREP_AVAILABLE ? <InterviewPrepStepper /> : <InterviewPrepVitrine />;
+}
+
+function InterviewPrepVitrine() {
+  const sampleQuestions: InterviewQuestion[] = [
+    {
+      categoria: "comportamental",
+      pergunta: "Conta-me sobre uma vez em que tiveste de gerir prioridades conflituantes.",
+      resposta_sugerida:
+        "Descreve uma situação real do teu CV: o contexto, a decisão que tomaste e o resultado — ancorado no que já fizeste.",
+    },
+    {
+      categoria: "tecnica",
+      pergunta: "Que ferramentas ou metodologias usaste no projeto mais recente?",
+      resposta_sugerida:
+        "Liga a tua resposta a competências e ferramentas específicas já mencionadas no teu CV.",
+    },
+    {
+      categoria: "eliminatoria",
+      pergunta: "Cumpres o requisito mínimo de experiência exigido no anúncio?",
+      resposta_sugerida:
+        "Confirma com base nas datas reais do teu CV; se não cumprires, destaca experiência adjacente com honestidade.",
+    },
+  ];
+
+  return (
+    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:py-12">
+      <header className="mb-8">
+        <p className="text-xs font-medium uppercase tracking-[0.22em] text-navy-mid">
+          Preparação de entrevista
+        </p>
+        <h1 className="mt-2 font-serif text-3xl text-foreground sm:text-4xl">
+          Simula a tua entrevista para esta vaga
+        </h1>
+        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+          Cola os Termos de Referência, a tua carta de apresentação e o teu CV. Recebes perguntas
+          prováveis com respostas sugeridas — ancoradas apenas no que já fizeste. Esta
+          funcionalidade faz parte do plano pago.
+        </p>
+      </header>
+
+      <div className="relative overflow-hidden rounded-2xl border border-[#E3DFD7] bg-[#FBFAF7] p-6 sm:p-8">
+        <div aria-hidden className="pointer-events-none select-none blur-[3px]">
+          <InterviewPrepResult questions={sampleQuestions} />
+        </div>
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-b from-[#FBFAF7]/40 to-[#FBFAF7] p-6 text-center">
+          <Lock className="h-8 w-8 text-[#5F5E5A]" />
+          <p className="max-w-sm font-serif text-lg text-foreground">
+            Disponível para assinantes do plano pago
+          </p>
+          <Link
+            to="/planos"
+            className="inline-flex items-center gap-2 rounded-[10px] bg-[#1b1b19] px-5 py-2.5 text-sm font-medium text-[#F1EFE8] transition-opacity hover:opacity-90"
+          >
+            <Sparkles className="h-4 w-4" />
+            Ver planos
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InterviewPrepStepper() {
   const { session } = useAuth();
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [tdrText, setTdrText] = useState("");
@@ -333,7 +407,12 @@ function PrepararEntrevistaPage() {
             />
 
             {fileError && <ErrorBox msg={fileError} />}
-            {mutation.isError && <ErrorBox msg={mutation.error.message} />}
+            {mutation.isError &&
+              (parseLimitError(mutation.error) ? (
+                <UsageLimitNotice feature="interview_prep" {...parseLimitError(mutation.error)!} />
+              ) : (
+                <ErrorBox msg={mutation.error.message} />
+              ))}
 
             <div className="flex justify-between">
               <button onClick={() => setStep(2)} className={SECONDARY_BTN}>
@@ -355,11 +434,18 @@ function PrepararEntrevistaPage() {
                 <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-full bg-destructive/10">
                   <XCircle className="h-8 w-8 text-destructive" />
                 </div>
-                <div>
+                <div className="w-full max-w-md">
                   <p className="font-serif text-lg text-foreground">Falha ao gerar a simulação</p>
-                  <p className="mt-2 text-sm text-muted-foreground max-w-md">
-                    {mutation.error.message}
-                  </p>
+                  {parseLimitError(mutation.error) ? (
+                    <div className="mt-2 text-left">
+                      <UsageLimitNotice
+                        feature="interview_prep"
+                        {...parseLimitError(mutation.error)!}
+                      />
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm text-muted-foreground">{mutation.error.message}</p>
+                  )}
                 </div>
                 <div className="flex gap-2 justify-center pt-2">
                   <button

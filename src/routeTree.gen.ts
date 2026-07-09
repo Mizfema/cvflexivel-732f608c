@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VagasRouteImport } from './routes/vagas'
 import { Route as PrepararEntrevistaRouteImport } from './routes/preparar-entrevista'
+import { Route as PlanosRouteImport } from './routes/planos'
 import { Route as EditorRouteImport } from './routes/editor'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AnaliseRouteImport } from './routes/analise'
@@ -31,6 +32,11 @@ const VagasRoute = VagasRouteImport.update({
 const PrepararEntrevistaRoute = PrepararEntrevistaRouteImport.update({
   id: '/preparar-entrevista',
   path: '/preparar-entrevista',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlanosRoute = PlanosRouteImport.update({
+  id: '/planos',
+  path: '/planos',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EditorRoute = EditorRouteImport.update({
@@ -95,6 +101,7 @@ export interface FileRoutesByFullPath {
   '/analise': typeof AnaliseRoute
   '/auth': typeof AuthRoute
   '/editor': typeof EditorRoute
+  '/planos': typeof PlanosRoute
   '/preparar-entrevista': typeof PrepararEntrevistaRoute
   '/vagas': typeof VagasRoute
   '/admin': typeof AuthenticatedAdminRoute
@@ -109,6 +116,7 @@ export interface FileRoutesByTo {
   '/analise': typeof AnaliseRoute
   '/auth': typeof AuthRoute
   '/editor': typeof EditorRoute
+  '/planos': typeof PlanosRoute
   '/preparar-entrevista': typeof PrepararEntrevistaRoute
   '/vagas': typeof VagasRoute
   '/admin': typeof AuthenticatedAdminRoute
@@ -125,6 +133,7 @@ export interface FileRoutesById {
   '/analise': typeof AnaliseRoute
   '/auth': typeof AuthRoute
   '/editor': typeof EditorRoute
+  '/planos': typeof PlanosRoute
   '/preparar-entrevista': typeof PrepararEntrevistaRoute
   '/vagas': typeof VagasRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
@@ -141,6 +150,7 @@ export interface FileRouteTypes {
     | '/analise'
     | '/auth'
     | '/editor'
+    | '/planos'
     | '/preparar-entrevista'
     | '/vagas'
     | '/admin'
@@ -155,6 +165,7 @@ export interface FileRouteTypes {
     | '/analise'
     | '/auth'
     | '/editor'
+    | '/planos'
     | '/preparar-entrevista'
     | '/vagas'
     | '/admin'
@@ -170,6 +181,7 @@ export interface FileRouteTypes {
     | '/analise'
     | '/auth'
     | '/editor'
+    | '/planos'
     | '/preparar-entrevista'
     | '/vagas'
     | '/_authenticated/admin'
@@ -186,6 +198,7 @@ export interface RootRouteChildren {
   AnaliseRoute: typeof AnaliseRoute
   AuthRoute: typeof AuthRoute
   EditorRoute: typeof EditorRoute
+  PlanosRoute: typeof PlanosRoute
   PrepararEntrevistaRoute: typeof PrepararEntrevistaRoute
   VagasRoute: typeof VagasRoute
 }
@@ -204,6 +217,13 @@ declare module '@tanstack/react-router' {
       path: '/preparar-entrevista'
       fullPath: '/preparar-entrevista'
       preLoaderRoute: typeof PrepararEntrevistaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/planos': {
+      id: '/planos'
+      path: '/planos'
+      fullPath: '/planos'
+      preLoaderRoute: typeof PlanosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/editor': {
@@ -313,6 +333,7 @@ const rootRouteChildren: RootRouteChildren = {
   AnaliseRoute: AnaliseRoute,
   AuthRoute: AuthRoute,
   EditorRoute: EditorRoute,
+  PlanosRoute: PlanosRoute,
   PrepararEntrevistaRoute: PrepararEntrevistaRoute,
   VagasRoute: VagasRoute,
 }

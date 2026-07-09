@@ -22,9 +22,12 @@ import { listRecentTdrs } from "@/lib/recent-tdrs.functions";
 import { generateCoverLetter } from "@/lib/llm.functions";
 import { writePendingCoverLetterDraft } from "@/lib/cover-letter-draft";
 import type { CoverLetterMode, GeneratedCoverLetter, RecentTdr } from "@/lib/cover-letter-types";
+import { toSafeHtml } from "@/lib/rich-text";
+import { parseLimitError } from "@/lib/usage-error";
+import { UsageLimitNotice } from "@/components/UsageLimitNotice";
 
 type Path = "zero" | "targeted" | "generic";
-type Step = "path" | "cv" | "tdr" | "generating";
+type Step = "path" | "cv" | "tdr" | "generating" | "amostra";
 
 type CvRow = { id: string; title: string; template: string; updated_at: string };
 type CvChoice =
@@ -107,6 +110,10 @@ export function NovaCartaStepper({ open, onOpenChange }: NovaCartaStepperProps) 
       }) as Promise<GeneratedCoverLetter>;
     },
     onSuccess: (result) => {
+      if (result.hasMore) {
+        setStep("amostra");
+        return;
+      }
       writePendingCoverLetterDraft({
         title: path === "targeted" ? deriveTitleFromTdr(tdrText) : "Carta genérica",
         content: result.content,
@@ -117,6 +124,18 @@ export function NovaCartaStepper({ open, onOpenChange }: NovaCartaStepperProps) 
       handleClose(false);
     },
   });
+
+  function handleUseSample() {
+    if (!mutation.data) return;
+    writePendingCoverLetterDraft({
+      title: path === "targeted" ? deriveTitleFromTdr(tdrText) : "Carta genérica",
+      content: mutation.data.content,
+      jobTdr: path === "targeted" ? tdrText : null,
+      cvId: cvChoice?.kind === "saved" ? cvChoice.id : null,
+    });
+    navigate({ to: "/carta-editor" });
+    handleClose(false);
+  }
 
   function resetAll() {
     setPath(null);
@@ -431,11 +450,18 @@ export function NovaCartaStepper({ open, onOpenChange }: NovaCartaStepperProps) 
               <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-full bg-destructive/10">
                 <XCircle className="h-8 w-8 text-destructive" />
               </div>
-              <div>
+              <div className="w-full max-w-md">
                 <p className="font-serif text-lg text-foreground">Falha ao gerar a carta</p>
-                <p className="mt-2 text-sm text-muted-foreground max-w-md">
-                  {mutation.error.message}
-                </p>
+                {parseLimitError(mutation.error) ? (
+                  <div className="mt-2 text-left">
+                    <UsageLimitNotice
+                      feature="cover_letter"
+                      {...parseLimitError(mutation.error)!}
+                    />
+                  </div>
+                ) : (
+                  <p className="mt-2 text-sm text-muted-foreground">{mutation.error.message}</p>
+                )}
               </div>
               <div className="flex gap-2 justify-center pt-2">
                 <button
@@ -462,6 +488,54 @@ export function NovaCartaStepper({ open, onOpenChange }: NovaCartaStepperProps) 
           ) : (
             <ScannerAnimation title="A gerar a tua carta" messages={GENERATE_MESSAGES} />
           )}
+        </div>
+      )}
+
+      {step === "amostra" && mutation.data && (
+        <div className="animate-stepper-in space-y-5">
+          <div>
+            <ModalTitle className="font-serif text-[22px] font-semibold leading-snug text-[#2C2C2A] pr-8">
+              A tua amostra grátis
+            </ModalTitle>
+            <p className="mt-1.5 text-[13px] leading-relaxed text-[#5F5E5A]">
+              Contas grátis veem o primeiro parágrafo. O resto da carta faz parte do plano pago.
+            </p>
+          </div>
+
+          <div className="rounded-[10px] border border-[#E3DFD7] bg-white p-4">
+            <div
+              className="prose-cv text-sm"
+              dangerouslySetInnerHTML={{ __html: toSafeHtml(mutation.data.content) }}
+            />
+            <div className="relative mt-3 -mx-4 -mb-4 overflow-hidden rounded-b-[10px]">
+              <div aria-hidden className="pointer-events-none select-none space-y-2 p-4 blur-[4px]">
+                <div className="h-3 w-full rounded bg-[#EFEBE2]" />
+                <div className="h-3 w-5/6 rounded bg-[#EFEBE2]" />
+                <div className="h-3 w-4/6 rounded bg-[#EFEBE2]" />
+              </div>
+              <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-b from-white/40 to-white p-4">
+                <span className="text-xs font-medium text-[#5F5E5A]">
+                  + mais 2-3 parágrafos no plano pago
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col-reverse gap-2 border-t border-[#E3DFD7] pt-4 sm:flex-row sm:justify-end">
+            <button
+              onClick={handleUseSample}
+              className="rounded-[10px] border border-[#E3DFD7] px-4 py-2 text-sm text-[#5F5E5A] transition-colors hover:bg-black/4 hover:text-[#2C2C2A]"
+            >
+              Usar esta amostra
+            </button>
+            <button
+              onClick={() => navigate({ to: "/planos" })}
+              className="inline-flex items-center justify-center gap-2 rounded-[10px] bg-[#1b1b19] px-4 py-2 text-sm font-medium text-[#F1EFE8] transition-opacity hover:opacity-90"
+            >
+              <Sparkles className="h-4 w-4" />
+              Assinar para gerar a carta completa
+            </button>
+          </div>
         </div>
       )}
     </Modal>

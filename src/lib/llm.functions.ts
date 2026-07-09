@@ -273,6 +273,21 @@ function compactForAi(text: string, limit = 18000): string {
   return `${head}\n\n[... conteúdo encurtado para evitar resposta truncada ...]\n\n${tail}`;
 }
 
+/** Corta o resultado para quem não tem conta (Fase 1.3): mantém o gancho
+ * (resumo, 2 primeiras secções, 1º requisito eliminatório) e esconde o resto
+ * — nunca desce ao cliente, ao contrário de um blur meramente visual. */
+function truncateForAnonymous(result: CoverageAnalysis): CoverageAnalysis {
+  return {
+    ...result,
+    cobertura: result.cobertura.map((c, i) =>
+      i < 2 ? c : { secao: c.secao, score: c.score, presentes: [], emFalta: [] },
+    ),
+    keywords: { presentes: result.keywords.presentes, emFalta: [] },
+    requisitosEliminatoriosNaoCumpridos: result.requisitosEliminatoriosNaoCumpridos.slice(0, 1),
+    hasMore: true,
+  };
+}
+
 export const analyzeCoverage = createServerFn({ method: "POST" })
   .middleware([optionalIdentity])
   .inputValidator((input: unknown) => inputSchema.parse(input))
@@ -301,7 +316,7 @@ export const analyzeCoverage = createServerFn({ method: "POST" })
       });
       tokenUsage = usage;
       const json = extractJson(text);
-      return outputSchema.parse(normalizeCoverageJson(json)) as CoverageAnalysis;
+      return { ...outputSchema.parse(normalizeCoverageJson(json)), hasMore: false } as CoverageAnalysis;
     };
 
     try {
@@ -313,7 +328,7 @@ export const analyzeCoverage = createServerFn({ method: "POST" })
         result = await callOnce();
       }
       await recordUsageTokens(usageCheck.usageId, tokenUsage);
-      return result;
+      return context.userId ? result : truncateForAnonymous(result);
     } catch (err) {
       throw new Error(`Falha na análise: ${friendlyAiError(err).message}`);
     }
@@ -1160,6 +1175,7 @@ const MOCK_COVER_LETTER_TARGETED: GeneratedCoverLetter = {
     "<p>Ao longo da minha carreira, tal como reflectido no meu CV, desenvolvi experiência relevante para os requisitos desta posição, incluindo responsabilidades de coordenação, gestão e elaboração de relatórios que constam do meu percurso documentado.</p>" +
     "<p>Complementarmente, as competências e a formação registadas no meu CV reforçam a minha adequação a este papel, permitindo-me contribuir desde o primeiro momento para os objectivos da organização.</p>" +
     "<p>Fico disponível para uma entrevista a qualquer momento e agradeço desde já a atenção dispensada à minha candidatura.</p>",
+  hasMore: false,
 };
 
 const MOCK_COVER_LETTER_GENERIC: GeneratedCoverLetter = {
@@ -1168,7 +1184,17 @@ const MOCK_COVER_LETTER_GENERIC: GeneratedCoverLetter = {
     "<p>Tal como reflectido no meu CV, desenvolvi experiência relevante em funções anteriores, incluindo responsabilidades de coordenação, gestão e elaboração de relatórios.</p>" +
     "<p>As competências e a formação registadas no meu CV reforçam a minha adequação a este tipo de posição, permitindo-me contribuir desde o primeiro momento para os objectivos da organização.</p>" +
     "<p>Fico disponível para uma entrevista a qualquer momento e agradeço desde já a atenção dispensada à minha candidatura.</p>",
+  hasMore: false,
 };
+
+/** Corta a carta para a amostra grátis (Fase 1.3): só o primeiro bloco de
+ * nível superior (<p> ou <ul>) — o resto nunca desce ao cliente. Tier
+ * "premium" ainda é inatingível (Fase 1.4a), por isso hoje corta sempre. */
+function truncateCoverLetter(content: string): GeneratedCoverLetter {
+  const firstBlock = content.match(/<(p|ul)>[\s\S]*?<\/\1>/);
+  if (!firstBlock) return { content, hasMore: false };
+  return { content: firstBlock[0], hasMore: true };
+}
 
 export const generateCoverLetter = createServerFn({ method: "POST" })
   .middleware([optionalIdentity])
@@ -1200,19 +1226,19 @@ export const generateCoverLetter = createServerFn({ method: "POST" })
       tokenUsage = usage;
       const json = extractJsonOrText(text);
       const parsed = coverLetterOutputSchema.parse(normalizeCoverLetterJson(json));
-      return { content: toSafeHtml(parsed.content) };
+      return toSafeHtml(parsed.content);
     };
 
     try {
-      let result: GeneratedCoverLetter;
+      let content: string;
       try {
-        result = await callOnce();
+        content = await callOnce();
       } catch (e) {
         console.warn("generateCoverLetter: 1ª tentativa falhou, a repetir.", e);
-        result = await callOnce();
+        content = await callOnce();
       }
       await recordUsageTokens(usageCheck.usageId, tokenUsage);
-      return result;
+      return truncateCoverLetter(content);
     } catch (err) {
       throw new Error(`Falha a gerar carta de motivação: ${friendlyAiError(err).message}`);
     }

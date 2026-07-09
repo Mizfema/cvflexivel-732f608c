@@ -8,6 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useDraftCv } from "@/hooks/use-draft-cv";
 import { analyzeCoverage } from "@/lib/llm.functions";
 import type { CoverageAnalysis, SectionCoverage } from "@/lib/coverage-types";
+import { parseLimitError } from "@/lib/usage-error";
+import { UsageLimitNotice } from "@/components/UsageLimitNotice";
 
 export const Route = createFileRoute("/analise")({
   head: () => ({
@@ -106,11 +108,14 @@ function AnalisePage() {
         </section>
 
         <section>
-          {mutation.isError && (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-              {(mutation.error as Error).message}
-            </div>
-          )}
+          {mutation.isError &&
+            (parseLimitError(mutation.error) ? (
+              <UsageLimitNotice feature="cv_analysis" {...parseLimitError(mutation.error)!} />
+            ) : (
+              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+                {(mutation.error as Error).message}
+              </div>
+            ))}
           {!mutation.data && !mutation.isPending && !mutation.isError && (
             <div className="flex h-full min-h-[300px] items-center justify-center rounded-lg border border-dashed border-navy-rule bg-surface/40 p-8 text-center text-sm text-muted-foreground">
               A análise aparece aqui depois de carregares em <em className="mx-1">Analisar</em>.
@@ -180,6 +185,7 @@ function Resultado({ data }: { data: CoverageAnalysis }) {
             <SectionRow key={i} c={c} />
           ))}
         </div>
+        {data.hasMore && <UpgradeOverlay />}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -193,6 +199,33 @@ function Resultado({ data }: { data: CoverageAnalysis }) {
           items={data.keywords.emFalta}
           tone="missing"
         />
+      </div>
+    </div>
+  );
+}
+
+function UpgradeOverlay() {
+  return (
+    <div className="relative mt-4 -mx-5 -mb-5 overflow-hidden rounded-b-lg">
+      <div aria-hidden className="pointer-events-none select-none space-y-3 p-5 blur-[4px]">
+        <SectionRow
+          c={{ secao: "Formação", score: 2, presentes: ["exemplo"], emFalta: [] }}
+        />
+        <SectionRow
+          c={{ secao: "Competências", score: 1, presentes: ["exemplo"], emFalta: [] }}
+        />
+      </div>
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-b from-card/60 to-card p-6 text-center">
+        <p className="text-sm font-medium text-foreground">
+          Cria uma conta grátis para ver a análise completa
+        </p>
+        <Link
+          to="/auth"
+          search={{ next: "/analise" }}
+          className="rounded-md bg-navy px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
+        >
+          Criar conta grátis
+        </Link>
       </div>
     </div>
   );

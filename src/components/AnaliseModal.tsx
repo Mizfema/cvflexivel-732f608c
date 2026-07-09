@@ -9,11 +9,14 @@ import {
   Lightbulb,
   ShieldAlert,
 } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { Modal, ModalTitle } from "@/components/ui/modal";
 import { FileTextInput } from "@/components/ui/file-text-input";
 import { ScannerAnimation } from "@/components/ScannerAnimation";
 import { analyzeCoverage } from "@/lib/llm.functions";
 import type { CoverageAnalysis, GapDetail, GapType } from "@/lib/coverage-types";
+import { parseLimitError } from "@/lib/usage-error";
+import { UsageLimitNotice } from "@/components/UsageLimitNotice";
 
 /* ── Tipos de gap ── */
 
@@ -154,6 +157,53 @@ function GapActionPlan({ cobertura }: { cobertura: CoverageAnalysis["cobertura"]
   );
 }
 
+function SectionCoverageRow({ c }: { c: CoverageAnalysis["cobertura"][number] }) {
+  const barPct = Math.round((c.score / 3) * 100);
+  const barColor =
+    c.score === 3 ? "bg-emerald-500" : c.score === 2 ? "bg-amber-400" : c.score === 1 ? "bg-amber-500" : "bg-red-400";
+  const label = ["Ausente", "Fraco", "Parcial", "Coberto"][c.score];
+  const labelColor =
+    c.score === 3
+      ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+      : c.score === 2
+        ? "text-amber-700 bg-amber-50 border-amber-200"
+        : c.score === 1
+          ? "text-amber-800 bg-amber-100 border-amber-300"
+          : "text-red-700 bg-red-50 border-red-200";
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-sm font-medium text-foreground">{c.secao}</span>
+        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full border ${labelColor}`}>
+          {label}
+        </span>
+      </div>
+      <div className="h-2.5 w-full overflow-hidden rounded-full bg-paper-deep">
+        <div
+          className={`h-full rounded-full ${barColor} transition-all duration-700 ease-out`}
+          style={{ width: `${barPct}%`, animation: "result-bar-fill 0.8s ease-out" }}
+        />
+      </div>
+      {c.presentes.length > 0 && (
+        <div className="mt-2 text-xs">
+          <span className="flex items-center gap-1 text-emerald-700">
+            <CheckCircle2 className="h-3 w-3" />
+            {c.presentes.join(" · ")}
+          </span>
+        </div>
+      )}
+      {c.emFalta.length > 0 && (
+        <div className="mt-2 space-y-1.5">
+          {c.emFalta.map((gap, gi) => (
+            <GapItem key={gi} gap={gap} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ResultadoCompleto({ data }: { data: CoverageAnalysis }) {
   const pct = data.totalRequisitos
     ? Math.round((data.requisitosCobertos / data.totalRequisitos) * 100)
@@ -236,61 +286,30 @@ function ResultadoCompleto({ data }: { data: CoverageAnalysis }) {
       >
         <h3 className="font-serif text-base text-foreground mb-4">Cobertura por secção</h3>
         <div className="space-y-4">
-          {data.cobertura.map((c, i) => {
-            const barPct = Math.round((c.score / 3) * 100);
-            const barColor =
-              c.score === 3
-                ? "bg-emerald-500"
-                : c.score === 2
-                ? "bg-amber-400"
-                : c.score === 1
-                ? "bg-amber-500"
-                : "bg-red-400";
-            const label = ["Ausente", "Fraco", "Parcial", "Coberto"][c.score];
-            const labelColor =
-              c.score === 3
-                ? "text-emerald-700 bg-emerald-50 border-emerald-200"
-                : c.score === 2
-                ? "text-amber-700 bg-amber-50 border-amber-200"
-                : c.score === 1
-                ? "text-amber-800 bg-amber-100 border-amber-300"
-                : "text-red-700 bg-red-50 border-red-200";
-
-            return (
-              <div key={i}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-sm font-medium text-foreground">{c.secao}</span>
-                  <span
-                    className={`text-[11px] font-medium px-2 py-0.5 rounded-full border ${labelColor}`}
-                  >
-                    {label}
-                  </span>
-                </div>
-                <div className="h-2.5 w-full overflow-hidden rounded-full bg-paper-deep">
-                  <div
-                    className={`h-full rounded-full ${barColor} transition-all duration-700 ease-out`}
-                    style={{ width: `${barPct}%`, animation: "result-bar-fill 0.8s ease-out" }}
-                  />
-                </div>
-                {c.presentes.length > 0 && (
-                  <div className="mt-2 text-xs">
-                    <span className="flex items-center gap-1 text-emerald-700">
-                      <CheckCircle2 className="h-3 w-3" />
-                      {c.presentes.join(" · ")}
-                    </span>
-                  </div>
-                )}
-                {c.emFalta.length > 0 && (
-                  <div className="mt-2 space-y-1.5">
-                    {c.emFalta.map((gap, gi) => (
-                      <GapItem key={gi} gap={gap} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          {data.cobertura.slice(0, data.hasMore ? 2 : undefined).map((c, i) => (
+            <SectionCoverageRow key={i} c={c} />
+          ))}
         </div>
+        {data.hasMore && (
+          <div className="relative mt-4 -mx-5 -mb-5 overflow-hidden rounded-b-xl">
+            <div aria-hidden className="pointer-events-none select-none space-y-4 p-5 blur-[4px]">
+              {data.cobertura.slice(2).map((c, i) => (
+                <SectionCoverageRow key={i} c={c} />
+              ))}
+            </div>
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-b from-card/50 to-card p-6 text-center">
+              <p className="text-sm font-medium text-foreground">
+                Cria uma conta grátis para ver a análise completa
+              </p>
+              <Link
+                to="/auth"
+                className="rounded-md bg-[#1b1b19] px-4 py-2 text-sm font-medium text-[#F1EFE8] transition-opacity hover:opacity-90"
+              >
+                Criar conta grátis
+              </Link>
+            </div>
+          </div>
+        )}
       </div>
 
       <div
@@ -484,12 +503,15 @@ export function AnaliseModal({ open, onOpenChange }: AnaliseModalProps) {
               </div>
             )}
 
-            {mutation.isError && (
-              <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                {mutation.error.message}
-              </div>
-            )}
+            {mutation.isError &&
+              (parseLimitError(mutation.error) ? (
+                <UsageLimitNotice feature="cv_analysis" {...parseLimitError(mutation.error)!} />
+              ) : (
+                <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  {mutation.error.message}
+                </div>
+              ))}
 
             <div className="flex justify-end">
               <button

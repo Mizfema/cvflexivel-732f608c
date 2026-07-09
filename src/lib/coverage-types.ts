@@ -32,4 +32,6 @@ export type CoverageAnalysis = {
   requisitosEliminatoriosNaoCumpridos: EliminatorioNaoCumprido[];
   totalRequisitos: number;
   requisitosCobertos: number;
+  /** true quando o resultado foi cortado para anónimo (Fase 1.3) — o resto nunca desceu ao cliente. */
+  hasMore: boolean;
 };

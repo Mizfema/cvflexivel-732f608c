@@ -24,6 +24,8 @@ import {
   generateFieldSuggestions,
   type FieldSuggestionSectionType,
 } from "@/lib/llm.functions";
+import { parseLimitError } from "@/lib/usage-error";
+import { UsageLimitNotice } from "@/components/UsageLimitNotice";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -110,7 +112,7 @@ function AiSuggestionsPanel({
   onClose,
 }: {
   loading: boolean;
-  error: string | null;
+  error: unknown;
   suggestions: string[];
   regenCount: number;
   onInsert: (text: string) => void;
@@ -169,7 +171,13 @@ function AiSuggestionsPanel({
           ))}
         </div>
       ) : error ? (
-        <p className="px-1 py-2 text-xs text-red-600">{error}</p>
+        parseLimitError(error) ? (
+          <UsageLimitNotice feature="ai_suggestions" {...parseLimitError(error)!} />
+        ) : (
+          <p className="px-1 py-2 text-xs text-red-600">
+            {error instanceof Error ? error.message : "Falha ao gerar sugestões."}
+          </p>
+        )
       ) : suggestions.length === 0 ? (
         <p className="px-1 py-2 text-xs text-muted-foreground">
           Sem mais sugestões — usa o ↻ para gerar novas.
@@ -210,7 +218,7 @@ export function RichTextField({
   const [aiOpen, setAiOpen] = useState(false);
   const [aiSuggestionsList, setAiSuggestionsList] = useState<string[] | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<unknown>(null);
   const [aiRegenCount, setAiRegenCount] = useState(0);
   const fetchFieldSuggestions = useServerFn(generateFieldSuggestions);
   const editor = useEditor({
@@ -274,7 +282,7 @@ export function RichTextField({
       });
       setAiSuggestionsList(result.suggestions);
     } catch (e) {
-      setAiError(e instanceof Error ? e.message : "Falha ao gerar sugestões.");
+      setAiError(e);
     } finally {
       setAiLoading(false);
     }

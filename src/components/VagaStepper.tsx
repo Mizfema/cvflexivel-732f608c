@@ -17,6 +17,8 @@ import { alignCvToTdr } from "@/lib/llm.functions";
 import { DRAFT_KEY } from "@/hooks/use-draft-cv";
 import { EMPTY_CV } from "@/lib/cv-types";
 import type { AlignmentResult } from "@/lib/cv-types";
+import { parseLimitError } from "@/lib/usage-error";
+import { UsageLimitNotice } from "@/components/UsageLimitNotice";
 
 const ALIGN_MESSAGES = [
   "A ler os Termos de Referência…",
@@ -251,12 +253,15 @@ export function VagaStepper({ open, onOpenChange }: VagaStepperProps) {
             </div>
           )}
 
-          {mutation.isError && (
-            <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              {mutation.error.message}
-            </div>
-          )}
+          {mutation.isError &&
+            (parseLimitError(mutation.error) ? (
+              <UsageLimitNotice feature="ai_suggestions" {...parseLimitError(mutation.error)!} />
+            ) : (
+              <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                {mutation.error.message}
+              </div>
+            ))}
 
           <div className="flex justify-between">
             <button
@@ -286,11 +291,18 @@ export function VagaStepper({ open, onOpenChange }: VagaStepperProps) {
               <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-full bg-destructive/10">
                 <XCircle className="h-8 w-8 text-destructive" />
               </div>
-              <div>
+              <div className="w-full max-w-md">
                 <p className="font-serif text-lg text-foreground">Falha no alinhamento</p>
-                <p className="mt-2 text-sm text-muted-foreground max-w-md">
-                  {mutation.error.message}
-                </p>
+                {parseLimitError(mutation.error) ? (
+                  <div className="mt-2 text-left">
+                    <UsageLimitNotice
+                      feature="ai_suggestions"
+                      {...parseLimitError(mutation.error)!}
+                    />
+                  </div>
+                ) : (
+                  <p className="mt-2 text-sm text-muted-foreground">{mutation.error.message}</p>
+                )}
               </div>
               <div className="flex gap-2 justify-center pt-2">
                 <button

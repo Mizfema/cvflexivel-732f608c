@@ -19,6 +19,8 @@ export type CoverLetterEditorState = {
 
 export type GeneratedCoverLetter = {
   content: string; // HTML restrito (p, strong, em, ul, li), ver rich-text.ts
+  /** true quando `content` é só a amostra grátis (Fase 1.3) — o resto nunca desceu ao cliente. */
+  hasMore: boolean;
 };
 
 export type RecentTdrOrigem = "Análise" | "Preparação de entrevista";
