@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { identifyUser, resetAnalytics } from "@/lib/analytics";
 
 /** Sessão Supabase reactiva. Usar para gating client-side antes de exportar. */
 export function useAuth() {
@@ -14,8 +15,13 @@ export function useAuth() {
       setSession(data.session);
       setReady(true);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_evt, s) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((evt, s) => {
       setSession(s);
+      if (evt === "SIGNED_IN" && s?.user) {
+        identifyUser(s.user.id);
+      } else if (evt === "SIGNED_OUT") {
+        resetAnalytics();
+      }
     });
     return () => {
       mounted = false;

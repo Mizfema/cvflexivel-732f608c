@@ -120,7 +120,7 @@ Leia docs/PLANO-EXECUCAO.md e implemente a Fase 0.2 (painel admin):
 4. bun run build, commit.
 ```
 
-#### [ ] 0.3 — Analytics (PostHog) — REQUER chave do usuário
+#### [x] 0.3 — Analytics (PostHog) — REQUER chave do usuário
 
 ```text
 Leia docs/PLANO-EXECUCAO.md e implemente a Fase 0.3 (analytics). Tenho a chave do PostHog:

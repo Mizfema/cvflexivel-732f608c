@@ -4,6 +4,7 @@ import { z } from "zod";
 import { Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { track } from "@/lib/analytics";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -115,6 +116,10 @@ function AuthPage() {
 
   useEffect(() => {
     if (ready && session) {
+      if (sessionStorage.getItem("ph_pending_google_auth")) {
+        sessionStorage.removeItem("ph_pending_google_auth");
+        track("login", { method: "google" });
+      }
       const target = next && next.startsWith("/") ? next : "/editor";
       navigate({ to: target });
     }
@@ -127,12 +132,14 @@ function AuthPage() {
       const target = next && next.startsWith("/") ? next : "/editor";
       const redirectUrl = new URL("/auth", window.location.origin);
       redirectUrl.searchParams.set("next", target);
+      sessionStorage.setItem("ph_pending_google_auth", "1");
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: { redirectTo: redirectUrl.toString() },
       });
       if (error) throw error;
     } catch (err) {
+      sessionStorage.removeItem("ph_pending_google_auth");
       setError(err instanceof Error ? err.message : "Erro ao entrar com Google.");
       setGoogleLoading(false);
     }
@@ -150,6 +157,7 @@ function AuthPage() {
           password,
         });
         if (error) throw error;
+        track("login", { method: "password" });
       } else {
         const emailRedirectUrl = new URL("/auth", window.location.origin);
         if (next && next.startsWith("/")) {
@@ -161,6 +169,7 @@ function AuthPage() {
           options: { emailRedirectTo: emailRedirectUrl.toString() },
         });
         if (error) throw error;
+        track("signup", { method: "password" });
         if (!data.session) {
           setInfo(
             "Conta criada. Verifica o teu email para confirmar e depois entra.",

@@ -8,10 +8,21 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
+import posthog from "posthog-js";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppSidebar } from "@/components/AppSidebar";
+
+if (typeof window !== "undefined") {
+  posthog.init(import.meta.env.VITE_POSTHOG_KEY, {
+    api_host: import.meta.env.VITE_POSTHOG_HOST,
+    capture_pageview: "history_change",
+    autocapture: false,
+    disable_session_recording: true,
+    person_profiles: "identified_only",
+  });
+}
 
 function NotFoundComponent() {
   return (
