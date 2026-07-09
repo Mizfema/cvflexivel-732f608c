@@ -26,7 +26,7 @@ export const TEMPLATES: TemplateInfo[] = [
     id: "moderno",
     nome: "Moderno",
     tipo: "ats",
-    descricao: "Uma coluna, títulos com cor de acento. Sem ícones.",
+    descricao: "Uma coluna, títulos com cor de acento e ícones discretos.",
     layout: "single",
     headerStyle: "accent",
   },
@@ -164,7 +164,7 @@ export function getTemplate(id: string): TemplateInfo {
 
 const HEX_RE = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
 
-const DEFAULT_SPACING: CvSpacing = {
+export const DEFAULT_SPACING: CvSpacing = {
   lineHeight: 1.55,
   itemGap: "M",
   sectionGap: "M",

@@ -4,12 +4,21 @@
 
 import { useMemo } from "react";
 import type { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 import type { CvDraft } from "@/lib/cv-types";
 import type { TemplateInfo } from "@/lib/cv-design-presets";
 import { toSafeHtml } from "@/lib/rich-text";
 import { headerBorderStyle, sectionLabelClass } from "@/lib/templates/themes";
+import { SECTION_ICONS, EXTRA_TYPE_ICONS } from "@/lib/section-icons";
+import { buildContactItems } from "@/lib/contact-items";
+import { photoFrameStyle, photoImgStyle } from "@/lib/photo-style";
 import type { CvBlock } from "./types";
-import { FIRST_ITEM_GAP, type PageMetrics } from "./metrics";
+import {
+  FIRST_ITEM_GAP,
+  PHOTO_SIZE_HEADER_PX,
+  PHOTO_SIZE_SIDEBAR_PX,
+  type PageMetrics,
+} from "./metrics";
 
 function RichText({ html, className }: { html: string; className?: string }) {
   return (
@@ -44,42 +53,58 @@ export function useCvBlocks(
   const isSidebar = template.layout === "sidebar";
 
   return useMemo(() => {
-    const { perfil, experiencia, formacao, competencias, idiomas, extras } =
-      draft.sections;
+    const { perfil, experiencia, formacao, competencias, idiomas, extras } = draft.sections;
     const labelClass = sectionLabelClass(template.headerStyle);
 
-    const hasContacto = !!(
-      perfil.email ||
-      perfil.telefone ||
-      perfil.cidade ||
-      perfil.linkedin
-    );
+    const contactItems = buildContactItems({
+      email: perfil.email,
+      telefone: perfil.telefone,
+      cidade: perfil.cidade,
+      pais: perfil.pais,
+      morada: perfil.morada,
+      linkedin: perfil.linkedin,
+      website: perfil.website,
+      cartaConducao: perfil.cartaConducao,
+    });
+    const hasContacto = contactItems.length > 0;
 
     const Contacto = () =>
       hasContacto ? (
-        <p className="text-[11px]" style={{ color: "var(--cv-muted)" }}>
-          {[
-            perfil.cidade && perfil.pais
-              ? `${perfil.cidade}, ${perfil.pais}`
-              : perfil.cidade || perfil.pais,
-            perfil.email,
-            perfil.telefone,
-            perfil.linkedin,
-            perfil.website,
-          ]
-            .filter(Boolean)
-            .join(" · ")}
+        <p
+          className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]"
+          style={{ color: "var(--cv-muted)" }}
+        >
+          {contactItems.map((it) => {
+            const Icon = it.icon;
+            return (
+              <span key={it.field} className="inline-flex items-center gap-1">
+                <Icon
+                  className="h-[1em] w-[1em] shrink-0"
+                  style={{ color: "var(--cv-accent-soft)" }}
+                />
+                {it.text}
+              </span>
+            );
+          })}
         </p>
       ) : null;
 
-    const SectionTitle = ({ titulo }: { titulo: string }) => (
+    const SectionTitle = ({ titulo, icon: Icon }: { titulo: string; icon?: LucideIcon }) => (
       <h2
-        className={labelClass}
+        className={`flex items-center gap-1.5 ${labelClass}`}
         style={{ color: "var(--cv-accent)", borderColor: "var(--cv-rule)" }}
       >
+        {Icon && <Icon className="h-[1em] w-[1em] shrink-0" />}
         {titulo}
       </h2>
     );
+
+    const Photo = ({ size }: { size: number }) =>
+      perfil.foto ? (
+        <div style={photoFrameStyle(size)}>
+          <img src={perfil.foto.url} alt="" style={photoImgStyle(perfil.foto)} />
+        </div>
+      ) : null;
 
     const blocks: CvBlock[] = [];
 
@@ -90,29 +115,37 @@ export function useCvBlocks(
       sectionId: "header",
       marginBefore: 0,
       node: (
-        <header style={headerBorderStyle(template.headerStyle)}>
-          <h1
-            className="text-[calc(var(--cv-base-size)*2.15)] leading-tight"
-            style={{
-              color: "var(--cv-accent)",
-              fontWeight: 600,
-              letterSpacing: "-0.01em",
-            }}
-          >
-            {perfil.nome || (
-              <span style={{ color: "var(--cv-muted)" }}>O teu nome</span>
+        <header
+          style={{
+            ...headerBorderStyle(template.headerStyle),
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 16,
+          }}
+        >
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <h1
+              className="text-[calc(var(--cv-base-size)*2.15)] leading-tight"
+              style={{
+                color: "var(--cv-accent)",
+                fontWeight: 600,
+                letterSpacing: "-0.01em",
+              }}
+            >
+              {perfil.nome || <span style={{ color: "var(--cv-muted)" }}>O teu nome</span>}
+            </h1>
+            {perfil.headline && (
+              <p className="mt-1" style={{ color: "var(--cv-accent-soft)" }}>
+                {perfil.headline}
+              </p>
             )}
-          </h1>
-          {perfil.headline && (
-            <p className="mt-1" style={{ color: "var(--cv-accent-soft)" }}>
-              {perfil.headline}
-            </p>
-          )}
-          {!isSidebar && hasContacto && (
-            <div className="mt-2">
-              <Contacto />
-            </div>
-          )}
+            {!isSidebar && hasContacto && (
+              <div className="mt-2">
+                <Contacto />
+              </div>
+            )}
+          </div>
+          {!isSidebar && <Photo size={PHOTO_SIZE_HEADER_PX} />}
         </header>
       ),
     });
@@ -122,15 +155,16 @@ export function useCvBlocks(
       sectionId: string,
       titulo: string,
       items: Array<{ id: string; node: ReactNode }>,
-      gap = itemGap,
+      opts?: { gap?: number; icon?: LucideIcon },
     ) => {
       if (items.length === 0) return;
+      const gap = opts?.gap ?? itemGap;
       blocks.push({
         id: `title-${sectionId}`,
         kind: "section-title",
         sectionId,
         marginBefore: sectionGap,
-        node: <SectionTitle titulo={titulo} />,
+        node: <SectionTitle titulo={titulo} icon={opts?.icon} />,
       });
       items.forEach((it, idx) => {
         blocks.push({
@@ -145,9 +179,9 @@ export function useCvBlocks(
 
     // ── Perfil (resumo) ──
     if (perfil.resumo) {
-      pushSection("perfil", "Perfil", [
-        { id: "resumo", node: <RichText html={perfil.resumo} /> },
-      ]);
+      pushSection("perfil", "Perfil", [{ id: "resumo", node: <RichText html={perfil.resumo} /> }], {
+        icon: SECTION_ICONS.perfil,
+      });
     }
 
     // ── Experiência ──
@@ -162,19 +196,13 @@ export function useCvBlocks(
               <p className="font-medium" style={{ color: "var(--cv-text)" }}>
                 {e.cargo || "—"}
                 {e.organizacao && (
-                  <span
-                    className="font-normal"
-                    style={{ color: "var(--cv-accent-soft)" }}
-                  >
+                  <span className="font-normal" style={{ color: "var(--cv-accent-soft)" }}>
                     {" "}
                     · {e.organizacao}
                   </span>
                 )}
               </p>
-              <p
-                className="shrink-0 text-[11px]"
-                style={{ color: "var(--cv-muted)" }}
-              >
+              <p className="shrink-0 text-[11px]" style={{ color: "var(--cv-muted)" }}>
                 {fmtPeriodo(e.inicio, e.fim)}
               </p>
             </div>
@@ -187,6 +215,7 @@ export function useCvBlocks(
           </div>
         ),
       })),
+      { icon: SECTION_ICONS.experiencia },
     );
 
     // ── Formação ──
@@ -201,19 +230,13 @@ export function useCvBlocks(
               <p className="font-medium" style={{ color: "var(--cv-text)" }}>
                 {f.curso || "—"}
                 {f.instituicao && (
-                  <span
-                    className="font-normal"
-                    style={{ color: "var(--cv-accent-soft)" }}
-                  >
+                  <span className="font-normal" style={{ color: "var(--cv-accent-soft)" }}>
                     {" "}
                     · {f.instituicao}
                   </span>
                 )}
               </p>
-              <p
-                className="shrink-0 text-[11px]"
-                style={{ color: "var(--cv-muted)" }}
-              >
+              <p className="shrink-0 text-[11px]" style={{ color: "var(--cv-muted)" }}>
                 {fmtPeriodo(f.inicio, f.fim)}
               </p>
             </div>
@@ -221,37 +244,44 @@ export function useCvBlocks(
           </div>
         ),
       })),
+      { icon: SECTION_ICONS.formacao },
     );
 
     // ── Competências / Idiomas (só no fluxo principal em layout single) ──
     if (!isSidebar && competencias.length > 0) {
-      pushSection("competencias", "Competências", [
-        {
-          id: "lista",
-          node: (
-            <p style={{ color: "var(--cv-text)" }}>
-              {competencias
-                .map((c) => (c.nivel ? `${c.nome} (${c.nivel})` : c.nome))
-                .join(" · ")}
-            </p>
-          ),
-        },
-      ]);
+      pushSection(
+        "competencias",
+        "Competências",
+        [
+          {
+            id: "lista",
+            node: (
+              <p style={{ color: "var(--cv-text)" }}>
+                {competencias.map((c) => (c.nivel ? `${c.nome} (${c.nivel})` : c.nome)).join(" · ")}
+              </p>
+            ),
+          },
+        ],
+        { icon: SECTION_ICONS.competencias },
+      );
     }
 
     if (!isSidebar && idiomas.length > 0) {
-      pushSection("idiomas", "Idiomas", [
-        {
-          id: "lista",
-          node: (
-            <p style={{ color: "var(--cv-text)" }}>
-              {idiomas
-                .map((i) => (i.nivel ? `${i.idioma} — ${i.nivel}` : i.idioma))
-                .join(" · ")}
-            </p>
-          ),
-        },
-      ]);
+      pushSection(
+        "idiomas",
+        "Idiomas",
+        [
+          {
+            id: "lista",
+            node: (
+              <p style={{ color: "var(--cv-text)" }}>
+                {idiomas.map((i) => (i.nivel ? `${i.idioma} — ${i.nivel}` : i.idioma)).join(" · ")}
+              </p>
+            ),
+          },
+        ],
+        { icon: SECTION_ICONS.idiomas },
+      );
     }
 
     // ── Secções extras ──
@@ -268,10 +298,7 @@ export function useCvBlocks(
                   {it.titulo || "—"}
                 </p>
                 {it.data && (
-                  <p
-                    className="shrink-0 text-[11px]"
-                    style={{ color: "var(--cv-muted)" }}
-                  >
+                  <p className="shrink-0 text-[11px]" style={{ color: "var(--cv-muted)" }}>
                     {it.data}
                   </p>
                 )}
@@ -280,7 +307,7 @@ export function useCvBlocks(
             </div>
           ),
         })),
-        itemGap * 0.6,
+        { gap: itemGap * 0.6, icon: EXTRA_TYPE_ICONS[sec.tipo] },
       );
     });
 
@@ -289,14 +316,16 @@ export function useCvBlocks(
     if (isSidebar) {
       sidebar = (
         <div className="space-y-4">
+          {perfil.foto && (
+            <div style={{ display: "flex", justifyContent: "center" }}>
+              <Photo size={PHOTO_SIZE_SIDEBAR_PX} />
+            </div>
+          )}
           <Contacto />
           {competencias.length > 0 && (
             <div>
-              <SectionTitle titulo="Competências" />
-              <ul
-                className="mt-2 space-y-0.5"
-                style={{ color: "var(--cv-text)" }}
-              >
+              <SectionTitle titulo="Competências" icon={SECTION_ICONS.competencias} />
+              <ul className="mt-2 space-y-0.5" style={{ color: "var(--cv-text)" }}>
                 {competencias.map((c) => (
                   <li key={c.id}>· {c.nome}</li>
                 ))}
@@ -305,11 +334,8 @@ export function useCvBlocks(
           )}
           {idiomas.length > 0 && (
             <div>
-              <SectionTitle titulo="Idiomas" />
-              <ul
-                className="mt-2 space-y-0.5"
-                style={{ color: "var(--cv-text)" }}
-              >
+              <SectionTitle titulo="Idiomas" icon={SECTION_ICONS.idiomas} />
+              <ul className="mt-2 space-y-0.5" style={{ color: "var(--cv-text)" }}>
                 {idiomas.map((i) => (
                   <li key={i.id}>
                     {i.idioma}

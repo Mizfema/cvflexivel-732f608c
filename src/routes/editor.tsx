@@ -212,7 +212,14 @@ function EditorPage() {
             className={`${tab === "editar" ? "block" : "hidden"} lg:block`}
             aria-label="Formulário"
           >
-            <EditorForm draft={draft} update={update} />
+            <EditorForm
+              draft={draft}
+              update={update}
+              userId={session?.user.id}
+              onGatedPhotoClick={() =>
+                navigate({ to: "/auth", search: { next: "/editor?modo=cv" } })
+              }
+            />
           </section>
           <section
             className={`${tab === "preview" ? "block" : "hidden"} lg:block lg:sticky lg:top-20`}

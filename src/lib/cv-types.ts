@@ -39,6 +39,14 @@ export type CvSecaoExtra = {
   itens: Array<{ id: string; titulo: string; descricao?: string; data?: string }>;
 };
 
+/** Foto do candidato: imagem original + ajuste de zoom/posição (nunca recortada em pixels). */
+export type CvPhoto = {
+  url: string;
+  zoom: number;
+  offsetX: number;
+  offsetY: number;
+};
+
 export type CvSections = {
   perfil: {
     nome: string;
@@ -49,6 +57,9 @@ export type CvSections = {
     pais: string;
     linkedin?: string;
     website?: string;
+    morada?: string;
+    cartaConducao?: string;
+    foto?: CvPhoto | null;
     resumo?: string; // rich text leve
   };
   experiencia: CvExperience[];
@@ -108,6 +119,9 @@ export const EMPTY_CV: CvDraft = {
       telefone: "",
       cidade: "",
       pais: "Moçambique",
+      morada: "",
+      cartaConducao: "",
+      foto: null,
     },
     experiencia: [],
     formacao: [],

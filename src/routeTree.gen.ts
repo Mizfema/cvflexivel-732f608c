@@ -16,6 +16,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AnaliseRouteImport } from './routes/analise'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated/perfil'
 import { Route as AuthenticatedMeusCvsRouteImport } from './routes/_authenticated/meus-cvs'
 import { Route as AuthenticatedEntrevistasRouteImport } from './routes/_authenticated/entrevistas'
 import { Route as AuthenticatedCartasRouteImport } from './routes/_authenticated/cartas'
@@ -55,6 +56,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedPerfilRoute = AuthenticatedPerfilRouteImport.update({
+  id: '/perfil',
+  path: '/perfil',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedMeusCvsRoute = AuthenticatedMeusCvsRouteImport.update({
   id: '/meus-cvs',
   path: '/meus-cvs',
@@ -89,6 +95,7 @@ export interface FileRoutesByFullPath {
   '/cartas': typeof AuthenticatedCartasRoute
   '/entrevistas': typeof AuthenticatedEntrevistasRoute
   '/meus-cvs': typeof AuthenticatedMeusCvsRoute
+  '/perfil': typeof AuthenticatedPerfilRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -101,6 +108,7 @@ export interface FileRoutesByTo {
   '/cartas': typeof AuthenticatedCartasRoute
   '/entrevistas': typeof AuthenticatedEntrevistasRoute
   '/meus-cvs': typeof AuthenticatedMeusCvsRoute
+  '/perfil': typeof AuthenticatedPerfilRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -115,6 +123,7 @@ export interface FileRoutesById {
   '/_authenticated/cartas': typeof AuthenticatedCartasRoute
   '/_authenticated/entrevistas': typeof AuthenticatedEntrevistasRoute
   '/_authenticated/meus-cvs': typeof AuthenticatedMeusCvsRoute
+  '/_authenticated/perfil': typeof AuthenticatedPerfilRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -129,6 +138,7 @@ export interface FileRouteTypes {
     | '/cartas'
     | '/entrevistas'
     | '/meus-cvs'
+    | '/perfil'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -141,6 +151,7 @@ export interface FileRouteTypes {
     | '/cartas'
     | '/entrevistas'
     | '/meus-cvs'
+    | '/perfil'
   id:
     | '__root__'
     | '/'
@@ -154,6 +165,7 @@ export interface FileRouteTypes {
     | '/_authenticated/cartas'
     | '/_authenticated/entrevistas'
     | '/_authenticated/meus-cvs'
+    | '/_authenticated/perfil'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -217,6 +229,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/perfil': {
+      id: '/_authenticated/perfil'
+      path: '/perfil'
+      fullPath: '/perfil'
+      preLoaderRoute: typeof AuthenticatedPerfilRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/meus-cvs': {
       id: '/_authenticated/meus-cvs'
       path: '/meus-cvs'
@@ -253,6 +272,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCartasRoute: typeof AuthenticatedCartasRoute
   AuthenticatedEntrevistasRoute: typeof AuthenticatedEntrevistasRoute
   AuthenticatedMeusCvsRoute: typeof AuthenticatedMeusCvsRoute
+  AuthenticatedPerfilRoute: typeof AuthenticatedPerfilRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -260,6 +280,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCartasRoute: AuthenticatedCartasRoute,
   AuthenticatedEntrevistasRoute: AuthenticatedEntrevistasRoute,
   AuthenticatedMeusCvsRoute: AuthenticatedMeusCvsRoute,
+  AuthenticatedPerfilRoute: AuthenticatedPerfilRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
@@ -277,3 +298,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

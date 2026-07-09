@@ -10,15 +10,61 @@
 import {
   AlignmentType,
   Document,
+  ImageRun,
   LevelFormat,
   LineRuleType,
   Paragraph,
   TextRun,
   type IStylesOptions,
 } from "docx";
-import type { CvDesign, CvDraft, SpacingSize } from "../cv-types";
+import type { CvDesign, CvDraft, CvPhoto, SpacingSize } from "../cv-types";
 import { DEFAULT_FONT_ID, FONT_OPTIONS } from "../cv-design-presets";
 import { BULLET_LIST_REFERENCE, NUMBER_LIST_REFERENCE, htmlToDocxParagraphs } from "./html-to-docx";
+
+const PHOTO_DOCX_SIZE = 320;
+const PHOTO_DOCX_TWIPS = 90;
+
+/**
+ * Aproximação, só para o DOCX: o `docx` não aplica transforms CSS, por isso
+ * "cozinhamos" o zoom/posição atuais num canvas offscreen (com recorte
+ * circular) para gerar os bytes de um PNG. Se falhar (ex.: CORS), degrada
+ * silenciosamente para DOCX sem foto — nunca deve rebentar a exportação.
+ */
+async function bakePhotoForDocx(photo: CvPhoto): Promise<ArrayBuffer | null> {
+  try {
+    const res = await fetch(photo.url);
+    const blob = await res.blob();
+    const bitmap = await createImageBitmap(blob);
+    const size = PHOTO_DOCX_SIZE;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+
+    const coverScale = Math.max(size / bitmap.width, size / bitmap.height) * photo.zoom;
+    const drawW = bitmap.width * coverScale;
+    const drawH = bitmap.height * coverScale;
+    const cx = size / 2 + photo.zoom * (photo.offsetX / 100) * size;
+    const cy = size / 2 + photo.zoom * (photo.offsetY / 100) * size;
+    ctx.drawImage(bitmap, cx - drawW / 2, cy - drawH / 2, drawW, drawH);
+    ctx.restore();
+
+    const pngBlob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/png"),
+    );
+    if (!pngBlob) return null;
+    return await pngBlob.arrayBuffer();
+  } catch {
+    return null;
+  }
+}
 
 type CvSections = CvDraft["sections"];
 
@@ -176,9 +222,27 @@ function line(text: string, style: string): Paragraph {
   return new Paragraph({ style, children: [new TextRun({ text })] });
 }
 
-export function buildCvDocx(cv: CvSections, design: CvDesign): Document {
+export async function buildCvDocx(cv: CvSections, design: CvDesign): Promise<Document> {
   const { perfil, experiencia, formacao, competencias, idiomas, extras } = cv;
   const children: Paragraph[] = [];
+
+  if (perfil.foto) {
+    const photoBytes = await bakePhotoForDocx(perfil.foto);
+    if (photoBytes) {
+      children.push(
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [
+            new ImageRun({
+              type: "png",
+              data: photoBytes,
+              transformation: { width: PHOTO_DOCX_TWIPS, height: PHOTO_DOCX_TWIPS },
+            }),
+          ],
+        }),
+      );
+    }
+  }
 
   children.push(line(perfil.nome || "Sem nome", STYLE_TITLE));
   if (perfil.headline) children.push(line(perfil.headline, STYLE_SUBTITLE));
@@ -189,8 +253,10 @@ export function buildCvDocx(cv: CvSections, design: CvDesign): Document {
       : perfil.cidade || perfil.pais,
     perfil.email,
     perfil.telefone,
+    perfil.morada,
     perfil.linkedin,
     perfil.website,
+    perfil.cartaConducao,
   ]
     .filter(Boolean)
     .join(" · ");

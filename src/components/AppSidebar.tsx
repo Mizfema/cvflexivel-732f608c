@@ -1,44 +1,41 @@
 import { useState, useEffect } from "react";
-import { Link, useRouterState } from "@tanstack/react-router";
-import { Home, FileText, FileSignature, MessageSquare, X, Menu } from "lucide-react";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { Home, FileText, FileSignature, MessageSquare, LogOut, X, Menu } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
+import { UserAvatar } from "@/components/UserAvatar";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { label: "Início", icon: Home, to: "/", exact: true, auth: false },
   { label: "CV", icon: FileText, to: "/meus-cvs", exact: false, auth: true },
   { label: "Carta", icon: FileSignature, to: "/cartas", exact: false, auth: true },
-  { label: "Preparar entrevista", icon: MessageSquare, to: "/entrevistas", exact: false, auth: true },
+  {
+    label: "Preparar entrevista",
+    icon: MessageSquare,
+    to: "/entrevistas",
+    exact: false,
+    auth: true,
+  },
 ] as const;
 
 function useProfile(userId: string | undefined) {
-  const [fullName, setFullName] = useState<string | null>(null);
+  const [profile, setProfile] = useState<{
+    full_name: string | null;
+    avatar_url: string | null;
+  } | null>(null);
 
   useEffect(() => {
     if (!userId) return;
     supabase
       .from("profiles")
-      .select("full_name")
+      .select("full_name, avatar_url")
       .eq("id", userId)
       .single()
-      .then(({ data }) => setFullName(data?.full_name ?? null));
+      .then(({ data }) => setProfile(data ?? null));
   }, [userId]);
 
-  return fullName;
-}
-
-function getInitials(name: string | null, email: string | null | undefined): string {
-  if (name) {
-    return name
-      .trim()
-      .split(/\s+/)
-      .slice(0, 2)
-      .map((w) => w[0]?.toUpperCase() ?? "")
-      .join("");
-  }
-  if (email) return email[0]?.toUpperCase() ?? "?";
-  return "?";
+  return profile;
 }
 
 interface SidebarContentProps {
@@ -47,13 +44,21 @@ interface SidebarContentProps {
 
 function SidebarContent({ onClose }: SidebarContentProps) {
   const { session, user, ready } = useAuth();
-  const fullName = useProfile(user?.id);
+  const profile = useProfile(user?.id);
+  const fullName = profile?.full_name ?? null;
   const router = useRouterState();
+  const navigate = useNavigate();
   const pathname = router.location.pathname;
 
   function isActive(to: string, exact: boolean) {
     if (exact) return pathname === to;
     return pathname === to || pathname.startsWith(to + "/");
+  }
+
+  async function handleLogout() {
+    onClose?.();
+    await supabase.auth.signOut();
+    navigate({ to: "/auth" });
   }
 
   return (
@@ -63,9 +68,7 @@ function SidebarContent({ onClose }: SidebarContentProps) {
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] bg-[#1D9E75] font-serif text-[13px] font-bold text-white">
           CV
         </span>
-        <span className="font-serif text-[16px] tracking-tight text-[#F1EFE8]">
-          CV Flexível
-        </span>
+        <span className="font-serif text-[16px] tracking-tight text-[#F1EFE8]">CV Flexível</span>
         {onClose && (
           <button
             onClick={onClose}
@@ -107,18 +110,27 @@ function SidebarContent({ onClose }: SidebarContentProps) {
       {/* Footer */}
       <div className="shrink-0 border-t border-white/10 px-3 py-4">
         {!ready ? null : session ? (
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#1D9E75]/25 text-[11px] font-bold text-[#1D9E75]">
-              {getInitials(fullName, user?.email)}
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[13px] font-medium text-[#DDD9D1]">
-                {fullName ?? user?.email?.split("@")[0] ?? "Utilizador"}
-              </p>
-              <p className="truncate text-[11px] text-[#6B6966]">
-                {user?.email}
-              </p>
-            </div>
+          <div className="space-y-2">
+            <Link
+              to="/perfil"
+              onClick={onClose}
+              className="-m-1 flex items-center gap-2.5 rounded-md p-1 transition-colors hover:bg-white/6"
+            >
+              <UserAvatar fullName={fullName} avatarUrl={profile?.avatar_url} size="sm" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[13px] font-medium text-[#DDD9D1]">
+                  {fullName ?? user?.email?.split("@")[0] ?? "Utilizador"}
+                </p>
+                <p className="truncate text-[11px] text-[#6B6966]">{user?.email}</p>
+              </div>
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="flex w-full items-center gap-2 rounded-md px-1 py-1.5 text-[12.5px] text-[#B4B2A9] transition-colors hover:bg-white/6 hover:text-[#F1EFE8]"
+            >
+              <LogOut className="h-3.5 w-3.5" strokeWidth={1.75} />
+              Terminar sessão
+            </button>
           </div>
         ) : (
           <Link

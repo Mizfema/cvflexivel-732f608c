@@ -7,6 +7,8 @@ import { NovaCartaStepper } from "@/components/cartas/NovaCartaStepper";
 import { Button } from "@/components/ui/button";
 import { CartaThumbnail, CARTA_THUMB_W } from "@/components/carta/CartaThumbnail";
 import type { CartaDraft } from "@/components/carta/CartaDocument";
+import { normalizeCvDesign } from "@/lib/cv-design-presets";
+import { defaultDesignForTemplate } from "@/lib/templates/themes";
 import { DocumentCard, DocumentCardGrid } from "@/components/library/DocumentCardGrid";
 
 type LetterRow = {
@@ -15,6 +17,8 @@ type LetterRow = {
   job_tdr: string | null;
   content: string;
   template: string;
+  design: unknown;
+  photo: unknown;
   updated_at: string;
   created_at: string;
 };
@@ -22,9 +26,13 @@ type LetterRow = {
 function toThumbnailDraft(letter: LetterRow): CartaDraft {
   return {
     template: letter.template,
-    header: { nome: "", linhas: [] },
+    header: { nome: "", items: [] },
     date: "",
     content: letter.content,
+    design: letter.design
+      ? normalizeCvDesign(letter.design)
+      : defaultDesignForTemplate(letter.template),
+    photo: (letter.photo as CartaDraft["photo"]) ?? null,
   };
 }
 

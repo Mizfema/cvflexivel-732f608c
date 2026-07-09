@@ -72,8 +72,12 @@ Isso compara o schema remoto com o histórico de migrations já commitado e gera
 Depois do `pull`, regenere os tipos TypeScript:
 
 ```bash
-npx supabase gen types typescript --project-id ylcsokafyoapziqjlmag > src/integrations/supabase/types.ts
+supabase gen types typescript --project-id ylcsokafyoapziqjlmag | Out-File -Encoding utf8 src/integrations/supabase/types.ts
 ```
+
+**Atenção PowerShell:** nunca usar `>` para gravar este ficheiro — o PowerShell grava em UTF-16 por default, e o Git vê o `types.ts` como binário corrompido (diff mostra "Binary files ... differ"). Usar sempre `| Out-File -Encoding utf8` como acima. Se estiver a correr a partir do Git Bash, `>` já grava em UTF-8 e é seguro.
+
+**Atenção ao `npx`:** o Supabase CLI já está instalado **globalmente via Bun** (`bun add -g supabase`, ver secção abaixo), logo o binário `supabase` já está disponível diretamente no PATH. Não usar `npx supabase` — é redundante e pode invocar uma versão diferente da CLI via registry do npm, em vez do binário já vinculado ao projeto. Confirmar com `supabase --version` que o binário responde; só se isso falhar, usar `bunx supabase` como fallback (nunca `npx`, para não misturar gestores de pacotes).
 
 **Só então** prossiga com a alteração de código pedida pelo usuário.
 

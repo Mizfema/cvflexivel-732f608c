@@ -1,9 +1,12 @@
-import { Plus, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Trash2, ChevronDown, ChevronRight, type LucideIcon } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RichTextField } from "@/components/ui/RichTextField";
+import { PhotoField } from "@/components/PhotoField";
+import { SECTION_ICONS, EXTRA_TYPE_ICONS } from "@/lib/section-icons";
+import { CONTACT_ICONS } from "@/lib/contact-items";
 import {
   Select,
   SelectContent,
@@ -39,13 +42,23 @@ const tiposExtra: Array<{ value: CvSecaoExtra["tipo"]; label: string }> = [
 export function EditorForm({
   draft,
   update,
+  userId,
+  onGatedPhotoClick,
 }: {
   draft: CvDraft;
   update: Updater;
+  /** Sessão iniciada: necessário para upload de foto (Supabase Storage exige auth). */
+  userId?: string;
+  onGatedPhotoClick?: () => void;
 }) {
   return (
     <div className="space-y-3">
-      <PerfilSection draft={draft} update={update} />
+      <PerfilSection
+        draft={draft}
+        update={update}
+        userId={userId}
+        onGatedPhotoClick={onGatedPhotoClick}
+      />
       <ExperienciaSection draft={draft} update={update} />
       <FormacaoSection draft={draft} update={update} />
       <CompetenciasSection draft={draft} update={update} />
@@ -65,11 +78,13 @@ export function EditorForm({
 
 function SectionCard({
   titulo,
+  icon: Icon,
   contagem,
   defaultOpen = true,
   children,
 }: {
   titulo: string;
+  icon?: LucideIcon;
   contagem?: number;
   defaultOpen?: boolean;
   children: React.ReactNode;
@@ -88,11 +103,10 @@ function SectionCard({
           ) : (
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
           )}
+          {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
           <span className="font-serif text-base text-foreground">{titulo}</span>
           {contagem !== undefined && (
-            <span className="font-mono text-xs text-muted-foreground">
-              {contagem}
-            </span>
+            <span className="font-mono text-xs text-muted-foreground">{contagem}</span>
           )}
         </div>
       </button>
@@ -103,14 +117,17 @@ function SectionCard({
 
 function Field({
   label,
+  icon: Icon,
   children,
 }: {
   label: string;
+  icon?: LucideIcon;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+      <Label className="flex items-center gap-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+        {Icon && <Icon className="h-3 w-3" />}
         {label}
       </Label>
       {children}
@@ -119,7 +136,17 @@ function Field({
 }
 
 // ---------- Perfil ----------
-function PerfilSection({ draft, update }: { draft: CvDraft; update: Updater }) {
+function PerfilSection({
+  draft,
+  update,
+  userId,
+  onGatedPhotoClick,
+}: {
+  draft: CvDraft;
+  update: Updater;
+  userId?: string;
+  onGatedPhotoClick?: () => void;
+}) {
   const p = draft.sections.perfil;
   const set = <K extends keyof typeof p>(key: K, value: (typeof p)[K]) =>
     update((prev) => ({
@@ -131,7 +158,16 @@ function PerfilSection({ draft, update }: { draft: CvDraft; update: Updater }) {
     }));
 
   return (
-    <SectionCard titulo="Perfil">
+    <SectionCard titulo="Perfil" icon={SECTION_ICONS.perfil}>
+      <div className="mb-4">
+        <PhotoField
+          photo={p.foto}
+          onChange={(foto) => set("foto", foto)}
+          userId={userId}
+          gated={!userId}
+          onGatedClick={onGatedPhotoClick}
+        />
+      </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Nome completo">
           <Input
@@ -147,7 +183,7 @@ function PerfilSection({ draft, update }: { draft: CvDraft; update: Updater }) {
             placeholder="Oficial de Monitoria e avaliação"
           />
         </Field>
-        <Field label="Email">
+        <Field label="Email" icon={CONTACT_ICONS.email}>
           <Input
             type="email"
             value={p.email}
@@ -155,14 +191,14 @@ function PerfilSection({ draft, update }: { draft: CvDraft; update: Updater }) {
             placeholder="ana@exemplo.mz"
           />
         </Field>
-        <Field label="Telefone">
+        <Field label="Telefone" icon={CONTACT_ICONS.telefone}>
           <Input
             value={p.telefone}
             onChange={(e) => set("telefone", e.target.value)}
             placeholder="+258 84 000 0000"
           />
         </Field>
-        <Field label="Cidade">
+        <Field label="Cidade" icon={CONTACT_ICONS.localizacao}>
           <Input
             value={p.cidade}
             onChange={(e) => set("cidade", e.target.value)}
@@ -170,23 +206,31 @@ function PerfilSection({ draft, update }: { draft: CvDraft; update: Updater }) {
           />
         </Field>
         <Field label="País">
+          <Input value={p.pais} onChange={(e) => set("pais", e.target.value)} />
+        </Field>
+        <Field label="Morada" icon={CONTACT_ICONS.morada}>
           <Input
-            value={p.pais}
-            onChange={(e) => set("pais", e.target.value)}
+            value={p.morada ?? ""}
+            onChange={(e) => set("morada", e.target.value)}
+            placeholder="Av. Julius Nyerere, 123"
           />
         </Field>
-        <Field label="LinkedIn">
+        <Field label="Carta de condução" icon={CONTACT_ICONS.cartaConducao}>
+          <Input
+            value={p.cartaConducao ?? ""}
+            onChange={(e) => set("cartaConducao", e.target.value)}
+            placeholder="Categoria B"
+          />
+        </Field>
+        <Field label="LinkedIn" icon={CONTACT_ICONS.linkedin}>
           <Input
             value={p.linkedin ?? ""}
             onChange={(e) => set("linkedin", e.target.value)}
             placeholder="linkedin.com/in/…"
           />
         </Field>
-        <Field label="Website">
-          <Input
-            value={p.website ?? ""}
-            onChange={(e) => set("website", e.target.value)}
-          />
+        <Field label="Website" icon={CONTACT_ICONS.website}>
+          <Input value={p.website ?? ""} onChange={(e) => set("website", e.target.value)} />
         </Field>
         <div className="sm:col-span-2">
           <Field label="Resumo profissional">
@@ -209,13 +253,7 @@ function PerfilSection({ draft, update }: { draft: CvDraft; update: Updater }) {
 }
 
 // ---------- Experiência ----------
-function ExperienciaSection({
-  draft,
-  update,
-}: {
-  draft: CvDraft;
-  update: Updater;
-}) {
+function ExperienciaSection({ draft, update }: { draft: CvDraft; update: Updater }) {
   const items = draft.sections.experiencia;
   const cvHeadline = draft.sections.perfil.headline;
   const setItems = (next: CvExperience[]) =>
@@ -225,23 +263,15 @@ function ExperienciaSection({
     }));
 
   const add = () =>
-    setItems([
-      ...items,
-      { id: uid(), cargo: "", organizacao: "", local: "", inicio: "", fim: "" },
-    ]);
+    setItems([...items, { id: uid(), cargo: "", organizacao: "", local: "", inicio: "", fim: "" }]);
 
   return (
-    <SectionCard titulo="Experiência" contagem={items.length}>
+    <SectionCard titulo="Experiência" icon={SECTION_ICONS.experiencia} contagem={items.length}>
       <div className="space-y-4">
         {items.map((it, idx) => (
-          <div
-            key={it.id}
-            className="rounded-md border border-navy-rule/60 bg-surface/40 p-3"
-          >
+          <div key={it.id} className="rounded-md border border-navy-rule/60 bg-surface/40 p-3">
             <div className="mb-2 flex items-center justify-between">
-              <span className="font-mono text-[11px] text-muted-foreground">
-                #{idx + 1}
-              </span>
+              <span className="font-mono text-[11px] text-muted-foreground">#{idx + 1}</span>
               <Button
                 type="button"
                 size="icon"
@@ -258,9 +288,7 @@ function ExperienciaSection({
                   value={it.cargo}
                   onChange={(e) =>
                     setItems(
-                      items.map((x) =>
-                        x.id === it.id ? { ...x, cargo: e.target.value } : x,
-                      ),
+                      items.map((x) => (x.id === it.id ? { ...x, cargo: e.target.value } : x)),
                     )
                   }
                 />
@@ -271,9 +299,7 @@ function ExperienciaSection({
                   onChange={(e) =>
                     setItems(
                       items.map((x) =>
-                        x.id === it.id
-                          ? { ...x, organizacao: e.target.value }
-                          : x,
+                        x.id === it.id ? { ...x, organizacao: e.target.value } : x,
                       ),
                     )
                   }
@@ -284,9 +310,7 @@ function ExperienciaSection({
                   value={it.local ?? ""}
                   onChange={(e) =>
                     setItems(
-                      items.map((x) =>
-                        x.id === it.id ? { ...x, local: e.target.value } : x,
-                      ),
+                      items.map((x) => (x.id === it.id ? { ...x, local: e.target.value } : x)),
                     )
                   }
                 />
@@ -297,11 +321,7 @@ function ExperienciaSection({
                     value={it.inicio ?? ""}
                     onChange={(e) =>
                       setItems(
-                        items.map((x) =>
-                          x.id === it.id
-                            ? { ...x, inicio: e.target.value }
-                            : x,
-                        ),
+                        items.map((x) => (x.id === it.id ? { ...x, inicio: e.target.value } : x)),
                       )
                     }
                     placeholder="2022-01"
@@ -312,9 +332,7 @@ function ExperienciaSection({
                     value={it.fim ?? ""}
                     onChange={(e) =>
                       setItems(
-                        items.map((x) =>
-                          x.id === it.id ? { ...x, fim: e.target.value } : x,
-                        ),
+                        items.map((x) => (x.id === it.id ? { ...x, fim: e.target.value } : x)),
                       )
                     }
                     placeholder="atual"
@@ -326,11 +344,7 @@ function ExperienciaSection({
                   <RichTextField
                     value={it.descricao ?? ""}
                     onChange={(html) =>
-                      setItems(
-                        items.map((x) =>
-                          x.id === it.id ? { ...x, descricao: html } : x,
-                        ),
-                      )
+                      setItems(items.map((x) => (x.id === it.id ? { ...x, descricao: html } : x)))
                     }
                     placeholder="Liderança de equipa de X pessoas, resultado mensurável…"
                     minHeight={90}
@@ -349,12 +363,7 @@ function ExperienciaSection({
             </div>
           </div>
         ))}
-        <Button
-          type="button"
-          variant="outline"
-          onClick={add}
-          className="w-full"
-        >
+        <Button type="button" variant="outline" onClick={add} className="w-full">
           <Plus className="mr-2 h-4 w-4" /> Adicionar experiência
         </Button>
       </div>
@@ -363,13 +372,7 @@ function ExperienciaSection({
 }
 
 // ---------- Formação ----------
-function FormacaoSection({
-  draft,
-  update,
-}: {
-  draft: CvDraft;
-  update: Updater;
-}) {
+function FormacaoSection({ draft, update }: { draft: CvDraft; update: Updater }) {
   const items = draft.sections.formacao;
   const cvHeadline = draft.sections.perfil.headline;
   const setItems = (next: CvFormacao[]) =>
@@ -379,23 +382,20 @@ function FormacaoSection({
     }));
 
   const add = () =>
-    setItems([
-      ...items,
-      { id: uid(), curso: "", instituicao: "", inicio: "", fim: "" },
-    ]);
+    setItems([...items, { id: uid(), curso: "", instituicao: "", inicio: "", fim: "" }]);
 
   return (
-    <SectionCard titulo="Formação" contagem={items.length} defaultOpen={false}>
+    <SectionCard
+      titulo="Formação"
+      icon={SECTION_ICONS.formacao}
+      contagem={items.length}
+      defaultOpen={false}
+    >
       <div className="space-y-4">
         {items.map((it, idx) => (
-          <div
-            key={it.id}
-            className="rounded-md border border-navy-rule/60 bg-surface/40 p-3"
-          >
+          <div key={it.id} className="rounded-md border border-navy-rule/60 bg-surface/40 p-3">
             <div className="mb-2 flex items-center justify-between">
-              <span className="font-mono text-[11px] text-muted-foreground">
-                #{idx + 1}
-              </span>
+              <span className="font-mono text-[11px] text-muted-foreground">#{idx + 1}</span>
               <Button
                 type="button"
                 size="icon"
@@ -411,9 +411,7 @@ function FormacaoSection({
                   value={it.curso}
                   onChange={(e) =>
                     setItems(
-                      items.map((x) =>
-                        x.id === it.id ? { ...x, curso: e.target.value } : x,
-                      ),
+                      items.map((x) => (x.id === it.id ? { ...x, curso: e.target.value } : x)),
                     )
                   }
                 />
@@ -424,9 +422,7 @@ function FormacaoSection({
                   onChange={(e) =>
                     setItems(
                       items.map((x) =>
-                        x.id === it.id
-                          ? { ...x, instituicao: e.target.value }
-                          : x,
+                        x.id === it.id ? { ...x, instituicao: e.target.value } : x,
                       ),
                     )
                   }
@@ -437,9 +433,7 @@ function FormacaoSection({
                   value={it.inicio ?? ""}
                   onChange={(e) =>
                     setItems(
-                      items.map((x) =>
-                        x.id === it.id ? { ...x, inicio: e.target.value } : x,
-                      ),
+                      items.map((x) => (x.id === it.id ? { ...x, inicio: e.target.value } : x)),
                     )
                   }
                 />
@@ -448,11 +442,7 @@ function FormacaoSection({
                 <Input
                   value={it.fim ?? ""}
                   onChange={(e) =>
-                    setItems(
-                      items.map((x) =>
-                        x.id === it.id ? { ...x, fim: e.target.value } : x,
-                      ),
-                    )
+                    setItems(items.map((x) => (x.id === it.id ? { ...x, fim: e.target.value } : x)))
                   }
                 />
               </Field>
@@ -461,11 +451,7 @@ function FormacaoSection({
                   <RichTextField
                     value={it.descricao ?? ""}
                     onChange={(html) =>
-                      setItems(
-                        items.map((x) =>
-                          x.id === it.id ? { ...x, descricao: html } : x,
-                        ),
-                      )
+                      setItems(items.map((x) => (x.id === it.id ? { ...x, descricao: html } : x)))
                     }
                     minHeight={70}
                     aiSuggestions={{
@@ -492,13 +478,7 @@ function FormacaoSection({
 }
 
 // ---------- Competências ----------
-function CompetenciasSection({
-  draft,
-  update,
-}: {
-  draft: CvDraft;
-  update: Updater;
-}) {
+function CompetenciasSection({ draft, update }: { draft: CvDraft; update: Updater }) {
   const items = draft.sections.competencias;
   const setItems = (next: CvCompetencia[]) =>
     update((prev) => ({
@@ -509,6 +489,7 @@ function CompetenciasSection({
   return (
     <SectionCard
       titulo="Competências"
+      icon={SECTION_ICONS.competencias}
       contagem={items.length}
       defaultOpen={false}
     >
@@ -519,11 +500,7 @@ function CompetenciasSection({
               value={it.nome}
               placeholder="Ex.: Gestão de projeto"
               onChange={(e) =>
-                setItems(
-                  items.map((x) =>
-                    x.id === it.id ? { ...x, nome: e.target.value } : x,
-                  ),
-                )
+                setItems(items.map((x) => (x.id === it.id ? { ...x, nome: e.target.value } : x)))
               }
             />
             <Select
@@ -581,7 +558,12 @@ function IdiomasSection({ draft, update }: { draft: CvDraft; update: Updater }) 
     }));
 
   return (
-    <SectionCard titulo="Idiomas" contagem={items.length} defaultOpen={false}>
+    <SectionCard
+      titulo="Idiomas"
+      icon={SECTION_ICONS.idiomas}
+      contagem={items.length}
+      defaultOpen={false}
+    >
       <div className="space-y-2">
         {items.map((it) => (
           <div key={it.id} className="flex items-center gap-2">
@@ -589,11 +571,7 @@ function IdiomasSection({ draft, update }: { draft: CvDraft; update: Updater }) 
               value={it.idioma}
               placeholder="Ex.: Inglês"
               onChange={(e) =>
-                setItems(
-                  items.map((x) =>
-                    x.id === it.id ? { ...x, idioma: e.target.value } : x,
-                  ),
-                )
+                setItems(items.map((x) => (x.id === it.id ? { ...x, idioma: e.target.value } : x)))
               }
             />
             <Select
@@ -601,9 +579,7 @@ function IdiomasSection({ draft, update }: { draft: CvDraft; update: Updater }) 
               onValueChange={(v) =>
                 setItems(
                   items.map((x) =>
-                    x.id === it.id
-                      ? { ...x, nivel: (v || undefined) as CvIdioma["nivel"] }
-                      : x,
+                    x.id === it.id ? { ...x, nivel: (v || undefined) as CvIdioma["nivel"] } : x,
                   ),
                 )
               }
@@ -671,23 +647,15 @@ function ExtraSection({
     }));
 
   return (
-    <SectionCard titulo={sec.titulo} contagem={sec.itens.length}>
+    <SectionCard titulo={sec.titulo} icon={EXTRA_TYPE_ICONS[sec.tipo]} contagem={sec.itens.length}>
       <div className="space-y-3">
         <Field label="Título da secção">
-          <Input
-            value={sec.titulo}
-            onChange={(e) => setSec({ ...sec, titulo: e.target.value })}
-          />
+          <Input value={sec.titulo} onChange={(e) => setSec({ ...sec, titulo: e.target.value })} />
         </Field>
         {sec.itens.map((it, idx) => (
-          <div
-            key={it.id}
-            className="rounded-md border border-navy-rule/60 bg-surface/40 p-3"
-          >
+          <div key={it.id} className="rounded-md border border-navy-rule/60 bg-surface/40 p-3">
             <div className="mb-2 flex items-center justify-between">
-              <span className="font-mono text-[11px] text-muted-foreground">
-                #{idx + 1}
-              </span>
+              <span className="font-mono text-[11px] text-muted-foreground">#{idx + 1}</span>
               <Button
                 type="button"
                 size="icon"
@@ -790,10 +758,7 @@ function AdicionarSecao({ update }: { update: Updater }) {
       ...prev,
       sections: {
         ...prev.sections,
-        extras: [
-          ...prev.sections.extras,
-          { id: uid(), tipo, titulo: label, itens: [] },
-        ],
+        extras: [...prev.sections.extras, { id: uid(), tipo, titulo: label, itens: [] }],
       },
     }));
 

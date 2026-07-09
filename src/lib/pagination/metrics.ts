@@ -19,6 +19,10 @@ export const SIDEBAR_GAP = 24;
 /** Espaço entre o título de secção e o seu 1.º item (equivale a `mt-2`). */
 export const FIRST_ITEM_GAP = 8;
 
+/** Tamanho (px, escala 1) do círculo de foto no cabeçalho (layout single) e na sidebar. */
+export const PHOTO_SIZE_HEADER_PX = 72;
+export const PHOTO_SIZE_SIDEBAR_PX = 92;
+
 export type PageMetrics = {
   padY: number;
   padX: number;

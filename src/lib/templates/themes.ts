@@ -10,7 +10,8 @@
 // livres via `design` (não mudam); na carta, que não tem um `design`
 // próprio, o template escolhido define-as por omissão.
 
-import { TEMPLATES, type FontId, type TemplateId } from "@/lib/cv-design-presets";
+import { DEFAULT_SPACING, TEMPLATES, type FontId, type TemplateId } from "@/lib/cv-design-presets";
+import type { CvDesign } from "@/lib/cv-types";
 
 export type HeaderStyle = "underline" | "accent" | "minimal";
 
@@ -38,6 +39,20 @@ export const TEMPLATE_THEMES: TemplateTheme[] = TEMPLATES.map((t) => ({
 
 export function getTemplateTheme(id: string): TemplateTheme {
   return TEMPLATE_THEMES.find((t) => t.id === id) ?? TEMPLATE_THEMES[0];
+}
+
+/**
+ * Design por omissão para uma carta nova (ou uma carta antiga sem `design`
+ * guardado): herda a cor/fonte do tema do template. Depois de escolhido,
+ * o design fica independente do template, tal como no CV.
+ */
+export function defaultDesignForTemplate(id: string): CvDesign {
+  const theme = getTemplateTheme(id);
+  return {
+    fontFamily: theme.fontFamily,
+    accentColor: theme.accentColor,
+    spacing: DEFAULT_SPACING,
+  };
 }
 
 /** Classe do rótulo de secção (ex.: "Experiência"), conforme o tema. */

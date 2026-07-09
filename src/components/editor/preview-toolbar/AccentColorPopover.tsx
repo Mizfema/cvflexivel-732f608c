@@ -22,7 +22,7 @@ export function AccentColorPopover({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button type="button" className={toolbarButtonClass()}>
+        <button type="button" className={toolbarButtonClass()} aria-label="Cor de destaque">
           <Palette className="h-4 w-4" />
           <span
             className="h-3.5 w-3.5 rounded-full border border-black/10"

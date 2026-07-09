@@ -327,6 +327,14 @@
   color: var(--cv-accent-soft, currentColor);
 }
 
+/* Corpo da carta de motivação (CartaDocument): parágrafos espaçados pelo
+ * controlo "Espaço entre itens" do design (--cv-item-gap), em vez do 0.4em
+ * fixo do .prose-cv genérico — âmbito restrito a .carta-body para não afetar
+ * os campos de rich text do CV. */
+.carta-body p + p {
+  margin-top: var(--cv-item-gap, 0.4em);
+}
+
 /* ============ Impressão / PDF ============
  * O botão "Exportar > PDF" (cv-export.ts) e o Ctrl+P nativo imprimem a
  * partir de #cv-print-root: uma árvore dedicada, sem transform/scale,

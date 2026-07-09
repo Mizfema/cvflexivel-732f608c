@@ -16,7 +16,7 @@ function slugify(s: string) {
 }
 
 export async function exportCvDocx(draft: CvDraft) {
-  const doc = buildCvDocx(draft.sections, draft.design);
+  const doc = await buildCvDocx(draft.sections, draft.design);
   const blob = await Packer.toBlob(doc);
   saveAs(blob, `${slugify(draft.sections.perfil.nome || draft.title)}.docx`);
 }
