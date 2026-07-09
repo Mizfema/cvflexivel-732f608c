@@ -77,6 +77,7 @@ export const getAdminDashboard = createServerFn({ method: "GET" })
 
     const callsByDayMap = new Map<string, number>();
     const featureCounts = new Map<string, number>();
+    const featureCosts = new Map<string, number>();
     let costUsd30d = 0;
     let callsWithTokens = 0;
     for (const row of aiUsageRes.data ?? []) {
@@ -85,9 +86,11 @@ export const getAdminDashboard = createServerFn({ method: "GET" })
       featureCounts.set(row.feature, (featureCounts.get(row.feature) ?? 0) + 1);
       if (row.tokens_in != null || row.tokens_out != null) {
         callsWithTokens += 1;
-        costUsd30d +=
+        const rowCost =
           (row.tokens_in ?? 0) * INPUT_PRICE_PER_TOKEN_USD +
           (row.tokens_out ?? 0) * OUTPUT_PRICE_PER_TOKEN_USD;
+        costUsd30d += rowCost;
+        featureCosts.set(row.feature, (featureCosts.get(row.feature) ?? 0) + rowCost);
       }
     }
 
@@ -101,6 +104,10 @@ export const getAdminDashboard = createServerFn({ method: "GET" })
       .map(([feature, count]) => ({ feature, count }))
       .sort((a, b) => b.count - a.count);
 
+    const costByFeature = [...featureCosts.entries()]
+      .map(([feature, cost]) => ({ feature, costUsd: Number(cost.toFixed(4)) }))
+      .sort((a, b) => b.costUsd - a.costUsd);
+
     const totalCallsLast30d = aiUsageRes.data?.length ?? 0;
 
     return {
@@ -109,6 +116,7 @@ export const getAdminDashboard = createServerFn({ method: "GET" })
       activeUsers7d: activeUserIds.size,
       callsByDay,
       topFeatures,
+      costByFeature,
       costUsd30d: Number(costUsd30d.toFixed(4)),
       costTrackedCalls: callsWithTokens,
       totalCallsLast30d,
