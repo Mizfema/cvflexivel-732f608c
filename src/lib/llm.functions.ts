@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { generateText } from "ai";
 import { z } from "zod";
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
+import { optionalIdentity, requireUsageAllowed } from "./access-control.server";
 import type { CvDraft, CvSections, AlignmentResult } from "./cv-types";
 import type { CoverageAnalysis } from "./coverage-types";
 import type { InterviewQuestion } from "./interview-types";
@@ -273,8 +274,10 @@ function compactForAi(text: string, limit = 18000): string {
 }
 
 export const analyzeCoverage = createServerFn({ method: "POST" })
+  .middleware([optionalIdentity])
   .inputValidator((input: unknown) => inputSchema.parse(input))
-  .handler(async ({ data }): Promise<CoverageAnalysis> => {
+  .handler(async ({ data, context }): Promise<CoverageAnalysis> => {
+    await requireUsageAllowed("cv_analysis", context.userId, context.fingerprint);
     const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY!);
 
     const cvText = compactForAi(typeof data.cv === "string" ? data.cv : cvToText(data.cv as CvDraft));
@@ -377,8 +380,10 @@ Regras absolutas:
 - Se houve TdR, prioriza realçar competências/experiências da pessoa que se cruzam com o TdR — sem fabricar.`;
 
 export const generateCvFromInterview = createServerFn({ method: "POST" })
+  .middleware([optionalIdentity])
   .inputValidator((input: unknown) => interviewInputSchema.parse(input))
-  .handler(async ({ data }): Promise<z.infer<typeof cvDraftSectionsSchema>> => {
+  .handler(async ({ data, context }): Promise<z.infer<typeof cvDraftSectionsSchema>> => {
+    await requireUsageAllowed("ai_suggestions", context.userId, context.fingerprint);
     const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY);
 
     const answersBlock = data.answers
@@ -723,8 +728,10 @@ Não registes mudanças triviais (pontuação, capitalização). Regista apenas 
 Responde sempre em PORTUGUÊS EUROPEU (PT-PT).`;
 
 export const alignCvToTdr = createServerFn({ method: "POST" })
+  .middleware([optionalIdentity])
   .inputValidator((input: unknown) => alignInputSchema.parse(input))
-  .handler(async ({ data }): Promise<AlignmentResult> => {
+  .handler(async ({ data, context }): Promise<AlignmentResult> => {
+    await requireUsageAllowed("ai_suggestions", context.userId, context.fingerprint);
     const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY);
 
     const prompt = `## CV actual do candidato\n${compactForAi(data.cv)}\n\n## Termos de Referência da vaga\n${compactForAi(data.jobTdr)}\n\nReescreve o CV para o alinhar ao máximo com este TdR. Responde APENAS com um objecto JSON válido (sem markdown, sem comentários, sem texto antes ou depois) nesta forma exacta:\n{\n  "perfil": { "nome": string, "headline": string, "email": string, "telefone": string, "cidade": string, "pais": string, "linkedin": string, "website": string, "resumo": string },\n  "experiencia": [{ "cargo": string, "organizacao": string, "local": string, "inicio": string, "fim": string, "descricao": string }],\n  "formacao": [{ "curso": string, "instituicao": string, "local": string, "inicio": string, "fim": string, "descricao": string }],\n  "competencias": [{ "nome": string }],\n  "idiomas": [{ "idioma": string, "nivel": "basico"|"intermedio"|"avancado"|"fluente"|"nativo" }],\n  "alteracoes": [{ "tipo": "reformulado"|"recontextualizado", "campo": string, "de": string, "para": string, "justificacao": string }]\n}\nNunca uses arrays em campos de texto como "descricao": devolve uma única string em HTML restrito (<p>, <ul>, <li>, <strong>, <em>, <u> apenas), com os bullets dentro de <ul><li>.`;
@@ -896,8 +903,10 @@ const MOCK_INTERVIEW_QUESTIONS: InterviewQuestion[] = [
 ];
 
 export const generateInterviewPrep = createServerFn({ method: "POST" })
+  .middleware([optionalIdentity])
   .inputValidator((input: unknown) => interviewPrepInputSchema.parse(input))
-  .handler(async ({ data }): Promise<InterviewQuestion[]> => {
+  .handler(async ({ data, context }): Promise<InterviewQuestion[]> => {
+    await requireUsageAllowed("interview_prep", context.userId, context.fingerprint);
     if (!process.env.LOVABLE_API_KEY) {
       console.warn("MOCK: LOVABLE_API_KEY ausente, a devolver preparação de entrevista simulada");
       return MOCK_INTERVIEW_QUESTIONS;
@@ -1020,8 +1029,10 @@ const MOCK_FIELD_SUGGESTIONS: Record<FieldSuggestionSectionType, string[]> = {
 };
 
 export const generateFieldSuggestions = createServerFn({ method: "POST" })
+  .middleware([optionalIdentity])
   .inputValidator((input: unknown) => fieldSuggestionsInputSchema.parse(input))
-  .handler(async ({ data }): Promise<{ suggestions: string[] }> => {
+  .handler(async ({ data, context }): Promise<{ suggestions: string[] }> => {
+    await requireUsageAllowed("ai_suggestions", context.userId, context.fingerprint);
     if (!process.env.LOVABLE_API_KEY) {
       console.warn("MOCK: LOVABLE_API_KEY ausente, a devolver sugestões de campo simuladas");
       return { suggestions: MOCK_FIELD_SUGGESTIONS[data.sectionType] };
@@ -1141,8 +1152,10 @@ const MOCK_COVER_LETTER_GENERIC: GeneratedCoverLetter = {
 };
 
 export const generateCoverLetter = createServerFn({ method: "POST" })
+  .middleware([optionalIdentity])
   .inputValidator((input: unknown) => coverLetterInputSchema.parse(input))
-  .handler(async ({ data }): Promise<GeneratedCoverLetter> => {
+  .handler(async ({ data, context }): Promise<GeneratedCoverLetter> => {
+    await requireUsageAllowed("cover_letter", context.userId, context.fingerprint);
     if (!process.env.LOVABLE_API_KEY) {
       console.warn("MOCK: LOVABLE_API_KEY ausente, a devolver carta de motivação simulada");
       return data.mode === "targeted" ? MOCK_COVER_LETTER_TARGETED : MOCK_COVER_LETTER_GENERIC;

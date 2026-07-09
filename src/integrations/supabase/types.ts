@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -39,6 +39,66 @@ export type Database = {
   }
   public: {
     Tables: {
+      access_policies: {
+        Row: {
+          cooldown_hours: number | null
+          enabled: boolean
+          feature: string
+          id: string
+          max_per_day: number | null
+          max_per_month: number | null
+          tier: string
+        }
+        Insert: {
+          cooldown_hours?: number | null
+          enabled?: boolean
+          feature: string
+          id?: string
+          max_per_day?: number | null
+          max_per_month?: number | null
+          tier: string
+        }
+        Update: {
+          cooldown_hours?: number | null
+          enabled?: boolean
+          feature?: string
+          id?: string
+          max_per_day?: number | null
+          max_per_month?: number | null
+          tier?: string
+        }
+        Relationships: []
+      }
+      ai_usage: {
+        Row: {
+          anon_fingerprint: string | null
+          created_at: string
+          feature: string
+          id: string
+          tokens_in: number | null
+          tokens_out: number | null
+          user_id: string | null
+        }
+        Insert: {
+          anon_fingerprint?: string | null
+          created_at?: string
+          feature: string
+          id?: string
+          tokens_in?: number | null
+          tokens_out?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          anon_fingerprint?: string | null
+          created_at?: string
+          feature?: string
+          id?: string
+          tokens_in?: number | null
+          tokens_out?: number | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       analyses: {
         Row: {
           coverage: Json
