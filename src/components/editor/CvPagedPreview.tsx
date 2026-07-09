@@ -162,6 +162,7 @@ export function CvPagedPreview({
                   cvStyle={cvStyle}
                   pageLabel={`${i + 1} / ${pages.length}`}
                   overflow={blocks.some((b) => overflowIds.has(b.id))}
+                  accentSurface={template.accentSurface}
                 />
               </div>
             ))}
@@ -186,6 +187,7 @@ export function CvPagedPreview({
                   cvStyle={cvStyle}
                   pageLabel={`${i + 1} / ${pages.length}`}
                   overflow={blocks.some((b) => overflowIds.has(b.id))}
+                  accentSurface={template.accentSurface}
                 />
               </div>
             ))}

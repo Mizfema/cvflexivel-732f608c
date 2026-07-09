@@ -182,6 +182,7 @@ function TemplateGallery() {
                 <p className="text-sm font-medium text-foreground">{template.nome}</p>
                 <p className="text-xs text-muted-foreground">
                   {template.tipo === "ats" ? "Optimizado para ATS" : "Visual"}
+                  {template.isPremium && " · Premium"}
                 </p>
               </div>
             </div>

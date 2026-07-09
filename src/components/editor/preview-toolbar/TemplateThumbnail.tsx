@@ -56,6 +56,7 @@ export function TemplateThumbnail({
     <button type="button" onClick={onClick} className="flex shrink-0 flex-col items-center gap-1.5">
       <div
         style={{
+          position: "relative",
           width: FRAME_W,
           height: FRAME_H,
           overflow: "hidden",
@@ -69,12 +70,23 @@ export function TemplateThumbnail({
           {isSidebar ? (
             <div style={{ display: "flex", gap: SIDEBAR_GAP, height: "100%" }}>
               <aside
-                style={{
-                  width: SIDEBAR_W,
-                  flexShrink: 0,
-                  paddingRight: 20,
-                  borderRight: "1px solid var(--cv-rule)",
-                }}
+                style={
+                  template.accentSurface === "sidebar"
+                    ? {
+                        width: SIDEBAR_W,
+                        flexShrink: 0,
+                        background: "var(--cv-accent)",
+                        color: "#fff",
+                        margin: `-${metrics.padY}px 0 -${metrics.padY}px -${metrics.padX}px`,
+                        padding: `${metrics.padY}px 20px ${metrics.padY}px ${metrics.padX}px`,
+                      }
+                    : {
+                        width: SIDEBAR_W,
+                        flexShrink: 0,
+                        paddingRight: 20,
+                        borderRight: "1px solid var(--cv-rule)",
+                      }
+                }
               >
                 {sidebar}
               </aside>
@@ -86,6 +98,24 @@ export function TemplateThumbnail({
             <ThumbBlockList blocks={mainBlocks} />
           )}
         </div>
+        {template.isPremium && (
+          <span
+            style={{
+              position: "absolute",
+              top: 4,
+              right: 4,
+              fontSize: 8,
+              fontWeight: 600,
+              letterSpacing: "0.04em",
+              padding: "1px 5px",
+              borderRadius: 4,
+              background: "#1D9E75",
+              color: "#fff",
+            }}
+          >
+            Premium
+          </span>
+        )}
       </div>
       <span
         className={`text-[11px] ${active ? "font-medium text-[#1D9E75]" : "text-muted-foreground"}`}

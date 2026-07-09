@@ -13,7 +13,7 @@
 import { DEFAULT_SPACING, TEMPLATES, type FontId, type TemplateId } from "@/lib/cv-design-presets";
 import type { CvDesign } from "@/lib/cv-types";
 
-export type HeaderStyle = "underline" | "accent" | "minimal";
+export type HeaderStyle = "underline" | "accent" | "minimal" | "banner";
 
 export type TemplateTheme = {
   id: TemplateId;
@@ -28,6 +28,12 @@ const THEME_DEFAULTS: Record<TemplateId, { accentColor: string; fontFamily: Font
   moderno: { accentColor: "#1D9E75", fontFamily: "inter" },
   compacto: { accentColor: "#475569", fontFamily: "source-sans-3" },
   "visual-sidebar": { accentColor: "#6b21a8", fontFamily: "poppins" },
+  executivo: { accentColor: "#1f2937", fontFamily: "pt-serif" },
+  editorial: { accentColor: "#475569", fontFamily: "lora" },
+  contraste: { accentColor: "#1D9E75", fontFamily: "poppins" },
+  retrato: { accentColor: "#7f1d1d", fontFamily: "ibm-plex-sans" },
+  destaque: { accentColor: "#6b21a8", fontFamily: "inter" },
+  direto: { accentColor: "#b45309", fontFamily: "ibm-plex-sans" },
 };
 
 export const TEMPLATE_THEMES: TemplateTheme[] = TEMPLATES.map((t) => ({
@@ -59,7 +65,7 @@ export function defaultDesignForTemplate(id: string): CvDesign {
 export function sectionLabelClass(headerStyle: HeaderStyle): string {
   return headerStyle === "underline"
     ? "border-b pb-1 text-[10px] font-semibold uppercase tracking-[0.2em]"
-    : headerStyle === "accent"
+    : headerStyle === "accent" || headerStyle === "banner"
       ? "text-[10px] font-semibold uppercase tracking-[0.22em]"
       : "text-[10px] font-medium uppercase tracking-[0.18em]";
 }

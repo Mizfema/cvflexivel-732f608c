@@ -30,6 +30,7 @@ export function CVDocument({
   cvStyle,
   pageLabel = null,
   overflow = false,
+  accentSurface,
 }: {
   blocks: CvBlock[];
   /** Conteúdo da coluna lateral para ESTA página; null esconde a aside. */
@@ -40,6 +41,8 @@ export function CVDocument({
   /** Texto do badge "N / total" no canto inferior; omitido quando null. */
   pageLabel?: string | null;
   overflow?: boolean;
+  /** Onde a cor de acento vira fundo sólido (ver TemplateInfo.accentSurface). */
+  accentSurface?: "sidebar" | "header";
 }) {
   return (
     <div
@@ -59,12 +62,23 @@ export function CVDocument({
       {isSidebar ? (
         <div style={{ display: "flex", gap: SIDEBAR_GAP, height: "100%" }}>
           <aside
-            style={{
-              width: SIDEBAR_W,
-              flexShrink: 0,
-              paddingRight: 20,
-              borderRight: "1px solid var(--cv-rule)",
-            }}
+            style={
+              accentSurface === "sidebar"
+                ? {
+                    width: SIDEBAR_W,
+                    flexShrink: 0,
+                    background: "var(--cv-accent)",
+                    color: "#fff",
+                    margin: `-${metrics.padY}px 0 -${metrics.padY}px -${metrics.padX}px`,
+                    padding: `${metrics.padY}px 20px ${metrics.padY}px ${metrics.padX}px`,
+                  }
+                : {
+                    width: SIDEBAR_W,
+                    flexShrink: 0,
+                    paddingRight: 20,
+                    borderRight: "1px solid var(--cv-rule)",
+                  }
+            }
           >
             {sidebar}
           </aside>

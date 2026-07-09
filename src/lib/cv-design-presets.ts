@@ -2,7 +2,17 @@
 
 import type { CvDesign, CvSpacing, SpacingSize } from "./cv-types";
 
-export type TemplateId = "classico" | "moderno" | "compacto" | "visual-sidebar";
+export type TemplateId =
+  | "classico"
+  | "moderno"
+  | "compacto"
+  | "visual-sidebar"
+  | "executivo"
+  | "editorial"
+  | "contraste"
+  | "retrato"
+  | "destaque"
+  | "direto";
 
 export type TemplateInfo = {
   id: TemplateId;
@@ -10,7 +20,12 @@ export type TemplateInfo = {
   tipo: "ats" | "visual";
   descricao: string;
   layout: "single" | "sidebar";
-  headerStyle: "underline" | "accent" | "minimal";
+  headerStyle: "underline" | "accent" | "minimal" | "banner";
+  /** Onde a cor de acento vira fundo sólido (em vez de só texto/borda). */
+  accentSurface?: "sidebar" | "header";
+  /** Tamanho (px) do círculo de foto na sidebar; substitui PHOTO_SIZE_SIDEBAR_PX. */
+  photoSizeSidebar?: number;
+  isPremium: boolean;
 };
 
 export const TEMPLATES: TemplateInfo[] = [
@@ -21,6 +36,7 @@ export const TEMPLATES: TemplateInfo[] = [
     descricao: "Uma coluna, títulos sublinhados. Legibilidade máxima.",
     layout: "single",
     headerStyle: "underline",
+    isPremium: false,
   },
   {
     id: "moderno",
@@ -29,6 +45,7 @@ export const TEMPLATES: TemplateInfo[] = [
     descricao: "Uma coluna, títulos com cor de acento e ícones discretos.",
     layout: "single",
     headerStyle: "accent",
+    isPremium: false,
   },
   {
     id: "compacto",
@@ -37,6 +54,7 @@ export const TEMPLATES: TemplateInfo[] = [
     descricao: "Uma coluna mais densa. Bom para CVs longos.",
     layout: "single",
     headerStyle: "minimal",
+    isPremium: false,
   },
   {
     id: "visual-sidebar",
@@ -45,6 +63,64 @@ export const TEMPLATES: TemplateInfo[] = [
     descricao: "Sidebar com contactos e competências. Não recomendado para ATS.",
     layout: "sidebar",
     headerStyle: "accent",
+    isPremium: false,
+  },
+  {
+    id: "executivo",
+    nome: "Executivo",
+    tipo: "ats",
+    descricao: "Sóbrio e formal, uma coluna. Indicado para cargos seniores.",
+    layout: "single",
+    headerStyle: "underline",
+    isPremium: false,
+  },
+  {
+    id: "editorial",
+    nome: "Editorial",
+    tipo: "ats",
+    descricao: "Minimalista tipográfico, foco total no texto, sem elementos gráficos.",
+    layout: "single",
+    headerStyle: "minimal",
+    isPremium: false,
+  },
+  {
+    id: "contraste",
+    nome: "Contraste",
+    tipo: "visual",
+    descricao: "Sidebar em bloco de cor sólida. Moderno e com impacto visual.",
+    layout: "sidebar",
+    headerStyle: "accent",
+    accentSurface: "sidebar",
+    isPremium: true,
+  },
+  {
+    id: "retrato",
+    nome: "Retrato",
+    tipo: "visual",
+    descricao: "Sidebar com foto em destaque. Ideal para áreas criativas e atendimento.",
+    layout: "sidebar",
+    headerStyle: "minimal",
+    photoSizeSidebar: 132,
+    isPremium: true,
+  },
+  {
+    id: "destaque",
+    nome: "Destaque",
+    tipo: "visual",
+    descricao: "Cabeçalho em cartão de cor cheia. Chama atenção logo no topo.",
+    layout: "single",
+    headerStyle: "banner",
+    accentSurface: "header",
+    isPremium: true,
+  },
+  {
+    id: "direto",
+    nome: "Direto",
+    tipo: "ats",
+    descricao: "Uma coluna direta ao ponto, com toques de cor discretos.",
+    layout: "single",
+    headerStyle: "accent",
+    isPremium: true,
   },
 ];
 

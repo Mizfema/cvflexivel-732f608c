@@ -63,6 +63,7 @@ export function CvThumbnail({ draft }: { draft: CvDraft }) {
           isSidebar={isSidebar}
           metrics={metrics}
           cvStyle={cvStyle}
+          accentSurface={template.accentSurface}
         />
       </div>
     </div>

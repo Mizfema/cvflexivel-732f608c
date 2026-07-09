@@ -55,6 +55,8 @@ export function useCvBlocks(
   return useMemo(() => {
     const { perfil, experiencia, formacao, competencias, idiomas, extras } = draft.sections;
     const labelClass = sectionLabelClass(template.headerStyle);
+    const isBanner = template.headerStyle === "banner";
+    const isColorSidebar = isSidebar && template.accentSurface === "sidebar";
 
     const contactItems = buildContactItems({
       email: perfil.email,
@@ -68,11 +70,11 @@ export function useCvBlocks(
     });
     const hasContacto = contactItems.length > 0;
 
-    const Contacto = () =>
+    const Contacto = ({ light = false }: { light?: boolean } = {}) =>
       hasContacto ? (
         <p
           className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]"
-          style={{ color: "var(--cv-muted)" }}
+          style={{ color: light ? "rgba(255,255,255,0.85)" : "var(--cv-muted)" }}
         >
           {contactItems.map((it) => {
             const Icon = it.icon;
@@ -80,7 +82,7 @@ export function useCvBlocks(
               <span key={it.field} className="inline-flex items-center gap-1">
                 <Icon
                   className="h-[1em] w-[1em] shrink-0"
-                  style={{ color: "var(--cv-accent-soft)" }}
+                  style={{ color: light ? "rgba(255,255,255,0.85)" : "var(--cv-accent-soft)" }}
                 />
                 {it.text}
               </span>
@@ -89,10 +91,21 @@ export function useCvBlocks(
         </p>
       ) : null;
 
-    const SectionTitle = ({ titulo, icon: Icon }: { titulo: string; icon?: LucideIcon }) => (
+    const SectionTitle = ({
+      titulo,
+      icon: Icon,
+      light = false,
+    }: {
+      titulo: string;
+      icon?: LucideIcon;
+      light?: boolean;
+    }) => (
       <h2
         className={`flex items-center gap-1.5 ${labelClass}`}
-        style={{ color: "var(--cv-accent)", borderColor: "var(--cv-rule)" }}
+        style={{
+          color: light ? "#fff" : "var(--cv-accent)",
+          borderColor: light ? "rgba(255,255,255,0.4)" : "var(--cv-rule)",
+        }}
       >
         {Icon && <Icon className="h-[1em] w-[1em] shrink-0" />}
         {titulo}
@@ -117,7 +130,9 @@ export function useCvBlocks(
       node: (
         <header
           style={{
-            ...headerBorderStyle(template.headerStyle),
+            ...(isBanner
+              ? { background: "var(--cv-accent)", borderRadius: 10, padding: "18px 22px" }
+              : headerBorderStyle(template.headerStyle)),
             display: "flex",
             alignItems: "flex-start",
             gap: 16,
@@ -127,21 +142,28 @@ export function useCvBlocks(
             <h1
               className="text-[calc(var(--cv-base-size)*2.15)] leading-tight"
               style={{
-                color: "var(--cv-accent)",
+                color: isBanner ? "#fff" : "var(--cv-accent)",
                 fontWeight: 600,
                 letterSpacing: "-0.01em",
               }}
             >
-              {perfil.nome || <span style={{ color: "var(--cv-muted)" }}>O teu nome</span>}
+              {perfil.nome || (
+                <span style={{ color: isBanner ? "rgba(255,255,255,0.7)" : "var(--cv-muted)" }}>
+                  O teu nome
+                </span>
+              )}
             </h1>
             {perfil.headline && (
-              <p className="mt-1" style={{ color: "var(--cv-accent-soft)" }}>
+              <p
+                className="mt-1"
+                style={{ color: isBanner ? "rgba(255,255,255,0.85)" : "var(--cv-accent-soft)" }}
+              >
                 {perfil.headline}
               </p>
             )}
             {!isSidebar && hasContacto && (
               <div className="mt-2">
-                <Contacto />
+                <Contacto light={isBanner} />
               </div>
             )}
           </div>
@@ -314,18 +336,23 @@ export function useCvBlocks(
     // ── Sidebar (contactos + competências + idiomas), só página 1 ──
     let sidebar: ReactNode | null = null;
     if (isSidebar) {
+      const itemColor = isColorSidebar ? "rgba(255,255,255,0.92)" : "var(--cv-text)";
       sidebar = (
-        <div className="space-y-4">
+        <div className="space-y-4" style={isColorSidebar ? { color: "#fff" } : undefined}>
           {perfil.foto && (
             <div style={{ display: "flex", justifyContent: "center" }}>
-              <Photo size={PHOTO_SIZE_SIDEBAR_PX} />
+              <Photo size={template.photoSizeSidebar ?? PHOTO_SIZE_SIDEBAR_PX} />
             </div>
           )}
-          <Contacto />
+          <Contacto light={isColorSidebar} />
           {competencias.length > 0 && (
             <div>
-              <SectionTitle titulo="Competências" icon={SECTION_ICONS.competencias} />
-              <ul className="mt-2 space-y-0.5" style={{ color: "var(--cv-text)" }}>
+              <SectionTitle
+                titulo="Competências"
+                icon={SECTION_ICONS.competencias}
+                light={isColorSidebar}
+              />
+              <ul className="mt-2 space-y-0.5" style={{ color: itemColor }}>
                 {competencias.map((c) => (
                   <li key={c.id}>· {c.nome}</li>
                 ))}
@@ -334,8 +361,8 @@ export function useCvBlocks(
           )}
           {idiomas.length > 0 && (
             <div>
-              <SectionTitle titulo="Idiomas" icon={SECTION_ICONS.idiomas} />
-              <ul className="mt-2 space-y-0.5" style={{ color: "var(--cv-text)" }}>
+              <SectionTitle titulo="Idiomas" icon={SECTION_ICONS.idiomas} light={isColorSidebar} />
+              <ul className="mt-2 space-y-0.5" style={{ color: itemColor }}>
                 {idiomas.map((i) => (
                   <li key={i.id}>
                     {i.idioma}
