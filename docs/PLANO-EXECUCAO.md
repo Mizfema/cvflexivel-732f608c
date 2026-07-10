@@ -58,6 +58,8 @@
 - [ ] Conta/chave do PostHog (analytics) — o usuário precisa criar.
 - [x] ~~Conta Stripe~~ — decidido em 10/07/2026: Stripe parqueado (não opera para comerciantes em Moçambique). PaySuite escolhido como agregador único.
 - [ ] Credenciais da API PaySuite (merchant id, API key/secret, webhook secret) — aguardando o usuário. Até lá, Fase 1.4c é implementada com placeholders em env vars.
+- [ ] Conta de e-mail transacional (Resend assumida, ver 1.4d item 1) + RESEND_API_KEY — aguardando o usuário. Até lá, o motor de lembretes está pronto mas o envio falha com erro claro.
+- [ ] URL de produção da app + CRON_SECRET — necessários para agendar o pg_cron que dispara /api/cron/plan-reminders diariamente (SQL pronto em 1.4d item 1).
 
 ---
 
@@ -264,21 +266,50 @@ X-Webhook-Signature via HMAC-SHA256 do corpo com PAYSUITE_WEBHOOK_SECRET.
    avisar o usuário explicitamente disso no fim.
 ```
 
-#### [ ] 1.4d — Recorrência: motor de lembretes + planos longos
+#### [~] 1.4d — Recorrência: motor de lembretes + planos longos
 
 ```text
 Leia docs/PLANO-EXECUCAO.md. A PaySuite (M-Pesa/e-Mola/mKesh/cartão) é pré-pago, sem débito
 automático — a "recorrência" tem de ser simulada por lembretes e pela opção de planos mais
 longos (ex.: 3/6/12 meses) que reduzem a frequência de renovação manual.
 
-1. E-mails/notificações transacionais (Supabase) quando o plano está a X dias de expirar
-   (aproveitar o aviso já calculado por getPlanExpiryWarning) e quando expira de facto.
-2. Avaliar planos de duração maior (não só 30 dias) com desconto, para reduzir fricção de
-   renovação — decisão de preço/duração ainda pendente do usuário.
-3. Painel admin: taxa de renovação (quantos pagam de novo depois de expirar) para medir se o
-   modelo pré-pago está a reter.
-
-NÃO implementar ainda — só manter este item documentado até ser priorizado.
+1. [x] (10/07/2026) E-mails/notificações transacionais quando o plano está a X dias de
+   expirar e quando expira de facto. Implementado:
+   - Migration plan_reminder_emails (idempotência por subscription+kind+period_end).
+   - src/lib/email.server.ts: cliente fino sobre a API da Resend (assumida — usuário ainda
+     não tem conta em nenhum provedor; RESEND_API_KEY vazia até lá, mesmo padrão do
+     paysuite.server.ts). EMAIL_FROM opcional (default onboarding@resend.dev).
+   - src/lib/plan-reminders.server.ts: runPlanReminders() varre subscriptions ativas com
+     current_period_end nos próximos 3 dias (reaproveita a janela de getPlanExpiryWarning),
+     manda "expiring_soon" ou "expired" conforme o caso, idempotente por período.
+   - Rota src/routes/api/cron/plan-reminders.ts (POST, protegida por header
+     `Authorization: Bearer CRON_SECRET`) — dispara o motor.
+   - scripts/test-plan-reminders.ts — testa localmente sem esperar 3 dias nem ter
+     RESEND_API_KEY real (o envio falha com erro claro até a chave existir, esperado).
+   - **Pendente do usuário para ativar de verdade:** conta na Resend (ou outro provedor —
+     trocar só email.server.ts) + RESEND_API_KEY; e agendar o disparo diário via pg_cron do
+     Supabase (SQL abaixo, rodar no SQL Editor do projeto **depois de decidir a URL de
+     produção e gerar um CRON_SECRET**):
+     ```sql
+     create extension if not exists pg_cron with schema extensions;
+     create extension if not exists pg_net with schema extensions;
+     select cron.schedule(
+       'plan-reminders-daily',
+       '0 8 * * *', -- 08:00 UTC todo dia — ajustar ao fuso desejado
+       $$
+       select net.http_post(
+         url := 'https://SUBSTITUIR-PELA-URL-DE-PRODUCAO/api/cron/plan-reminders',
+         headers := jsonb_build_object('Authorization', 'Bearer SUBSTITUIR-PELO-CRON_SECRET')
+       );
+       $$
+     );
+     ```
+     (Chamada direta pg_cron→pg_net→rota da própria app, sem Edge Function — mantém a lógica
+     100% em src/lib/*.server.ts como o resto do projeto, só o gatilho é externo.)
+2. [ ] Avaliar planos de duração maior (não só 30 dias) com desconto, para reduzir fricção de
+   renovação — decisão de preço/duração ainda pendente do usuário. NÃO implementar ainda.
+3. [ ] Painel admin: taxa de renovação (quantos pagam de novo depois de expirar) para medir se
+   o modelo pré-pago está a reter. NÃO implementar ainda.
 ```
 
 ### Parqueado (futuro)

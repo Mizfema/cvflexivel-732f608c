@@ -24,6 +24,7 @@ import { Route as AuthenticatedEntrevistasRouteImport } from './routes/_authenti
 import { Route as AuthenticatedCartasRouteImport } from './routes/_authenticated/cartas'
 import { Route as AuthenticatedCartaEditorRouteImport } from './routes/_authenticated/carta-editor'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
+import { Route as ApiCronPlanRemindersRouteImport } from './routes/api/cron/plan-reminders'
 
 const VagasRoute = VagasRouteImport.update({
   id: '/vagas',
@@ -101,6 +102,11 @@ const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiCronPlanRemindersRoute = ApiCronPlanRemindersRouteImport.update({
+  id: '/api/cron/plan-reminders',
+  path: '/api/cron/plan-reminders',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -117,6 +123,7 @@ export interface FileRoutesByFullPath {
   '/meus-cvs': typeof AuthenticatedMeusCvsRoute
   '/perfil': typeof AuthenticatedPerfilRoute
   '/api/paysuite-webhook': typeof ApiPaysuiteWebhookRoute
+  '/api/cron/plan-reminders': typeof ApiCronPlanRemindersRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -133,6 +140,7 @@ export interface FileRoutesByTo {
   '/meus-cvs': typeof AuthenticatedMeusCvsRoute
   '/perfil': typeof AuthenticatedPerfilRoute
   '/api/paysuite-webhook': typeof ApiPaysuiteWebhookRoute
+  '/api/cron/plan-reminders': typeof ApiCronPlanRemindersRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -151,6 +159,7 @@ export interface FileRoutesById {
   '/_authenticated/meus-cvs': typeof AuthenticatedMeusCvsRoute
   '/_authenticated/perfil': typeof AuthenticatedPerfilRoute
   '/api/paysuite-webhook': typeof ApiPaysuiteWebhookRoute
+  '/api/cron/plan-reminders': typeof ApiCronPlanRemindersRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -169,6 +178,7 @@ export interface FileRouteTypes {
     | '/meus-cvs'
     | '/perfil'
     | '/api/paysuite-webhook'
+    | '/api/cron/plan-reminders'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -185,6 +195,7 @@ export interface FileRouteTypes {
     | '/meus-cvs'
     | '/perfil'
     | '/api/paysuite-webhook'
+    | '/api/cron/plan-reminders'
   id:
     | '__root__'
     | '/'
@@ -202,6 +213,7 @@ export interface FileRouteTypes {
     | '/_authenticated/meus-cvs'
     | '/_authenticated/perfil'
     | '/api/paysuite-webhook'
+    | '/api/cron/plan-reminders'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -214,6 +226,7 @@ export interface RootRouteChildren {
   PrepararEntrevistaRoute: typeof PrepararEntrevistaRoute
   VagasRoute: typeof VagasRoute
   ApiPaysuiteWebhookRoute: typeof ApiPaysuiteWebhookRoute
+  ApiCronPlanRemindersRoute: typeof ApiCronPlanRemindersRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -323,6 +336,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/cron/plan-reminders': {
+      id: '/api/cron/plan-reminders'
+      path: '/api/cron/plan-reminders'
+      fullPath: '/api/cron/plan-reminders'
+      preLoaderRoute: typeof ApiCronPlanRemindersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -357,6 +377,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrepararEntrevistaRoute: PrepararEntrevistaRoute,
   VagasRoute: VagasRoute,
   ApiPaysuiteWebhookRoute: ApiPaysuiteWebhookRoute,
+  ApiCronPlanRemindersRoute: ApiCronPlanRemindersRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
