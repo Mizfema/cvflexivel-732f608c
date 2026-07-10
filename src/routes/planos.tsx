@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { AlertTriangle, CheckCircle2, CreditCard, Loader2, Smartphone } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { getMyPlanStatus, createSubscriptionCheckout } from "@/lib/subscription.functions";
@@ -27,14 +27,8 @@ export const Route = createFileRoute("/planos")({
   component: PlanosPage,
 });
 
-type PaymentMethod = "mpesa" | "emola" | "mkesh" | "card";
-
-const METHODS: { id: PaymentMethod; label: string; Icon: typeof CreditCard }[] = [
-  { id: "mpesa", label: "M-Pesa", Icon: Smartphone },
-  { id: "emola", label: "e-Mola", Icon: Smartphone },
-  { id: "mkesh", label: "mKesh", Icon: Smartphone },
-  { id: "card", label: "Cartão", Icon: CreditCard },
-];
+/* Só um selo de confiança visual — o método real é escolhido no checkout hospedado da PaySuite. */
+const TRUSTED_METHODS = ["M-Pesa", "e-Mola", "mKesh", "Visa/Mastercard"];
 
 /* Matriz de acesso v1.0 (docs/PLANO-EXECUCAO.md secção 1.3) — usada como copy. */
 const COMPARISON: { label: string; free: string; premium: string }[] = [
@@ -67,7 +61,7 @@ function PlanosPage() {
 
   const [isPremium, setIsPremium] = useState<boolean | null>(null);
   const [expiryWarning, setExpiryWarning] = useState<{ daysLeft: number } | null>(null);
-  const [pendingMethod, setPendingMethod] = useState<PaymentMethod | null>(null);
+  const [subscribing, setSubscribing] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [returning, setReturning] = useState(!!checkout);
 
@@ -110,16 +104,16 @@ function PlanosPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, session, getPlanStatus]);
 
-  async function handleMethodClick(method: PaymentMethod) {
-    track("cta_click", { source: "planos_subscribe", method });
+  async function handleSubscribeClick() {
+    track("cta_click", { source: "planos_subscribe" });
     setCheckoutError(null);
-    setPendingMethod(method);
+    setSubscribing(true);
     try {
-      const { checkoutUrl } = await startCheckout({ data: { paymentMethod: method } });
+      const { checkoutUrl } = await startCheckout();
       window.location.href = checkoutUrl;
     } catch (err) {
       setCheckoutError(err instanceof Error ? err.message : "Erro ao iniciar o pagamento.");
-      setPendingMethod(null);
+      setSubscribing(false);
     }
   }
 
@@ -131,8 +125,12 @@ function PlanosPage() {
           Grátis para começar, <em className="font-serif text-navy">Premium para ir até ao fim</em>
         </h1>
         <p className="mt-4 text-[15px] leading-relaxed text-ink-soft">
-          Pagamento por M-Pesa, e-Mola, mKesh ou cartão, através da PaySuite.
+          Pagamento seguro através da PaySuite — escolhes o método no checkout.
         </p>
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+          <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-navy-mid" />
+          {TRUSTED_METHODS.join(" · ")}
+        </div>
       </div>
 
       {expiryWarning && (
@@ -171,18 +169,18 @@ function PlanosPage() {
         </table>
       </div>
 
-      <div className="mt-12 rounded-xl border border-navy-rule bg-card p-6 sm:p-8">
+      <div className="mt-12 rounded-xl border border-navy-rule bg-card p-6 text-center sm:p-8">
         {returning ? (
-          <p className="flex items-center justify-center gap-2 text-center text-sm text-ink-soft">
+          <p className="flex items-center justify-center gap-2 text-sm text-ink-soft">
             <Loader2 className="h-4 w-4 shrink-0 animate-spin" />A confirmar o teu pagamento…
           </p>
         ) : isPremium === true ? (
-          <p className="flex items-center justify-center gap-2 text-center text-sm font-medium text-foreground">
+          <p className="flex items-center justify-center gap-2 text-sm font-medium text-foreground">
             <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
             Já tens o plano Premium ativo. Obrigado por apoiares o CV Flexível.
           </p>
         ) : !session && ready ? (
-          <div className="text-center">
+          <div>
             <p className="text-sm text-ink-soft">
               Cria a tua conta grátis primeiro — depois volta aqui para assinar o Premium.
             </p>
@@ -196,29 +194,16 @@ function PlanosPage() {
           </div>
         ) : (
           <div>
-            <p className="text-center text-sm font-medium text-foreground">
-              Assinar Premium — escolhe o método de pagamento
-            </p>
-            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {METHODS.map(({ id, label, Icon }) => (
-                <Button
-                  key={id}
-                  variant="outline"
-                  className="h-auto flex-col gap-2 py-4"
-                  disabled={pendingMethod !== null}
-                  onClick={() => handleMethodClick(id)}
-                >
-                  {pendingMethod === id ? (
-                    <Loader2 className="h-5 w-5 animate-spin text-navy-mid" />
-                  ) : (
-                    <Icon className="h-5 w-5 text-navy-mid" />
-                  )}
-                  {label}
-                </Button>
-              ))}
-            </div>
+            <Button
+              size="lg"
+              className="min-w-[220px] bg-navy hover:bg-navy/90"
+              disabled={subscribing}
+              onClick={handleSubscribeClick}
+            >
+              {subscribing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Assinar o Premium"}
+            </Button>
             {checkoutError && (
-              <p className="mt-4 flex items-center justify-center gap-2 text-center text-xs text-destructive">
+              <p className="mt-4 flex items-center justify-center gap-2 text-xs text-destructive">
                 <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
                 {checkoutError}
               </p>

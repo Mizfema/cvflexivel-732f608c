@@ -1,11 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
-import { z } from "zod";
 import { optionalIdentity } from "@/lib/access-control.server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { hasActivePlan, getPlanExpiryWarning } from "@/lib/subscription.server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { createPaymentRequest, type PaySuiteMethod } from "@/lib/paysuite.server";
+import { createPaymentRequest } from "@/lib/paysuite.server";
 
 /** Usado pelo cliente para decidir entre vitrine e funcionalidade completa
  * (ex: preparação de entrevista). Sessão é opcional (anónimo também não tem
@@ -18,27 +17,15 @@ export const getMyPlanStatus = createServerFn({ method: "GET" })
     expiryWarning: await getPlanExpiryWarning(context.userId),
   }));
 
-const PAYMENT_METHODS = ["mpesa", "emola", "mkesh", "card"] as const;
-type PaymentMethod = (typeof PAYMENT_METHODS)[number];
-
-const checkoutInputSchema = z.object({
-  paymentMethod: z.enum(PAYMENT_METHODS),
-});
-
-function toPaySuiteMethod(method: PaymentMethod): PaySuiteMethod | undefined {
-  if (method === "card") return "credit_card";
-  if (method === "mkesh") return undefined; // não listado no parâmetro `method` da API; usuário escolhe no checkout hospedado.
-  return method;
-}
-
 /** Fase 1.4c: cria a intenção de assinatura (subscriptions+payments em
  * "pending") e devolve o checkout_url da PaySuite para o cliente redirecionar.
- * A confirmação real chega pelo webhook (src/routes/api/paysuite-webhook.ts),
- * nunca por este pedido — este só inicia o fluxo. */
+ * O método de pagamento (M-Pesa/e-Mola/mKesh/cartão) é escolhido no checkout
+ * hospedado da PaySuite, não aqui. A confirmação real chega pelo webhook
+ * (src/routes/api/paysuite-webhook.ts), nunca por este pedido — este só inicia
+ * o fluxo. */
 export const createSubscriptionCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => checkoutInputSchema.parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(async ({ context }) => {
     const priceMzn = Number(process.env.PLAN_PRICE_MZN);
     if (!priceMzn || Number.isNaN(priceMzn)) {
       throw new Error(
@@ -48,7 +35,8 @@ export const createSubscriptionCheckout = createServerFn({ method: "POST" })
 
     const request = getRequest();
     const origin = request ? new URL(request.url).origin : "";
-    const reference = `cv-${context.userId.slice(0, 8)}-${Date.now()}`;
+    // Referência única: user + plano + período (timestamp de criação).
+    const reference = `cv-${context.userId.slice(0, 8)}-premium-${Date.now()}`;
 
     const { data: subscription, error: subError } = await supabaseAdmin
       .from("subscriptions")
@@ -57,7 +45,6 @@ export const createSubscriptionCheckout = createServerFn({ method: "POST" })
         plan: "premium",
         status: "pending",
         provider: "paysuite",
-        payment_method: data.paymentMethod,
       })
       .select("id")
       .single();
@@ -69,7 +56,7 @@ export const createSubscriptionCheckout = createServerFn({ method: "POST" })
         user_id: context.userId,
         subscription_id: subscription.id,
         provider: "paysuite",
-        payment_method: data.paymentMethod,
+        reference,
         amount: priceMzn,
         currency: "MZN",
         status: "pending",
@@ -82,7 +69,6 @@ export const createSubscriptionCheckout = createServerFn({ method: "POST" })
       const result = await createPaymentRequest({
         amount: priceMzn,
         reference,
-        method: toPaySuiteMethod(data.paymentMethod),
         description: "Plano Premium — CV Flexível (30 dias)",
         returnUrl: `${origin}/planos?checkout=${subscription.id}`,
         callbackUrl: `${origin}/api/paysuite-webhook`,

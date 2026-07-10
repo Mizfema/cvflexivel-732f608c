@@ -2,11 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { verifyWebhookSignature } from "@/lib/paysuite.server";
 
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+const PLAN_PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
 
 interface PaySuiteWebhookPayload {
   event: "payment.success" | "payment.failed" | string;
-  data?: { id?: string };
+  data?: { id?: string; method?: string; paid_at?: string };
   request_id?: string;
 }
 
@@ -35,31 +35,49 @@ export const Route = createFileRoute("/api/paysuite-webhook")({
 
         const { data: payment, error: findError } = await supabaseAdmin
           .from("payments")
-          .select("id, status, subscription_id")
+          .select("id, subscription_id")
           .eq("provider_ref", paymentRef)
           .maybeSingle();
         if (findError) return new Response(findError.message, { status: 500 });
         if (!payment) return new Response("Pagamento não encontrado", { status: 404 });
 
-        // Idempotente: webhook pode reentregar o mesmo evento (até 5 tentativas).
-        if (payment.status !== "pending") {
-          return new Response("ok", { status: 200 });
-        }
-
         if (payload.event === "payment.success") {
-          const { error: payErr } = await supabaseAdmin
+          // UPDATE condicional (WHERE status='pending'): só a primeira entrega do
+          // webhook confirma e estende o período — retries subsequentes (a PaySuite
+          // tenta até 5x) não fazem nada porque a linha já não está "pending".
+          const { data: confirmedPayment, error: payErr } = await supabaseAdmin
             .from("payments")
-            .update({ status: "confirmed" })
-            .eq("id", payment.id);
+            .update({
+              status: "confirmed",
+              method: payload.data?.method ?? null,
+              paid_at: payload.data?.paid_at ?? new Date().toISOString(),
+            })
+            .eq("id", payment.id)
+            .eq("status", "pending")
+            .select("id")
+            .maybeSingle();
           if (payErr) return new Response(payErr.message, { status: 500 });
 
+          // Já processado por uma entrega anterior — idempotente, responde ok sem repetir.
+          if (!confirmedPayment) return new Response("ok", { status: 200 });
+
           if (payment.subscription_id) {
+            const { data: subscription, error: subFetchErr } = await supabaseAdmin
+              .from("subscriptions")
+              .select("current_period_end")
+              .eq("id", payment.subscription_id)
+              .single();
+            if (subFetchErr) return new Response(subFetchErr.message, { status: 500 });
+
+            const currentEnd = subscription.current_period_end
+              ? new Date(subscription.current_period_end).getTime()
+              : 0;
+            const base = Math.max(Date.now(), currentEnd);
+            const newPeriodEnd = new Date(base + PLAN_PERIOD_MS).toISOString();
+
             const { error: subErr } = await supabaseAdmin
               .from("subscriptions")
-              .update({
-                status: "active",
-                current_period_end: new Date(Date.now() + THIRTY_DAYS_MS).toISOString(),
-              })
+              .update({ status: "active", current_period_end: newPeriodEnd })
               .eq("id", payment.subscription_id);
             if (subErr) return new Response(subErr.message, { status: 500 });
           }
@@ -67,7 +85,8 @@ export const Route = createFileRoute("/api/paysuite-webhook")({
           const { error: payErr } = await supabaseAdmin
             .from("payments")
             .update({ status: "failed" })
-            .eq("id", payment.id);
+            .eq("id", payment.id)
+            .eq("status", "pending");
           if (payErr) return new Response(payErr.message, { status: 500 });
         }
 

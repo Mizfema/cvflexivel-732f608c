@@ -324,9 +324,11 @@ export type Database = {
           created_at: string
           currency: string
           id: string
-          payment_method: string | null
+          method: string | null
+          paid_at: string | null
           provider: string
           provider_ref: string | null
+          reference: string | null
           status: string
           subscription_id: string | null
           user_id: string
@@ -336,9 +338,11 @@ export type Database = {
           created_at?: string
           currency: string
           id?: string
-          payment_method?: string | null
+          method?: string | null
+          paid_at?: string | null
           provider: string
           provider_ref?: string | null
+          reference?: string | null
           status: string
           subscription_id?: string | null
           user_id: string
@@ -348,9 +352,11 @@ export type Database = {
           created_at?: string
           currency?: string
           id?: string
-          payment_method?: string | null
+          method?: string | null
+          paid_at?: string | null
           provider?: string
           provider_ref?: string | null
+          reference?: string | null
           status?: string
           subscription_id?: string | null
           user_id?: string
