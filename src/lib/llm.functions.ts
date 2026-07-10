@@ -1188,8 +1188,8 @@ const MOCK_COVER_LETTER_GENERIC: GeneratedCoverLetter = {
 };
 
 /** Corta a carta para a amostra grátis (Fase 1.3): só o primeiro bloco de
- * nível superior (<p> ou <ul>) — o resto nunca desce ao cliente. Tier
- * "premium" ainda é inatingível (Fase 1.4a), por isso hoje corta sempre. */
+ * nível superior (<p> ou <ul>) — o resto nunca desce ao cliente. Não corta
+ * para quem tem plano ativo (Fase 1.4a). */
 function truncateCoverLetter(content: string): GeneratedCoverLetter {
   const firstBlock = content.match(/<(p|ul)>[\s\S]*?<\/\1>/);
   if (!firstBlock) return { content, hasMore: false };
@@ -1238,7 +1238,7 @@ export const generateCoverLetter = createServerFn({ method: "POST" })
         content = await callOnce();
       }
       await recordUsageTokens(usageCheck.usageId, tokenUsage);
-      return truncateCoverLetter(content);
+      return usageCheck.tier === "premium" ? { content, hasMore: false } : truncateCoverLetter(content);
     } catch (err) {
       throw new Error(`Falha a gerar carta de motivação: ${friendlyAiError(err).message}`);
     }

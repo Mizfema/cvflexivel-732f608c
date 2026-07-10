@@ -3,6 +3,7 @@ import { getRequest } from "@tanstack/react-start/server";
 import { createClient } from "@supabase/supabase-js";
 import { createHash } from "node:crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { hasActivePlan } from "@/lib/subscription.server";
 import type { Database } from "@/integrations/supabase/types";
 
 export type UsageTier = "anonymous" | "free" | "premium";
@@ -16,6 +17,7 @@ export interface UsageCheckResult {
   remainingMonth: number | null;
   retryAt: string | null;
   usageId: string | null;
+  tier: UsageTier;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -113,7 +115,7 @@ export async function checkAndRecordUsage(
   userId: string | null,
   fingerprint: string | null,
 ): Promise<UsageCheckResult> {
-  const tier: UsageTier = userId ? "free" : "anonymous";
+  const tier: UsageTier = userId ? ((await hasActivePlan(userId)) ? "premium" : "free") : "anonymous";
   const identity = { userId, fingerprint };
 
   if (!userId) {
@@ -128,6 +130,7 @@ export async function checkAndRecordUsage(
           remainingMonth: null,
           retryAt: latest ? new Date(new Date(latest).getTime() + DAY_MS).toISOString() : null,
           usageId: null,
+          tier,
         };
       }
     }
@@ -142,6 +145,7 @@ export async function checkAndRecordUsage(
       remainingMonth: 0,
       retryAt: null,
       usageId: null,
+      tier,
     };
   }
 
@@ -159,6 +163,7 @@ export async function checkAndRecordUsage(
         remainingMonth: 0,
         retryAt: oldest ? new Date(new Date(oldest).getTime() + MONTH_MS).toISOString() : null,
         usageId: null,
+        tier,
       };
     }
   }
@@ -175,6 +180,7 @@ export async function checkAndRecordUsage(
         remainingMonth,
         retryAt: latest ? new Date(new Date(latest).getTime() + cooldownMs).toISOString() : null,
         usageId: null,
+        tier,
       };
     }
   }
@@ -197,6 +203,7 @@ export async function checkAndRecordUsage(
     remainingMonth: remainingMonth != null ? Math.max(0, remainingMonth - 1) : null,
     retryAt: null,
     usageId: inserted.id,
+    tier,
   };
 }
 

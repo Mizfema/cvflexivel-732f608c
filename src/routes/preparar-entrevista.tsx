@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation } from "@tanstack/react-query";
@@ -18,6 +18,7 @@ import { InterviewPrepResult } from "@/components/InterviewPrepResult";
 import { InterviewPrepExport } from "@/components/entrevista/InterviewPrepExport";
 import { generateInterviewPrep } from "@/lib/llm.functions";
 import { saveInterviewPrep } from "@/lib/interview-preps.functions";
+import { getMyPlanStatus } from "@/lib/subscription.functions";
 import { useAuth } from "@/hooks/use-auth";
 import type { InterviewQuestion } from "@/lib/interview-types";
 import { parseLimitError } from "@/lib/usage-error";
@@ -62,15 +63,23 @@ function ErrorBox({ msg }: { msg: string }) {
   );
 }
 
-/** Fase 1.3: interview_prep está desabilitado para anónimo e grátis na
- * matriz de acesso (access_policies) — só "premium" está habilitado, e esse
- * tier é inatingível até a Fase 1.4a ligar hasActivePlan() ao cálculo de
- * tier. Por isso a página mostra vitrine em vez do stepper interativo; a
- * lógica de geração abaixo fica intacta para quando a 1.4a ligar o tier real. */
-const INTERVIEW_PREP_AVAILABLE = false;
-
+/** Fase 1.3: interview_prep está desabilitado para anónimo e grátis na matriz
+ * de acesso (access_policies) — só "premium" está habilitado. A Fase 1.4a liga
+ * hasActivePlan() ao cálculo de tier; aqui só refletimos esse estado no
+ * cliente para decidir entre vitrine e stepper (a verificação que importa
+ * continua server-side em requireUsageAllowed). */
 function PrepararEntrevistaPage() {
-  return INTERVIEW_PREP_AVAILABLE ? <InterviewPrepStepper /> : <InterviewPrepVitrine />;
+  const getPlanStatus = useServerFn(getMyPlanStatus);
+  const [isPremium, setIsPremium] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    getPlanStatus()
+      .then((r) => setIsPremium(r.isPremium))
+      .catch(() => setIsPremium(false));
+  }, [getPlanStatus]);
+
+  if (isPremium === null) return null;
+  return isPremium ? <InterviewPrepStepper /> : <InterviewPrepVitrine />;
 }
 
 function InterviewPrepVitrine() {
