@@ -197,7 +197,7 @@ Fase 1.3 (gates progressivos). A infraestrutura checkAndRecordUsage já existe (
 6. Emitir evento PostHog limit_hit em todo gate. bun run build, commit.
 ```
 
-#### [ ] 1.4a — Infra de planos (comum a Stripe e carteiras móveis)
+#### [x] 1.4a — Infra de planos (comum a Stripe e carteiras móveis)
 
 ```text
 Leia docs/PLANO-EXECUCAO.md (secção 1.2 item 3) e implemente a Fase 1.4a (infra de planos).
