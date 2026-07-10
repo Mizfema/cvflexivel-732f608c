@@ -19,10 +19,11 @@
 
 1. **Modelo:** freemium com 3 níveis — anônimo → conta grátis → plano ativo.
 2. **Filosofia de conversão:** "pescar primeiro" — nunca exigir cadastro na porta de entrada. O usuário usa, vê valor, e o cadastro/pagamento aparece no momento de máximo valor percebido (resultado parcial desfocado, download, template premium).
-3. **Pagamentos mistos:**
-   - **Stripe** para cartões → assinatura com renovação automática.
-   - **M-Pesa e e-Mola** para carteiras móveis (Moçambique) → **pré-pago**: paga → plano ativo por 30 dias → expira → lembrete de renovação. Carteiras móveis não têm débito recorrente automático.
-   - Os dois convergem numa única tabela `subscriptions` e numa única verificação server-side `hasActivePlan()`.
+3. **Pagamentos — PaySuite como agregador único (decisão revista em 10/07/2026):**
+   - **Stripe fica PARQUEADO** — não opera para comerciantes em Moçambique, não há entidade legal viável no curto prazo. Não reabrir sem novo pedido explícito do usuário.
+   - **PaySuite** é o único processador: cobre M-Pesa, e-Mola, mKesh e cartão no mesmo checkout/API. Modelo **pré-pago**: paga → plano ativo por 30 dias → expira → lembrete de renovação (nenhum destes métodos tem débito recorrente automático).
+   - `subscriptions.provider = 'paysuite'`; o método escolhido dentro do checkout (mpesa/emola/mkesh/card) fica em `subscriptions.payment_method` / `payments.payment_method`, só para analytics — a integração é uma só.
+   - `hasActivePlan()` continua a única verificação server-side de plano ativo.
 4. **Home com apenas 3 botões** (anti-poluição):
    - **"Criar meu CV grátis"** (primário) → abre modal com: "Criar do zero" e "Tenho CV, quero apenas melhorar" (fluxos já existentes, só renomeados/reorganizados).
    - **"Analisar meu CV"** (secundário).
@@ -52,11 +53,11 @@
 
 ### 1.4 Decisões de negócio ainda PENDENTES (perguntar ao usuário quando chegar a fase)
 
-- [ ] Preço do plano mensal (em MZN e referência USD/EUR para Stripe).
-- [ ] Se haverá pacote avulso de créditos além da assinatura.
+- [ ] Preço do plano mensal (em MZN; referência USD/EUR já não é prioridade com Stripe parqueado).
+- [ ] Modelagem de pacote avulso de créditos além da assinatura (usuário confirmou em 10/07/2026 que quer isto, mas ainda sem preço por crédito nem regra de expiração — não misturar na infra de assinatura da Fase 1.4, avaliar no backlog da Fase 2).
 - [ ] Conta/chave do PostHog (analytics) — o usuário precisa criar.
-- [ ] Conta Stripe: verificar em nome de que entidade legal (Stripe não opera diretamente em Moçambique — pode exigir entidade noutro país ou usar agregador local, ex.: PaySuite, que cobre M-Pesa + e-Mola + cartões numa API só; avaliar antes da Fase 1.4).
-- [ ] Credenciais das APIs M-Pesa (Vodacom MZ) e e-Mola (Movitel) ou do agregador escolhido.
+- [x] ~~Conta Stripe~~ — decidido em 10/07/2026: Stripe parqueado (não opera para comerciantes em Moçambique). PaySuite escolhido como agregador único.
+- [ ] Credenciais da API PaySuite (merchant id, API key/secret, webhook secret) — aguardando o usuário. Até lá, Fase 1.4c é implementada com placeholders em env vars.
 
 ---
 
@@ -218,36 +219,52 @@ Decisões de preço: [COLAR AQUI preço mensal em MZN e USD/EUR quando decidido]
 4. bun run build, commit.
 ```
 
-#### [ ] 1.4b — Stripe (cartões, renovação automática)
+#### [PARQUEADO] 1.4b — Stripe (cartões, renovação automática)
+
+> **Decidido em 10/07/2026: NÃO implementar.** Stripe não opera para comerciantes em
+> Moçambique. PaySuite (1.4c) cobre cartão também, no mesmo checkout que M-Pesa/e-Mola/mKesh.
+> Só reabrir esta fase se o usuário pedir explicitamente (ex.: expansão para outro país onde
+> Stripe opere).
+
+#### [ ] 1.4c — PaySuite (agregador único: M-Pesa, e-Mola, mKesh, cartão — pré-pago 30 dias)
 
 ```text
-Leia docs/PLANO-EXECUCAO.md e implemente a Fase 1.4b (Stripe). Credenciais:
-[COLAR AQUI: secret key, publishable key, price ID, webhook secret].
+Leia docs/PLANO-EXECUCAO.md (secção 1.2 item 3, revista em 10/07/2026) e implemente a Fase
+1.4c (PaySuite). Credenciais (ainda não disponíveis — implementar com placeholders em env
+vars até o usuário fornecer): PAYSUITE_API_KEY, PAYSUITE_WEBHOOK_SECRET, PAYSUITE_BASE_URL
+(default https://paysuite.tech/api/v1), PLAN_PRICE_MZN.
 
-1. Stripe Checkout em modo subscription via server function (criar sessão, redirecionar).
-2. Endpoint de webhook (rota de API do TanStack Start) para checkout.session.completed,
-   invoice.paid, customer.subscription.deleted → atualizar subscriptions/payments.
-   Validar assinatura do webhook. Chaves só em env server-side (nunca VITE_).
-3. Página de sucesso/cancelamento. Portal do cliente Stripe para gerir/cancelar.
-4. Testar com stripe CLI ou modo teste de ponta a ponta. bun run build, commit.
-```
+Referência da API (paysuite.tech/docs, consultada em 10/07/2026): POST /payments cria um
+pedido de pagamento (amount, reference, method?: credit_card|mpesa|emola, description,
+return_url, callback_url) e devolve { id, status: pending, checkout_url }. O cliente é
+redirecionado para checkout_url — é lá, na página hospedada da PaySuite, que ele escolhe
+o método (incluindo mKesh) e introduz o número/cartão; nós NÃO recolhemos o número de
+telemóvel diretamente. GET /payments/{id} consulta o estado. Webhook chega em callback_url
+com { event: "payment.success"|"payment.failed", data, request_id }, assinado em
+X-Webhook-Signature via HMAC-SHA256 do corpo com PAYSUITE_WEBHOOK_SECRET.
 
-#### [ ] 1.4c — M-Pesa + e-Mola (carteiras móveis, pré-pago 30 dias)
-
-```text
-Leia docs/PLANO-EXECUCAO.md e implemente a Fase 1.4c (carteiras móveis). Decisão de
-integração: [COLAR AQUI: API direta M-Pesa/e-Mola ou agregador (ex. PaySuite) + credenciais].
-
-1. Fluxo pré-pago: usuário escolhe M-Pesa ou e-Mola em /planos → informa número de
-   telemóvel → server function inicia cobrança (C2B push) → registro em payments como
-   pending → confirmação via callback/polling → subscriptions.status=active com
-   current_period_end = now() + 30 dias.
-2. NÃO há renovação automática: criar server function agendável/cron (ou verificação no
-   login) que marca expired quando current_period_end passa, e exibir aviso no app a
-   partir de 3 dias antes ("Seu plano expira em X dias — renove pelo M-Pesa").
-3. Tratar falhas comuns: timeout do push USSD, saldo insuficiente, número inválido —
-   sempre com mensagem clara e possibilidade de tentar de novo.
-4. Sandbox/teste de ponta a ponta antes de ativar. bun run build, commit.
+1. Migration: alterar subscriptions.provider e payments.provider para aceitar 'paysuite'
+   (manter 'stripe' no CHECK para não fechar a porta, mesmo parqueado); adicionar coluna
+   payment_method (mpesa|emola|mkesh|card, nullable) em subscriptions e payments — é só
+   metadado para analytics, a integração é uma API só.
+2. src/lib/paysuite.server.ts: cliente fino sobre a API (createPaymentRequest,
+   getPaymentStatus, verifyWebhookSignature). Chaves só server-side.
+3. Server function que cria subscriptions (status=pending) + payments (status=pending) e
+   chama createPaymentRequest com callback_url apontando para o webhook e return_url para
+   uma página de retorno em /planos. Devolve checkout_url para o cliente redirecionar.
+4. Rota de webhook (API route do TanStack Start) que valida a assinatura, processa
+   payment.success (subscriptions.status=active, current_period_end=now()+30 dias,
+   payments.status=confirmed) e payment.failed (payments.status=failed). Idempotente
+   (usar request_id/id do pagamento).
+5. Página de retorno em /planos que faz polling curto do estado (getMyPlanStatus) e mostra
+   sucesso/pendente/falha.
+6. NÃO há renovação automática: função que marca expired quando current_period_end passa
+   (chamada oportunisticamente em getMyPlanStatus/hasActivePlan, sem precisar de cron), e
+   aviso no app a partir de 3 dias antes ("O teu plano expira em X dias — renova pela
+   PaySuite").
+7. Ligar os botões de /planos (hoje inertes) a este fluxo real.
+8. bun run build, commit. Não é possível testar de ponta a ponta sem credenciais reais —
+   avisar o usuário explicitamente disso no fim.
 ```
 
 ### FASE 2 — Crescimento (contínuo, após Fase 1 completa)
