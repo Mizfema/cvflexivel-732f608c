@@ -226,7 +226,7 @@ Decisões de preço: [COLAR AQUI preço mensal em MZN e USD/EUR quando decidido]
 > Só reabrir esta fase se o usuário pedir explicitamente (ex.: expansão para outro país onde
 > Stripe opere).
 
-#### [ ] 1.4c — PaySuite (agregador único: M-Pesa, e-Mola, mKesh, cartão — pré-pago 30 dias)
+#### [x] 1.4c — PaySuite (agregador único: M-Pesa, e-Mola, mKesh, cartão — pré-pago 30 dias)
 
 ```text
 Leia docs/PLANO-EXECUCAO.md (secção 1.2 item 3, revista em 10/07/2026) e implemente a Fase
