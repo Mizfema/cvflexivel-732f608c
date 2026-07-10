@@ -219,20 +219,13 @@ Decisões de preço: [COLAR AQUI preço mensal em MZN e USD/EUR quando decidido]
 4. bun run build, commit.
 ```
 
-#### [PARQUEADO] 1.4b — Stripe (cartões, renovação automática)
-
-> **Decidido em 10/07/2026: NÃO implementar.** Stripe não opera para comerciantes em
-> Moçambique. PaySuite (1.4c) cobre cartão também, no mesmo checkout que M-Pesa/e-Mola/mKesh.
-> Só reabrir esta fase se o usuário pedir explicitamente (ex.: expansão para outro país onde
-> Stripe opere).
-
-#### [x] 1.4c — PaySuite (agregador único: M-Pesa, e-Mola, mKesh, cartão — pré-pago 30 dias)
+#### [x] 1.4c — PaySuite (checkout redirecionado + webhook)
 
 ```text
 Leia docs/PLANO-EXECUCAO.md (secção 1.2 item 3, revista em 10/07/2026) e implemente a Fase
 1.4c (PaySuite). Credenciais (ainda não disponíveis — implementar com placeholders em env
 vars até o usuário fornecer): PAYSUITE_API_KEY, PAYSUITE_WEBHOOK_SECRET, PAYSUITE_BASE_URL
-(default https://paysuite.tech/api/v1), PLAN_PRICE_MZN.
+(default https://paysuite.tech/api/v1), PLAN_PRICE_MZN, GRACE_DAYS (default 2).
 
 Referência da API (paysuite.tech/docs, consultada em 10/07/2026): POST /payments cria um
 pedido de pagamento (amount, reference, method?: credit_card|mpesa|emola, description,
@@ -243,29 +236,60 @@ telemóvel diretamente. GET /payments/{id} consulta o estado. Webhook chega em c
 com { event: "payment.success"|"payment.failed", data, request_id }, assinado em
 X-Webhook-Signature via HMAC-SHA256 do corpo com PAYSUITE_WEBHOOK_SECRET.
 
-1. Migration: alterar subscriptions.provider e payments.provider para aceitar 'paysuite'
-   (manter 'stripe' no CHECK para não fechar a porta, mesmo parqueado); adicionar coluna
-   payment_method (mpesa|emola|mkesh|card, nullable) em subscriptions e payments — é só
-   metadado para analytics, a integração é uma API só.
+1. Migration: subscriptions/payments.provider aceitam 'paysuite' (mantém 'stripe' no CHECK,
+   parqueado); payments ganha method (mpesa|emola|mkesh|card), reference (nossa referência
+   única) e paid_at; índice UNIQUE parcial em payments.provider_ref (transaction.id da
+   PaySuite) para idempotência. RLS existente mantida (usuário só lê a própria; escrita só
+   service role).
 2. src/lib/paysuite.server.ts: cliente fino sobre a API (createPaymentRequest,
    getPaymentStatus, verifyWebhookSignature). Chaves só server-side.
-3. Server function que cria subscriptions (status=pending) + payments (status=pending) e
-   chama createPaymentRequest com callback_url apontando para o webhook e return_url para
-   uma página de retorno em /planos. Devolve checkout_url para o cliente redirecionar.
-4. Rota de webhook (API route do TanStack Start) que valida a assinatura, processa
-   payment.success (subscriptions.status=active, current_period_end=now()+30 dias,
-   payments.status=confirmed) e payment.failed (payments.status=failed). Idempotente
-   (usar request_id/id do pagamento).
-5. Página de retorno em /planos que faz polling curto do estado (getMyPlanStatus) e mostra
-   sucesso/pendente/falha.
-6. NÃO há renovação automática: função que marca expired quando current_period_end passa
-   (chamada oportunisticamente em getMyPlanStatus/hasActivePlan, sem precisar de cron), e
-   aviso no app a partir de 3 dias antes ("O teu plano expira em X dias — renova pela
-   PaySuite").
-7. Ligar os botões de /planos (hoje inertes) a este fluxo real.
+3. /planos com um único botão "Assinar" por plano (sem escolha de método — isso acontece no
+   checkout da PaySuite); pode mostrar logos M-Pesa/e-Mola/mKesh/Visa como selo de confiança,
+   só visual. Server function cria subscriptions+payments em "pending" (reference única
+   user+plano+período) e devolve checkout_url para o cliente redirecionar.
+4. Rota de webhook (API route do TanStack Start): valida a assinatura, responde em <5s.
+   payment.success → UPDATE condicional (WHERE status='pending', idempotente mesmo com
+   retries) marca payments.confirmed + method + paid_at, e ESTENDE
+   subscriptions.current_period_end = max(now, current_period_end) + período do plano,
+   status=active — só na primeira confirmação. payment.failed → payments.failed, não mexe
+   na subscription.
+5. hasActivePlan(userId) continua a única porta: status=active AND current_period_end (mais
+   GRACE_DAYS de graça, configurável) > now(). expireDuePlans só marca "expired" depois da
+   graça passar.
+6. Aviso no app a partir de 3 dias antes de vencer ("O teu plano expira em X dias — renova
+   pela PaySuite").
+7. Script dev-only (sem sandbox da PaySuite) que gera um payment.success assinado com HMAC
+   válido e faz POST ao webhook local, para validar a extensão de período sem pagamento real.
 8. bun run build, commit. Não é possível testar de ponta a ponta sem credenciais reais —
    avisar o usuário explicitamente disso no fim.
 ```
+
+#### [ ] 1.4d — Recorrência: motor de lembretes + planos longos
+
+```text
+Leia docs/PLANO-EXECUCAO.md. A PaySuite (M-Pesa/e-Mola/mKesh/cartão) é pré-pago, sem débito
+automático — a "recorrência" tem de ser simulada por lembretes e pela opção de planos mais
+longos (ex.: 3/6/12 meses) que reduzem a frequência de renovação manual.
+
+1. E-mails/notificações transacionais (Supabase) quando o plano está a X dias de expirar
+   (aproveitar o aviso já calculado por getPlanExpiryWarning) e quando expira de facto.
+2. Avaliar planos de duração maior (não só 30 dias) com desconto, para reduzir fricção de
+   renovação — decisão de preço/duração ainda pendente do usuário.
+3. Painel admin: taxa de renovação (quantos pagam de novo depois de expirar) para medir se o
+   modelo pré-pago está a reter.
+
+NÃO implementar ainda — só manter este item documentado até ser priorizado.
+```
+
+### Parqueado (futuro)
+
+#### [PARQUEADO] 1.4b — Stripe (cartões, renovação automática)
+
+> **Decidido em 10/07/2026: NÃO implementar.** Stripe não opera para comerciantes em
+> Moçambique. PaySuite (1.4c) cobre cartão também, no mesmo checkout que M-Pesa/e-Mola/mKesh.
+> Só reabrir esta fase se o usuário pedir explicitamente — por exemplo, se surgir uma
+> entidade legal estrangeira para servir clientes internacionais (fora de Moçambique) e o
+> pagamento por cartão via PaySuite não for suficiente para esse público.
 
 ### FASE 2 — Crescimento (contínuo, após Fase 1 completa)
 
