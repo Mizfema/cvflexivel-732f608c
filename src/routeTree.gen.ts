@@ -17,6 +17,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AnaliseRouteImport } from './routes/analise'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiPaysuiteWebhookRouteImport } from './routes/api/paysuite-webhook'
 import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated/perfil'
 import { Route as AuthenticatedMeusCvsRouteImport } from './routes/_authenticated/meus-cvs'
 import { Route as AuthenticatedEntrevistasRouteImport } from './routes/_authenticated/entrevistas'
@@ -61,6 +62,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPaysuiteWebhookRoute = ApiPaysuiteWebhookRouteImport.update({
+  id: '/api/paysuite-webhook',
+  path: '/api/paysuite-webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedPerfilRoute = AuthenticatedPerfilRouteImport.update({
@@ -110,6 +116,7 @@ export interface FileRoutesByFullPath {
   '/entrevistas': typeof AuthenticatedEntrevistasRoute
   '/meus-cvs': typeof AuthenticatedMeusCvsRoute
   '/perfil': typeof AuthenticatedPerfilRoute
+  '/api/paysuite-webhook': typeof ApiPaysuiteWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -125,6 +132,7 @@ export interface FileRoutesByTo {
   '/entrevistas': typeof AuthenticatedEntrevistasRoute
   '/meus-cvs': typeof AuthenticatedMeusCvsRoute
   '/perfil': typeof AuthenticatedPerfilRoute
+  '/api/paysuite-webhook': typeof ApiPaysuiteWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -142,6 +150,7 @@ export interface FileRoutesById {
   '/_authenticated/entrevistas': typeof AuthenticatedEntrevistasRoute
   '/_authenticated/meus-cvs': typeof AuthenticatedMeusCvsRoute
   '/_authenticated/perfil': typeof AuthenticatedPerfilRoute
+  '/api/paysuite-webhook': typeof ApiPaysuiteWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -159,6 +168,7 @@ export interface FileRouteTypes {
     | '/entrevistas'
     | '/meus-cvs'
     | '/perfil'
+    | '/api/paysuite-webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -174,6 +184,7 @@ export interface FileRouteTypes {
     | '/entrevistas'
     | '/meus-cvs'
     | '/perfil'
+    | '/api/paysuite-webhook'
   id:
     | '__root__'
     | '/'
@@ -190,6 +201,7 @@ export interface FileRouteTypes {
     | '/_authenticated/entrevistas'
     | '/_authenticated/meus-cvs'
     | '/_authenticated/perfil'
+    | '/api/paysuite-webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -201,6 +213,7 @@ export interface RootRouteChildren {
   PlanosRoute: typeof PlanosRoute
   PrepararEntrevistaRoute: typeof PrepararEntrevistaRoute
   VagasRoute: typeof VagasRoute
+  ApiPaysuiteWebhookRoute: typeof ApiPaysuiteWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -259,6 +272,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/paysuite-webhook': {
+      id: '/api/paysuite-webhook'
+      path: '/api/paysuite-webhook'
+      fullPath: '/api/paysuite-webhook'
+      preLoaderRoute: typeof ApiPaysuiteWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/perfil': {
@@ -336,6 +356,7 @@ const rootRouteChildren: RootRouteChildren = {
   PlanosRoute: PlanosRoute,
   PrepararEntrevistaRoute: PrepararEntrevistaRoute,
   VagasRoute: VagasRoute,
+  ApiPaysuiteWebhookRoute: ApiPaysuiteWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

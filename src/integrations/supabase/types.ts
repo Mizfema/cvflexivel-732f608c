@@ -324,6 +324,7 @@ export type Database = {
           created_at: string
           currency: string
           id: string
+          payment_method: string | null
           provider: string
           provider_ref: string | null
           status: string
@@ -335,6 +336,7 @@ export type Database = {
           created_at?: string
           currency: string
           id?: string
+          payment_method?: string | null
           provider: string
           provider_ref?: string | null
           status: string
@@ -346,6 +348,7 @@ export type Database = {
           created_at?: string
           currency?: string
           id?: string
+          payment_method?: string | null
           provider?: string
           provider_ref?: string | null
           status?: string
@@ -433,6 +436,7 @@ export type Database = {
           created_at: string
           current_period_end: string | null
           id: string
+          payment_method: string | null
           plan: string
           provider: string
           provider_ref: string | null
@@ -443,6 +447,7 @@ export type Database = {
           created_at?: string
           current_period_end?: string | null
           id?: string
+          payment_method?: string | null
           plan: string
           provider: string
           provider_ref?: string | null
@@ -453,6 +458,7 @@ export type Database = {
           created_at?: string
           current_period_end?: string | null
           id?: string
+          payment_method?: string | null
           plan?: string
           provider?: string
           provider_ref?: string | null
