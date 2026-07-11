@@ -5,8 +5,11 @@ import { computeCostUsd } from "@/lib/ai-pricing";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-async function checkIsAdmin(userId: string): Promise<boolean> {
-  const { data, error } = await supabaseAdmin
+async function checkIsAdmin(
+  userId: string,
+  client: typeof supabaseAdmin,
+): Promise<boolean> {
+  const { data, error } = await client
     .from("user_roles")
     .select("id")
     .eq("user_id", userId)
