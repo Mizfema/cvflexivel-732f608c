@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -47,6 +47,8 @@ export type Database = {
           id: string
           max_per_day: number | null
           max_per_month: number | null
+          max_per_session: number | null
+          quota_group: string | null
           tier: string
         }
         Insert: {
@@ -56,6 +58,8 @@ export type Database = {
           id?: string
           max_per_day?: number | null
           max_per_month?: number | null
+          max_per_session?: number | null
+          quota_group?: string | null
           tier: string
         }
         Update: {
@@ -65,34 +69,66 @@ export type Database = {
           id?: string
           max_per_day?: number | null
           max_per_month?: number | null
+          max_per_session?: number | null
+          quota_group?: string | null
           tier?: string
+        }
+        Relationships: []
+      }
+      ai_cost_alerts: {
+        Row: {
+          alert_date: string
+          cost_usd_at_alert: number
+          created_at: string
+          id: string
+          threshold_usd: number
+        }
+        Insert: {
+          alert_date: string
+          cost_usd_at_alert: number
+          created_at?: string
+          id?: string
+          threshold_usd: number
+        }
+        Update: {
+          alert_date?: string
+          cost_usd_at_alert?: number
+          created_at?: string
+          id?: string
+          threshold_usd?: number
         }
         Relationships: []
       }
       ai_usage: {
         Row: {
           anon_fingerprint: string | null
+          cost_usd: number | null
           created_at: string
           feature: string
           id: string
+          session_id: string | null
           tokens_in: number | null
           tokens_out: number | null
           user_id: string | null
         }
         Insert: {
           anon_fingerprint?: string | null
+          cost_usd?: number | null
           created_at?: string
           feature: string
           id?: string
+          session_id?: string | null
           tokens_in?: number | null
           tokens_out?: number | null
           user_id?: string | null
         }
         Update: {
           anon_fingerprint?: string | null
+          cost_usd?: number | null
           created_at?: string
           feature?: string
           id?: string
+          session_id?: string | null
           tokens_in?: number | null
           tokens_out?: number | null
           user_id?: string | null
@@ -186,6 +222,78 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      credit_balances: {
+        Row: {
+          balance: number
+          expires_at: string
+          id: string
+          package_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          balance?: number
+          expires_at: string
+          id?: string
+          package_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          balance?: number
+          expires_at?: string
+          id?: string
+          package_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      credit_transactions: {
+        Row: {
+          balance_after: number
+          created_at: string
+          delta: number
+          feature: string | null
+          id: string
+          reason: string
+          user_id: string
+        }
+        Insert: {
+          balance_after: number
+          created_at?: string
+          delta: number
+          feature?: string | null
+          id?: string
+          reason: string
+          user_id: string
+        }
+        Update: {
+          balance_after?: number
+          created_at?: string
+          delta?: number
+          feature?: string | null
+          id?: string
+          reason?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      credit_weights: {
+        Row: {
+          feature: string
+          weight: number
+        }
+        Insert: {
+          feature: string
+          weight: number
+        }
+        Update: {
+          feature?: string
+          weight?: number
+        }
+        Relationships: []
       }
       cvs: {
         Row: {
@@ -326,6 +434,8 @@ export type Database = {
           id: string
           method: string | null
           paid_at: string | null
+          period_days: number | null
+          plan: string | null
           provider: string
           provider_ref: string | null
           reference: string | null
@@ -340,6 +450,8 @@ export type Database = {
           id?: string
           method?: string | null
           paid_at?: string | null
+          period_days?: number | null
+          plan?: string | null
           provider: string
           provider_ref?: string | null
           reference?: string | null
@@ -354,6 +466,8 @@ export type Database = {
           id?: string
           method?: string | null
           paid_at?: string | null
+          period_days?: number | null
+          plan?: string | null
           provider?: string
           provider_ref?: string | null
           reference?: string | null
@@ -370,6 +484,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      plan_prices: {
+        Row: {
+          credits: number | null
+          enabled: boolean
+          label: string
+          period_days: number | null
+          plan: string
+          price_mzn: number
+        }
+        Insert: {
+          credits?: number | null
+          enabled?: boolean
+          label: string
+          period_days?: number | null
+          plan: string
+          price_mzn: number
+        }
+        Update: {
+          credits?: number | null
+          enabled?: boolean
+          label?: string
+          period_days?: number | null
+          plan?: string
+          price_mzn?: number
+        }
+        Relationships: []
       }
       plan_reminder_emails: {
         Row: {
@@ -531,6 +672,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      debit_credit_balance: {
+        Args: { p_user_id: string; p_weight: number }
+        Returns: number
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

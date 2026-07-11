@@ -138,6 +138,195 @@ Leia docs/PLANO-EXECUCAO.md e implemente a Fase 0.3 (analytics). Tenho a chave d
 4. bun run build, commit.
 ```
 
+#### [x] 0.4 — Fase 0 da Proposta V3: pré-requisitos de monetização (docs/PROPOSTA-V3-FINAL-CONSOLIDADA.md §6/§8)
+
+```text
+Implementado em 11/07/2026:
+
+1. Separadas as 6 operações do balde único `ai_suggestions` em access_policies:
+   field_suggestions (generateFieldSuggestions), align_cv_tdr (alignCvToTdr),
+   generate_cv_interview (generateCvFromInterview) — cada uma com a sua chave própria,
+   copiando os limites que `ai_suggestions` tinha como baseline (comportamento efetivo
+   inalterado). cv_analysis, cover_letter e interview_prep já tinham chave própria.
+   Calibrar os *valores* destes limites (ex.: separar sugestões "livres" das pesadas
+   2/mês) é Fase 1 deste documento, não reabrir aqui.
+2. maxOutputTokens definido nas 6 chamadas generateText (guard-rail de custo por chamada,
+   não meta de produto — valores em src/lib/llm.functions.ts, recalibráveis).
+3. Rate-limit por sessão em generateFieldSuggestions: coluna access_policies.max_per_session
+   (seed 20) + ai_usage.session_id, checado em access-control.server.ts além dos limites
+   por dia/mês existentes. Sessão = id gerado no cliente (src/lib/session-id.ts) e
+   guardado em sessionStorage — morre com o fecho do separador.
+4. Custo USD gravado por chamada desde já: ai_usage.cost_usd, calculado em
+   recordUsageTokens via src/lib/ai-pricing.ts (preço partilhado com o painel admin,
+   que passou a ler o custo gravado em vez de recalculá-lo a cada load).
+5. Fail-safe de custo diário: src/lib/ai-cost-alert.server.ts + rota
+   src/routes/api/cron/ai-cost-alert.ts (mesmo padrão de CRON_SECRET do 1.4d), tabela
+   ai_cost_alerts para idempotência por dia. Limiar via AI_DAILY_COST_ALERT_USD (default
+   US$5), alerta por e-mail via ADMIN_ALERT_EMAIL (reaproveita sendTransactionalEmail).
+   **Pendente do usuário para ativar de verdade:** RESEND_API_KEY (mesma pendência do
+   1.4d) + ADMIN_ALERT_EMAIL + agendar via pg_cron/pg_net, de hora a hora (mais frequente
+   que o cron diário de lembretes, para apanhar um pico de custo ainda no mesmo dia):
+   ```sql
+   select cron.schedule(
+     'ai-cost-alert-hourly',
+     '0 * * * *',
+     $$
+     select net.http_post(
+       url := 'https://SUBSTITUIR-PELA-URL-DE-PRODUCAO/api/cron/ai-cost-alert',
+       headers := jsonb_build_object('Authorization', 'Bearer SUBSTITUIR-PELO-CRON_SECRET')
+     );
+     $$
+   );
+   ```
+   scripts/test-ai-cost-alert.ts testa localmente sem esperar o custo real do dia subir.
+```
+
+#### [x] 0.5 — Fase 1 da Proposta V3: infra de assinatura e preços em tabela (docs/PROPOSTA-V3-FINAL-CONSOLIDADA.md §6/§8)
+
+```text
+Implementado em 11/07/2026 (migration supabase/migrations/20260711124340_fase1_v3_pricing.sql):
+
+1. Preços em tabela: `plan_prices` (mensal 349/30d, trimestral 749/90d, avulso
+   149/30d/8 créditos, recarga 79/4 créditos) — mudar preço é UPDATE, nunca
+   deploy. `createSubscriptionCheckout` (src/lib/subscription.functions.ts)
+   passou a aceitar `plan: "mensal" | "trimestral"` e lê preço/período dali,
+   substituindo o antigo env var PLAN_PRICE_MZN (que só suportava um plano
+   único). A UI de `/planos` continua com o botão único "Assinar o Premium"
+   chamando `plan: "mensal"` — o seletor real
+   mensal/trimestral é Fase 2 (rebuild da página `/planos`), não reabrir aqui.
+   Avulso/recarga (créditos) são Fase 3, esta migration só cria as linhas de
+   preço, a infra de créditos ainda não existe.
+2. Tectos de fair-use invisível do premium (secção 5, valores placeholder
+   [DADO]) aplicados em access_policies.max_per_day por operação.
+3. Grátis recalibrado: field_suggestions passa a livre (era 4/mês, agora só o
+   rate-limit por sessão da Fase 0 conta); align_cv_tdr + generate_cv_interview
+   passam a partilhar quota_group 'ai_heavy' com tecto combinado de 2/mês
+   (grátis) / 1/mês (anónimo), em vez de 2/mês cada uma. Lógica de resolução
+   do quota_group em access-control.server.ts (resolveQuotaGroupFeatures).
+4. payments.period_days: coluna nova, gravada na criação do checkout a partir
+   de plan_prices.period_days. O webhook (src/routes/api/paysuite-webhook.ts)
+   deixou de assumir 30 dias fixos — estende current_period_end por
+   `payments.period_days` (com fallback de 30 só para pagamentos antigos sem a
+   coluna). Sem isto, o trimestral (90 dias) seria cobrado por 90 mas o acesso
+   só duraria 30.
+5. Mensagem de "atingiste o máximo diário" para quem já é premium: UsageLimitNotice
+   (src/components/UsageLimitNotice.tsx) recebe `tier` no LimitInfo (usage-error.ts)
+   e, quando tier === "premium" e a razão é tecto diário/mensal (fair-use, não
+   venda), troca o CTA "Veja os planos" por "Contacta-nos" (VITE_SUPPORT_CONTACT_URL,
+   default mailto:suporte@cvflexivel.co.mz — trocar por canal real quando existir).
+```
+
+#### [x] 0.6 — Fase 2 da Proposta V3: página `/planos` (docs/PROPOSTA-V3-FINAL-CONSOLIDADA.md §8)
+
+```text
+Implementado em 11/07/2026, seguindo docs/mockups/mockup-planos-v3-final.html:
+
+1. src/routes/planos.tsx reconstruída: 4 cards (Grátis / Avulso / Mensal destacado /
+   Trimestral), barra de ancoragem (avulso → 2×avulso → mensal, calculada a partir de
+   `plan_prices` via nova server fn `getPlanPrices` — nunca hardcoded), tabela
+   comparativa, accordion "Como funcionam os créditos do avulso" e FAQ (Accordion do
+   shadcn). Cards Mensal/Trimestral chamam `createSubscriptionCheckout({ plan })` de
+   verdade (Fase 1 já suporta os dois planos). "Recarga" continua fora da página,
+   filtrada explicitamente mesmo que a query devolva a linha (regra de ouro §2).
+2. Card Avulso é só informativo por agora: botão "Brevemente" desabilitado, porque a
+   infra de créditos (tabelas credit_balances/credit_transactions, débito por peso) é
+   Fase 3 e ainda não existe — vender o avulso agora significaria cobrar sem conseguir
+   entregar. Reativar o botão faz parte da Fase 3.
+3. Indicador na sidebar (src/components/AppSidebar.tsx): novo link "Planos" no nav;
+   bloco de status acima do rodapé mostra "Premium · X dias restantes" (nova
+   `getActivePlanDaysLeft` em subscription.server.ts, sem o corte de 3 dias do aviso de
+   expiração) ou "Conta grátis · X análises restantes" (nova `peekRemainingUsage` em
+   access-control.server.ts — leitura sem side-effects, não consome o limite ao
+   mostrar). O estado "dono de pacote avulso" (ex.: "5 de 8 créditos") só existe quando
+   a Fase 3 for construída — até lá quem comprar avulso (quando reativado) aparece como
+   grátis na sidebar.
+```
+
+#### [x] 0.7 — Fase 3 da Proposta V3: infra de créditos do avulso (docs/PROPOSTA-V3-FINAL-CONSOLIDADA.md §3/§8)
+
+```text
+Implementado em 11/07/2026 (migrations 20260711160000_fase3_v3_credits.sql e
+20260711161500_fase3_credit_debit_fn.sql):
+
+1. Tabelas novas: `credit_balances` (um saldo por utilizador, com validade e
+   package_id), `credit_transactions` (livro-razão auditável — não-negociável dado
+   o histórico de perda de dados da v1, ver incidente de segurança) e
+   `credit_weights` (pesos por operação da secção 3, em tabela — UPDATE muda peso,
+   nunca deploy: field_suggestions 0, cv_analysis 1, cover_letter 1,
+   interview_prep 2, align_cv_tdr 2, generate_cv_interview 3, download_free 0,
+   download_premium 0). `payments.plan` liga o pagamento ao que foi comprado, para
+   o webhook decidir entre estender assinatura ou creditar saldo.
+2. src/lib/credits.server.ts: getActiveCreditBalance (nunca devolve saldo
+   expirado), getCreditWeight, debitCredits (via função de Postgres
+   `debit_credit_balance` — atómica, evita saldo negativo por corrida de dois
+   pedidos simultâneos) e grantCredits (compra soma ao saldo existente e estende a
+   validade para a mais distante das duas, nunca a encurta; recarga só soma
+   créditos e herda a validade do pacote ativo, exige que exista um).
+3. access-control.server.ts: `checkAndRecordUsage` agora verifica primeiro se o
+   utilizador (não-premium) tem saldo de créditos ativo para a feature pedida
+   (`tryCreditCoveredUsage`) — se tiver, o pedido é decidido inteiramente por
+   créditos (debitando ou não, conforme o peso), nunca cai nos tectos de
+   dia/mês do tier "free" (já pagou). O rate-limit por sessão do
+   `field_suggestions` continua a aplicar-se mesmo coberto por créditos
+   (anti-abuso, não cobrança). Nova razão de negação `insufficient_credits`.
+4. subscription.functions.ts: nova `createCreditCheckout` (avulso/recarga, sem
+   `subscription_id`) e `getMyCreditBalance`. Webhook PaySuite atualizado para
+   chamar `grantCredits` quando `payment.plan` é avulso/recarga em vez de
+   estender `current_period_end`.
+5. Sidebar e `/planos` atualizados para o estado real: `getSidebarStatus` mostra
+   "X créditos · expira em Y dias" para donos de avulso; o card Avulso em
+   `/planos` já compra de verdade (`createCreditCheckout`) e mostra o saldo
+   ativo em vez do botão de compra quando já existe um pacote.
+6. UsageLimitNotice mostra "Recarregar (+4 créditos · 79 MZN)" quando a razão é
+   `insufficient_credits` — chama o checkout de recarga diretamente no
+   componente (nunca aparece em `/planos`, regra de ouro §2 do doc V3).
+
+Não feito nesta fase (deixado para o mockup docs/mockups/mockup-recarga-in-app.html,
+se/quando for pedido): o banner proativo "saldo a acabar" mostrado a meio de uma
+ação quando o saldo desce a ≤3 créditos — hoje o utilizador só vê a oferta de
+recarga reativamente, ao bater no limite (via UsageLimitNotice).
+```
+
+#### [~] 0.8 — Fase 4 da Proposta V3: instrumentação e dogfooding (docs/PROPOSTA-V3-FINAL-CONSOLIDADA.md §8)
+
+```text
+Implementado em 11/07/2026 — parcial: os dois itens de engenharia estão feitos,
+o terceiro (dogfooding) é uma tarefa do dono do produto, não de código.
+
+1. Eventos PostHog novos em src/lib/analytics.ts: `paywall_opened`,
+   `checkout_started`, `payment_completed`. "Bateu limite grátis por operação" e
+   "atingiu tecto ilimitado" (premium fair-use) NÃO ganharam eventos próprios —
+   já são distinguíveis no `limit_hit` existente via as propriedades `reason` +
+   `tier` (ter dois nomes de evento para o mesmo ponto de disparo seria
+   duplicação, não instrumentação nova).
+   - `paywall_opened`: UsageLimitNotice dispara isto só no ramo que mostra "Veja
+     os planos" (não no fair-use do premium nem no "faltam créditos" do avulso
+     — são jornadas diferentes).
+   - `checkout_started`: disparado nos 3 pontos que iniciam um checkout real —
+     handleSubscribeClick/handleBuyAvulso em planos.tsx, RechargeButton em
+     UsageLimitNotice.tsx.
+   - `payment_completed`: disparado quando o utilizador regressa do checkout
+     (`?checkout=...`) e o polling confirma sucesso (isPremium ou saldo de
+     créditos). Corrigido um bug encontrado ao construir isto: o polling de
+     regresso do checkout só verificava `isPremium`, nunca o saldo de créditos
+     — quem comprasse avulso/recarga voltava para `/planos` e via o ecrã
+     "A confirmar o teu pagamento…" indefinidamente (até ao limite de
+     tentativas) mesmo com o crédito já atribuído. Agora o polling verifica os
+     dois em paralelo (`Promise.all`) e para assim que qualquer um confirmar.
+2. Painel admin (src/lib/admin.functions.ts + src/routes/_authenticated/admin.tsx):
+   nova secção "Top 10 utilizadores por custo de IA (30 dias)" — custo por
+   utilizador já existia implicitamente nos dados mas não estava agregado nem
+   exposto; agora soma-se por `user_id` a partir de `ai_usage.cost_usd` e
+   junta-se com `profiles` (email, ou nome, ou UUID truncado como último
+   recurso) só para os 10 mais caros. "Custo de IA por operação" já existia
+   desde a Fase 0 (`costByFeature`) — não confundir com esta adição.
+3. **Dogfooding pelo dono (não implementável em código):** o doc pede que o
+   dono use o app 3 dias como candidato real a 5 vagas, e que qualquer tecto de
+   fair-use atingido nesse período force recalibração antes do lançamento. Isto
+   fica registado aqui como pendente — é trabalho manual do dono do produto,
+   não uma tarefa de engenharia.
+```
+
 ### FASE 1 — Funil e receita
 
 #### [x] 1.1 — Home nova: 3 botões + modal

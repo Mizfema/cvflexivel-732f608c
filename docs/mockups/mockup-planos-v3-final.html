@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CV Flexível — Planos V3 (Mockup final)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.6.0/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:14px;background:#e8e6e1}
+.app{display:flex;min-height:100vh;max-width:1280px;margin:0 auto;border-left:1px solid #d4d1ca;border-right:1px solid #d4d1ca}
+
+/* — Sidebar — */
+.sb{width:200px;min-width:200px;background:#1b1b19;color:#a8a7a3;padding:22px 14px;display:flex;flex-direction:column;gap:2px}
+.sb-logo{display:flex;align-items:center;gap:9px;margin-bottom:22px;color:#fff;font-weight:600;font-size:14px}
+.sb-logo span{width:30px;height:30px;border-radius:8px;background:#1D9E75;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700}
+.sb a{display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:8px;color:#a8a7a3;text-decoration:none;font-size:13.5px;transition:background .15s}
+.sb a.act{background:rgba(255,255,255,.09);color:#fff}
+.sb a:hover{background:rgba(255,255,255,.05)}
+.sb-bottom{margin-top:auto;border-top:1px solid rgba(255,255,255,.08);padding-top:14px}
+.sb-status{padding:10px 11px;margin-bottom:8px;background:rgba(29,158,117,.1);border-radius:8px}
+.sb-status .s-title{font-size:11px;color:#1D9E75;font-weight:600;margin-bottom:2px;display:flex;align-items:center;gap:4px}
+.sb-status .s-sub{font-size:10.5px;color:#7a7872}
+.sb-user{display:flex;align-items:center;gap:9px;padding:8px 11px}
+.sb-user .av{width:30px;height:30px;border-radius:50%;background:#1D9E75;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;font-weight:600;flex-shrink:0}
+
+/* — Content — */
+.ct{flex:1;background:#faf9f6;padding:48px 40px;overflow-y:auto}
+.eyebrow{font-size:11px;letter-spacing:2.5px;color:#1D9E75;text-transform:uppercase;font-weight:600;margin-bottom:8px}
+.headline{font-family:Georgia,'Times New Roman',serif;font-size:28px;color:#1b1b19;font-weight:400;line-height:1.3;margin-bottom:6px}
+.headline em{font-style:italic}
+.subtitle{font-size:14px;color:#7a7872;margin-bottom:32px;line-height:1.55}
+
+/* — Cards grid (4 cards) — */
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+.card{background:#fff;border:1px solid #E3DFD7;border-radius:12px;padding:22px 18px;display:flex;flex-direction:column;position:relative;transition:box-shadow .2s}
+.card:hover{box-shadow:0 2px 12px rgba(0,0,0,.04)}
+.card.highlight{border:2px solid #1D9E75}
+.badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:#E1F5EE;color:#085041;font-size:11px;padding:4px 14px;border-radius:20px;white-space:nowrap;font-weight:600}
+.badge.save{background:#FEF3C7;color:#92400E}
+.card .tier{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#7a7872;margin-bottom:8px;font-weight:600}
+.card.highlight .tier{color:#1D9E75}
+.card .price{font-family:Georgia,'Times New Roman',serif;font-size:28px;color:#1b1b19;line-height:1.1}
+.card .price small{font-size:13px;font-weight:400}
+.card .meta{font-size:12px;color:#a8a7a3;margin:4px 0 16px;line-height:1.4;min-height:34px}
+.card .feats{border-top:1px solid #E3DFD7;padding-top:14px;flex:1;display:flex;flex-direction:column;gap:9px;margin-bottom:16px}
+.feat{display:flex;align-items:flex-start;gap:7px;font-size:12.5px;color:#5f5e5a;line-height:1.4}
+.feat i{font-size:15px;margin-top:1px;flex-shrink:0}
+.feat .ck{color:#1D9E75}
+.feat .xk{color:#ccc8c0}
+.feat .muted{color:#b5b2ab}
+.feat strong{color:#1b1b19;font-weight:600}
+
+.btn-p{width:100%;padding:11px 0;border-radius:10px;border:none;background:#1b1b19;color:#fff;font-size:13.5px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:background .15s}
+.btn-p:hover{background:#333}
+.btn-s{width:100%;padding:11px 0;border-radius:10px;border:1px solid #E3DFD7;background:#fff;color:#1b1b19;font-size:13.5px;font-weight:500;cursor:pointer;transition:background .15s}
+.btn-s:hover{background:#f5f4f1}
+
+/* — Ancoragem bar — */
+.anchor-line{display:flex;align-items:stretch;background:#fff;border:1px solid #E3DFD7;border-radius:12px;padding:0;margin-bottom:32px;overflow:hidden}
+.anchor-step{flex:1;padding:16px 18px;text-align:center;position:relative;border-right:1px solid #f0eeea}
+.anchor-step:last-child{border-right:none;background:#f8fdfb}
+.anchor-step .a-num{font-family:Georgia,serif;font-size:22px;color:#1b1b19;line-height:1}
+.anchor-step .a-num small{font-size:12px;color:#7a7872;font-weight:normal}
+.anchor-step .a-label{font-size:12px;color:#7a7872;margin-top:4px}
+.anchor-step.target .a-num{color:#1D9E75}
+.anchor-step.target .a-label{color:#085041;font-weight:600}
+.anchor-arrow{display:flex;align-items:center;padding:0 4px;color:#c4c2bb;font-size:20px}
+
+/* — Credit weight table (só para avulso) — */
+.credit-explain{background:#fff;border:1px solid #E3DFD7;border-radius:10px;padding:18px 22px;margin-bottom:32px}
+.credit-explain-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;cursor:pointer}
+.credit-explain-head .ce-title{font-family:Georgia,serif;font-size:16px;color:#1b1b19}
+.credit-explain-head .ce-sub{font-size:12px;color:#7a7872;margin-top:2px}
+.credit-explain-head i{font-size:18px;color:#a8a7a3;transition:transform .2s}
+.credit-explain.open .credit-explain-head i{transform:rotate(180deg)}
+.credit-grid{display:none;grid-template-columns:repeat(3,1fr);gap:10px;padding-top:14px;border-top:1px solid #f0eeea}
+.credit-explain.open .credit-grid{display:grid}
+.credit-item{display:flex;align-items:flex-start;gap:10px;padding:10px 0}
+.credit-item .ci-cost{width:32px;height:32px;border-radius:8px;background:#f5f3ee;display:flex;align-items:center;justify-content:center;font-weight:700;color:#5f5e5a;font-size:14px;font-family:Georgia,serif;flex-shrink:0}
+.credit-item .ci-cost.zero{background:#E1F5EE;color:#085041}
+.credit-item .ci-title{font-size:13px;font-weight:500;color:#1b1b19}
+.credit-item .ci-desc{font-size:11.5px;color:#7a7872;margin-top:2px;line-height:1.4}
+.example-box{margin-top:14px;padding:12px 16px;background:#faf8f4;border-radius:8px;font-size:12.5px;color:#5f5e5a;line-height:1.6}
+.example-box strong{color:#1b1b19;font-weight:600}
+
+/* — Comparison table — */
+.section-title{font-family:Georgia,serif;font-size:18px;color:#1b1b19;margin-bottom:14px;font-weight:400}
+table.cmp{width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;border:1px solid #E3DFD7;border-radius:10px;overflow:hidden;margin-bottom:32px}
+table.cmp th{text-align:left;padding:11px 14px;background:#f8f6f2;color:#7a7872;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #E3DFD7}
+table.cmp td{padding:11px 14px;border-bottom:1px solid #f0eeea;color:#5f5e5a}
+table.cmp tr:last-child td{border-bottom:none}
+table.cmp th:not(:first-child),table.cmp td:not(:first-child){text-align:center}
+.green{color:#1D9E75;font-weight:600}
+.dim{color:#c4c2bb}
+
+/* — FAQ — */
+.faq{margin-bottom:32px}
+.faq-item{border-bottom:1px solid #E3DFD7}
+.faq-q{padding:14px 0;font-size:14px;color:#1b1b19;font-weight:500;cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none}
+.faq-q i{color:#a8a7a3;font-size:16px;transition:transform .2s}
+.faq-item.open .faq-q i{transform:rotate(180deg)}
+.faq-a{font-size:13px;color:#7a7872;line-height:1.65;padding:0 0 14px;display:none}
+.faq-item.open .faq-a{display:block}
+
+/* — Footer — */
+.footer-badges{display:flex;align-items:center;justify-content:center;gap:22px;padding:20px 0;font-size:12.5px;color:#a8a7a3}
+.footer-badges span{display:flex;align-items:center;gap:6px}
+.sep{width:1px;height:16px;background:#E3DFD7}
+
+/* — Responsive — */
+@media(max-width:1000px){
+  .cards{grid-template-columns:repeat(2,1fr)}
+  .card.highlight{order:-1}
+  .credit-grid{grid-template-columns:1fr}
+  .anchor-line{flex-direction:column}
+  .anchor-arrow{display:none}
+  .anchor-step{border-right:none;border-bottom:1px solid #f0eeea}
+}
+@media(max-width:860px){
+  .sb{display:none}
+  .ct{padding:28px 18px}
+  .cards{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ==== Sidebar ==== -->
+  <nav class="sb">
+    <div class="sb-logo"><span>CV</span> CV Flexível</div>
+    <a href="#"><i class="ti ti-home" style="font-size:17px"></i> Início</a>
+    <a href="#"><i class="ti ti-file-text" style="font-size:17px"></i> CV</a>
+    <a href="#"><i class="ti ti-mail" style="font-size:17px"></i> Carta</a>
+    <a href="#"><i class="ti ti-messages" style="font-size:17px"></i> Preparar entrevista</a>
+    <a href="#" class="act"><i class="ti ti-diamond" style="font-size:17px"></i> Planos</a>
+
+    <div class="sb-bottom">
+      <!-- Status: conta grátis (assinantes veriam "Premium · 23 dias"; donos de pacote veriam créditos) -->
+      <div class="sb-status">
+        <div class="s-title"><i class="ti ti-user"></i> Conta grátis</div>
+        <div class="s-sub">3 análises restantes</div>
+      </div>
+      <div class="sb-user">
+        <div class="av">MA</div>
+        <div>
+          <div style="color:#fff;font-size:12.5px;font-weight:500">mizael.anda</div>
+          <div style="font-size:11px;color:#7a7872">Ativar Premium</div>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ==== Content ==== -->
+  <main class="ct">
+    <div class="eyebrow">Planos</div>
+    <h1 class="headline">Escolhe o passe certo para a tua <em>próxima oportunidade.</em></h1>
+    <p class="subtitle">Pagamento único com M-Pesa, e-Mola ou cartão. Sem renovação automática — usas ao teu ritmo.</p>
+
+    <!-- ==== Ancoragem visual (a matemática que faz o mensal ganhar sozinho) ==== -->
+    <div class="anchor-line">
+      <div class="anchor-step">
+        <div class="a-num">149 <small>MZN</small></div>
+        <div class="a-label">1 candidatura avulsa</div>
+      </div>
+      <div class="anchor-arrow"><i class="ti ti-chevron-right"></i></div>
+      <div class="anchor-step">
+        <div class="a-num">298 <small>MZN</small></div>
+        <div class="a-label">2 candidaturas avulsas</div>
+      </div>
+      <div class="anchor-arrow"><i class="ti ti-chevron-right"></i></div>
+      <div class="anchor-step target">
+        <div class="a-num">349 <small>MZN</small></div>
+        <div class="a-label">Mês inteiro sem contar</div>
+      </div>
+    </div>
+
+    <!-- ==== 4 Cards ==== -->
+    <div class="cards">
+
+      <!-- GRÁTIS -->
+      <div class="card">
+        <div class="tier">Grátis</div>
+        <div class="price">0 <small>MZN</small></div>
+        <div class="meta">Renova todo mês</div>
+        <div class="feats">
+          <div class="feat"><i class="ti ti-check ck"></i> Editor de CV ilimitado</div>
+          <div class="feat"><i class="ti ti-check ck"></i> Sugestões de campo livres</div>
+          <div class="feat"><i class="ti ti-check ck"></i> 3 análises de CV/mês</div>
+          <div class="feat"><i class="ti ti-check ck"></i> 2 usos de IA pesada/mês</div>
+          <div class="feat"><i class="ti ti-check ck"></i> 3 cartas (amostra)/mês</div>
+          <div class="feat"><i class="ti ti-x xk"></i> <span class="muted">Templates premium</span></div>
+        </div>
+        <button class="btn-s">Continuar grátis</button>
+      </div>
+
+      <!-- AVULSO — o único plano com créditos visíveis -->
+      <div class="card">
+        <div class="tier">Avulso · 1 candidatura</div>
+        <div class="price">149 <small>MZN</small></div>
+        <div class="meta">8 créditos · válido 30 dias</div>
+        <div class="feats">
+          <div class="feat"><i class="ti ti-coin ck"></i> <span><strong>8 créditos</strong> = 1 candidatura completa com folga</span></div>
+          <div class="feat"><i class="ti ti-check ck"></i> Templates premium desbloqueados</div>
+          <div class="feat"><i class="ti ti-check ck"></i> Downloads sem marca d'água</div>
+          <div class="feat"><i class="ti ti-check ck"></i> Válido 30 dias sem renovar</div>
+          <div class="feat"><i class="ti ti-info-circle" style="color:#a8a7a3"></i> <span class="muted">Ver o que gasta cada crédito abaixo</span></div>
+        </div>
+        <button class="btn-s">Comprar avulso</button>
+      </div>
+
+      <!-- MENSAL 30 DIAS (O ALVO) -->
+      <div class="card highlight">
+        <div class="badge">Mais escolhido</div>
+        <div class="tier">Mensal · 30 dias</div>
+        <div class="price">349 <small>MZN</small></div>
+        <div class="meta">≈ 12 MZN/dia · pagamento único</div>
+        <div class="feats">
+          <div class="feat"><i class="ti ti-infinity ck"></i> <span><strong>Tudo ilimitado</strong> por 30 dias</span></div>
+          <div class="feat"><i class="ti ti-check ck"></i> Análises, IA e cartas sem contar</div>
+          <div class="feat"><i class="ti ti-check ck"></i> Todos os templates premium</div>
+          <div class="feat"><i class="ti ti-check ck"></i> Downloads sem marca d'água</div>
+          <div class="feat"><i class="ti ti-check ck"></i> Preparação de entrevista completa</div>
+        </div>
+        <button class="btn-p">Activar Mensal <i class="ti ti-arrow-right" style="font-size:15px"></i></button>
+      </div>
+
+      <!-- TRIMESTRAL 90 DIAS -->
+      <div class="card">
+        <div class="badge save">Poupa 298 MZN</div>
+        <div class="tier">Trimestral · 90 dias</div>
+        <div class="price">749 <small>MZN</small></div>
+        <div class="meta">≈ 8 MZN/dia · pagamento único</div>
+        <div class="feats">
+          <div class="feat"><i class="ti ti-infinity ck"></i> <span><strong>Tudo ilimitado</strong> por 90 dias</span></div>
+          <div class="feat"><i class="ti ti-check ck"></i> Cobre o ciclo de procura completo</div>
+          <div class="feat"><i class="ti ti-check ck"></i> 749 vs 1.047 em 3×mensal</div>
+          <div class="feat"><i class="ti ti-check ck"></i> Sem renovações manuais no meio</div>
+        </div>
+        <button class="btn-s">Activar Trimestral</button>
+      </div>
+    </div>
+
+    <!-- ==== Detalhe dos créditos (só para quem quer entender o avulso) ==== -->
+    <div class="credit-explain">
+      <div class="credit-explain-head" onclick="this.parentElement.classList.toggle('open')">
+        <div>
+          <div class="ce-title">Como funcionam os créditos do avulso</div>
+          <div class="ce-sub">Só se aplica ao pacote avulso. Nos planos mensal e trimestral é tudo ilimitado.</div>
+        </div>
+        <i class="ti ti-chevron-down"></i>
+      </div>
+      <div class="credit-grid">
+        <div class="credit-item">
+          <div class="ci-cost zero">0</div>
+          <div>
+            <div class="ci-title">Editar CV</div>
+            <div class="ci-desc">Grátis para sempre — nunca gasta créditos</div>
+          </div>
+        </div>
+        <div class="credit-item">
+          <div class="ci-cost zero">0</div>
+          <div>
+            <div class="ci-title">Sugestão de campo</div>
+            <div class="ci-desc">Livre com limite por sessão</div>
+          </div>
+        </div>
+        <div class="credit-item">
+          <div class="ci-cost">1</div>
+          <div>
+            <div class="ci-title">Analisar CV vs vaga</div>
+            <div class="ci-desc">Cobertura, lacunas e sugestões</div>
+          </div>
+        </div>
+        <div class="credit-item">
+          <div class="ci-cost">1</div>
+          <div>
+            <div class="ci-title">Carta de apresentação</div>
+            <div class="ci-desc">Carta completa personalizada</div>
+          </div>
+        </div>
+        <div class="credit-item">
+          <div class="ci-cost">2</div>
+          <div>
+            <div class="ci-title">CV alinhado à vaga</div>
+            <div class="ci-desc">Reescreve o CV inteiro para a vaga</div>
+          </div>
+        </div>
+        <div class="credit-item">
+          <div class="ci-cost">2</div>
+          <div>
+            <div class="ci-title">Preparação de entrevista</div>
+            <div class="ci-desc">Perguntas e pontos-chave da vaga</div>
+          </div>
+        </div>
+        <div class="credit-item">
+          <div class="ci-cost">3</div>
+          <div>
+            <div class="ci-title">CV via entrevista com IA</div>
+            <div class="ci-desc">A IA constrói o CV com base numa conversa</div>
+          </div>
+        </div>
+        <div class="credit-item">
+          <div class="ci-cost zero">0</div>
+          <div>
+            <div class="ci-title">Download PDF/Word</div>
+            <div class="ci-desc">Desbloqueado durante a validade do pacote</div>
+          </div>
+        </div>
+        <div class="credit-item">
+          <div class="ci-cost zero">0</div>
+          <div>
+            <div class="ci-title">Trocar template</div>
+            <div class="ci-desc">Grátis para sempre, inclusive premium</div>
+          </div>
+        </div>
+      </div>
+      <div class="example-box" style="display:block;margin-top:14px">
+        <strong>Exemplo de candidatura completa:</strong> Análise (1) + CV alinhado (2) + Carta (1) + Preparação de entrevista (2) = <strong>6 créditos</strong>. O avulso traz 8 — folga de 2 para uma segunda tentativa.
+      </div>
+    </div>
+
+    <!-- ==== Comparação ==== -->
+    <h2 class="section-title">Comparar planos</h2>
+    <table class="cmp">
+      <thead>
+        <tr>
+          <th style="width:32%">Funcionalidade</th>
+          <th>Grátis</th>
+          <th>Avulso</th>
+          <th>Mensal</th>
+          <th>Trimestral</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Editar CV, trocar template, sugestões</td>
+          <td class="green">Ilimitado</td>
+          <td class="green">Ilimitado</td>
+          <td class="green">Ilimitado</td>
+          <td class="green">Ilimitado</td>
+        </tr>
+        <tr>
+          <td>Analisar CV vs vaga</td>
+          <td>3 / mês</td>
+          <td>Por crédito</td>
+          <td class="green">Ilimitado</td>
+          <td class="green">Ilimitado</td>
+        </tr>
+        <tr>
+          <td>IA pesada (CV alinhado, entrevista)</td>
+          <td>2 / mês</td>
+          <td>Por crédito</td>
+          <td class="green">Ilimitado</td>
+          <td class="green">Ilimitado</td>
+        </tr>
+        <tr>
+          <td>Carta de apresentação</td>
+          <td>3 amostras / mês</td>
+          <td>Por crédito</td>
+          <td class="green">Completa, ilimitada</td>
+          <td class="green">Completa, ilimitada</td>
+        </tr>
+        <tr>
+          <td>Preparação de entrevista</td>
+          <td class="dim">Vitrine</td>
+          <td>Por crédito</td>
+          <td class="green">Ilimitada</td>
+          <td class="green">Ilimitada</td>
+        </tr>
+        <tr>
+          <td>Templates premium (4 modelos)</td>
+          <td class="dim">Pré-visualização</td>
+          <td class="green">Sim</td>
+          <td class="green">Sim</td>
+          <td class="green">Sim</td>
+        </tr>
+        <tr>
+          <td>Download sem marca d'água</td>
+          <td class="dim">Com marca</td>
+          <td class="green">Sim</td>
+          <td class="green">Sim</td>
+          <td class="green">Sim</td>
+        </tr>
+        <tr>
+          <td>Validade</td>
+          <td>Renovável</td>
+          <td>30 dias</td>
+          <td>30 dias</td>
+          <td>90 dias</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- ==== FAQ ==== -->
+    <h2 class="section-title">Perguntas frequentes</h2>
+    <div class="faq">
+      <div class="faq-item open">
+        <div class="faq-q">O "ilimitado" tem letras pequenas? <i class="ti ti-chevron-down"></i></div>
+        <div class="faq-a">Existem limites diários muito acima do uso normal, para proteger o serviço contra abuso automatizado. Um candidato a fazer 3 ou 4 candidaturas por dia nunca os atinge. Só quem estiver a produzir CVs em série para terceiros vê o aviso.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">O pagamento renova sozinho? <i class="ti ti-chevron-down"></i></div>
+        <div class="faq-a">Não. Pagas uma vez, usas pelo período do passe, e só compras de novo se quiseres. Sem surpresas na tua conta M-Pesa ou e-Mola.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">Qual a diferença entre avulso e mensal? <i class="ti ti-chevron-down"></i></div>
+        <div class="faq-a">O avulso (149 MZN) dá 8 créditos que gastas conforme usas — bom para 1 candidatura pontual. O mensal (349 MZN) é ilimitado por 30 dias — se vais candidatar-te a mais que 2 vagas, sai mais barato.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">O que acontece quando o passe expira? <i class="ti ti-chevron-down"></i></div>
+        <div class="faq-a">O teu CV continua teu e editável. Só as funcionalidades premium voltam aos limites grátis, e créditos não usados do avulso expiram com o pacote.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">E se os 8 créditos do avulso não chegarem? <i class="ti ti-chevron-down"></i></div>
+        <div class="faq-a">Quando o teu saldo baixa, o app oferece-te uma recarga rápida directamente na próxima acção. Se já precisas de mais que 2 candidaturas por mês, o Mensal a 349 MZN sai-te melhor e sem teres de gerir saldo.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">Como pago com M-Pesa ou e-Mola? <i class="ti ti-chevron-down"></i></div>
+        <div class="faq-a">Ao clicar em "Activar", inseres o teu número. Recebes um pedido de confirmação no telemóvel — confirmas com o PIN e o passe activa em segundos.</div>
+      </div>
+    </div>
+
+    <!-- ==== Footer ==== -->
+    <div class="footer-badges">
+      <span><i class="ti ti-device-mobile" style="font-size:16px"></i> M-Pesa</span>
+      <span><i class="ti ti-device-mobile" style="font-size:16px"></i> e-Mola</span>
+      <span><i class="ti ti-credit-card" style="font-size:16px"></i> Cartão</span>
+      <div class="sep"></div>
+      <span><i class="ti ti-lock" style="font-size:16px"></i> Pagamento único, sem surpresas</span>
+    </div>
+  </main>
+</div>
+
+<script>
+document.querySelectorAll('.faq-q').forEach(function(q){
+  q.addEventListener('click',function(){q.parentElement.classList.toggle('open')})
+})
+</script>
+</body>
+</html>

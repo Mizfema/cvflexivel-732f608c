@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CV Flexível — Checkout M-Pesa (Mockup)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.6.0/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:14px;background:#e8e6e1}
+.page{max-width:520px;margin:40px auto;padding:0 20px}
+.label{font-size:11px;letter-spacing:2px;color:#1D9E75;text-transform:uppercase;font-weight:600;margin-bottom:8px}
+h1{font-family:Georgia,serif;font-size:20px;color:#1b1b19;font-weight:400;margin-bottom:28px}
+
+/* Stepper */
+.steps{display:flex;gap:8px;margin-bottom:28px}
+.step-dot{width:100%;height:3px;border-radius:2px;background:#E3DFD7}
+.step-dot.active{background:#1D9E75}
+.step-dot.done{background:#1D9E75}
+
+/* Card container */
+.checkout-card{background:#fff;border:1px solid #E3DFD7;border-radius:14px;overflow:hidden}
+
+/* — Step 1: Resumo + método — */
+.s1-summary{padding:24px 24px 0}
+.s1-plan{display:flex;align-items:center;justify-content:space-between;padding:16px;background:#f8fdfb;border:1px solid #c8e8da;border-radius:10px;margin-bottom:20px}
+.s1-plan .left .name{font-weight:600;color:#1b1b19;font-size:14px}
+.s1-plan .left .validity{font-size:12px;color:#7a7872;margin-top:2px}
+.s1-plan .right{text-align:right}
+.s1-plan .right .price{font-family:Georgia,serif;font-size:22px;color:#1b1b19}
+.s1-plan .right .daily{font-size:11px;color:#a8a7a3}
+
+.upsell-90{padding:12px 16px;background:#f5f3ee;border:1px solid #E3DFD7;border-radius:8px;margin-bottom:20px;display:flex;align-items:center;gap:10px;cursor:pointer}
+.upsell-90 .radio{width:18px;height:18px;border-radius:50%;border:2px solid #ccc;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.upsell-90.selected .radio{border-color:#1D9E75;background:#1D9E75}
+.upsell-90.selected .radio::after{content:'';width:6px;height:6px;border-radius:50%;background:#fff}
+.upsell-90 .u-text{font-size:13px;color:#5f5e5a;line-height:1.4;flex:1}
+.upsell-90 .u-text strong{color:#1b1b19}
+.upsell-90 .u-price{font-family:Georgia,serif;font-size:16px;color:#1b1b19;white-space:nowrap}
+
+.methods-title{font-size:12px;color:#7a7872;text-transform:uppercase;letter-spacing:1.5px;font-weight:600;margin-bottom:10px;padding:0 0 0 2px}
+.methods{display:flex;gap:10px;padding:0 24px 24px}
+.method{flex:1;padding:14px;border:1px solid #E3DFD7;border-radius:10px;text-align:center;cursor:pointer;transition:border-color .15s}
+.method:hover{border-color:#c4c2bb}
+.method.sel{border:2px solid #1D9E75}
+.method i{font-size:22px;color:#5f5e5a;display:block;margin-bottom:4px}
+.method.sel i{color:#1D9E75}
+.method span{font-size:12px;color:#7a7872;font-weight:500}
+
+/* — Step 2: Número + envio — */
+.s2{padding:24px;display:none}
+.s2 .back-link{font-size:12.5px;color:#7a7872;cursor:pointer;margin-bottom:16px;display:inline-flex;align-items:center;gap:4px}
+.s2 .back-link:hover{color:#1b1b19}
+.s2 .input-label{font-size:13px;color:#1b1b19;font-weight:500;margin-bottom:6px}
+.s2 .hint{font-size:12px;color:#a8a7a3;margin-bottom:12px}
+.s2 .phone-row{display:flex;gap:8px;margin-bottom:6px}
+.s2 .prefix{width:56px;padding:10px;border:1px solid #E3DFD7;border-radius:8px;text-align:center;background:#faf9f6;font-size:14px;color:#5f5e5a;font-weight:500}
+.s2 input[type=tel]{flex:1;padding:10px 14px;border:1px solid #E3DFD7;border-radius:8px;font-size:15px;outline:none;transition:border-color .15s}
+.s2 input[type=tel]:focus{border-color:#1D9E75}
+.s2 .prefix-hint{font-size:11px;color:#a8a7a3;margin-bottom:18px}
+.s2 .summary-line{display:flex;justify-content:space-between;padding:10px 0;font-size:13.5px;color:#5f5e5a;border-top:1px solid #f0eeea}
+.s2 .summary-line:last-of-type{font-weight:600;color:#1b1b19}
+.btn-send{width:100%;padding:12px 0;border-radius:10px;border:none;background:#1b1b19;color:#fff;font-size:14px;font-weight:500;cursor:pointer;margin-top:16px;display:flex;align-items:center;justify-content:center;gap:6px}
+
+/* — Step 3: Aguardar confirmação — */
+.s3{padding:40px 24px;text-align:center;display:none}
+.s3 .spinner{width:48px;height:48px;border:3px solid #E3DFD7;border-top-color:#1D9E75;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.s3 h3{font-family:Georgia,serif;font-size:18px;color:#1b1b19;font-weight:400;margin-bottom:6px}
+.s3 .wait-desc{font-size:13.5px;color:#7a7872;line-height:1.55;margin-bottom:24px}
+.s3 .phone-display{font-size:16px;font-weight:600;color:#1b1b19;background:#f5f3ee;display:inline-block;padding:8px 18px;border-radius:8px;margin-bottom:24px;letter-spacing:1px}
+.s3 .timer{font-size:12px;color:#a8a7a3}
+
+/* — Step 3b: Sucesso — */
+.s3-success{padding:40px 24px;text-align:center;display:none}
+.s3-success .check-circle{width:56px;height:56px;border-radius:50%;background:#E1F5EE;display:flex;align-items:center;justify-content:center;margin:0 auto 16px}
+.s3-success .check-circle i{font-size:28px;color:#1D9E75}
+.s3-success h3{font-family:Georgia,serif;font-size:20px;color:#1b1b19;font-weight:400;margin-bottom:6px}
+.s3-success .expire{font-size:13.5px;color:#7a7872;margin-bottom:24px}
+.btn-continue{width:100%;padding:12px 0;border-radius:10px;border:none;background:#1D9E75;color:#fff;font-size:14px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+
+/* — ALL 3 steps shown side-by-side for the mockup — */
+.showcase{display:flex;flex-direction:column;gap:32px}
+.step-label{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#a8a7a3;font-weight:600;margin-bottom:8px}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="label">Mockup — Checkout M-Pesa / e-Mola</div>
+  <h1>Os 3 passos do pagamento dentro do modal</h1>
+
+  <div class="showcase">
+
+    <!-- === STEP 1 === -->
+    <div>
+      <div class="step-label">Passo 1 — Escolher método</div>
+      <div class="checkout-card">
+        <div class="s1-summary" style="display:block">
+          <div class="s1-plan">
+            <div class="left">
+              <div class="name">Premium · 30 dias</div>
+              <div class="validity">Válido até 09/08/2026</div>
+            </div>
+            <div class="right">
+              <div class="price">349 <span style="font-size:13px">MZN</span></div>
+              <div class="daily">≈ 12 MZN/dia</div>
+            </div>
+          </div>
+          <div class="upsell-90">
+            <div class="radio"></div>
+            <div class="u-text"><strong>Estender para 90 dias</strong> — poupas 298 MZN face a 3 meses separados</div>
+            <div class="u-price">749 <span style="font-size:11px">MZN</span></div>
+          </div>
+          <div class="methods-title" style="padding-left:2px">Método de pagamento</div>
+        </div>
+        <div class="methods">
+          <div class="method sel">
+            <i class="ti ti-device-mobile"></i>
+            <span>M-Pesa</span>
+          </div>
+          <div class="method">
+            <i class="ti ti-device-mobile"></i>
+            <span>e-Mola</span>
+          </div>
+          <div class="method">
+            <i class="ti ti-credit-card"></i>
+            <span>Cartão</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- === STEP 2 === -->
+    <div>
+      <div class="step-label">Passo 2 — Inserir número</div>
+      <div class="checkout-card">
+        <div class="s2" style="display:block">
+          <div class="back-link"><i class="ti ti-arrow-left" style="font-size:14px"></i> Voltar</div>
+          <div class="input-label">Número M-Pesa</div>
+          <div class="hint">Vais receber um pedido de pagamento neste número.</div>
+          <div class="phone-row">
+            <div class="prefix">+258</div>
+            <input type="tel" placeholder="84 123 4567">
+          </div>
+          <div class="prefix-hint">Prefixos M-Pesa: 84, 85</div>
+          <div class="summary-line"><span>Premium · 30 dias</span><span>349 MZN</span></div>
+          <div class="summary-line"><span>Total</span><span>349 MZN</span></div>
+          <button class="btn-send">Enviar pedido de pagamento <i class="ti ti-arrow-right" style="font-size:15px"></i></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- === STEP 3a: Aguardar === -->
+    <div>
+      <div class="step-label">Passo 3a — Aguardar confirmação</div>
+      <div class="checkout-card">
+        <div class="s3" style="display:block">
+          <div class="spinner"></div>
+          <h3>Confirma no teu telemóvel</h3>
+          <p class="wait-desc">Enviámos um pedido de pagamento M-Pesa. Abre a notificação ou marca *150# e confirma com o teu PIN.</p>
+          <div class="phone-display">84 •••• 4567</div>
+          <div class="timer">Expira em 1:47</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- === STEP 3b: Sucesso === -->
+    <div>
+      <div class="step-label">Passo 3b — Sucesso</div>
+      <div class="checkout-card">
+        <div class="s3-success" style="display:block">
+          <div class="check-circle"><i class="ti ti-check"></i></div>
+          <h3>Premium activado!</h3>
+          <p class="expire">Válido até 09 de agosto de 2026</p>
+          <button class="btn-continue">Continuar <i class="ti ti-arrow-right" style="font-size:15px"></i></button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

@@ -1,8 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { verifyWebhookSignature } from "@/lib/paysuite.server";
+import { grantCredits } from "@/lib/credits.server";
 
-const PLAN_PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+// Fallback só para pagamentos criados antes da coluna payments.period_days
+// existir (Fase 1 da Proposta V3) — nunca deveria disparar para pagamentos novos.
+const FALLBACK_PERIOD_DAYS = 30;
 
 interface PaySuiteWebhookPayload {
   event: "payment.success" | "payment.failed" | string;
@@ -35,7 +39,7 @@ export const Route = createFileRoute("/api/paysuite-webhook")({
 
         const { data: payment, error: findError } = await supabaseAdmin
           .from("payments")
-          .select("id, subscription_id")
+          .select("id, user_id, subscription_id, period_days, plan")
           .eq("provider_ref", paymentRef)
           .maybeSingle();
         if (findError) return new Response(findError.message, { status: 500 });
@@ -73,13 +77,43 @@ export const Route = createFileRoute("/api/paysuite-webhook")({
               ? new Date(subscription.current_period_end).getTime()
               : 0;
             const base = Math.max(Date.now(), currentEnd);
-            const newPeriodEnd = new Date(base + PLAN_PERIOD_MS).toISOString();
+            const periodDays = payment.period_days ?? FALLBACK_PERIOD_DAYS;
+            const newPeriodEnd = new Date(base + periodDays * DAY_MS).toISOString();
 
             const { error: subErr } = await supabaseAdmin
               .from("subscriptions")
               .update({ status: "active", current_period_end: newPeriodEnd })
               .eq("id", payment.subscription_id);
             if (subErr) return new Response(subErr.message, { status: 500 });
+          } else if (payment.plan === "avulso" || payment.plan === "recarga") {
+            // Fase 3 da Proposta V3: compra de créditos (sem subscription_id).
+            const { data: planPrice, error: priceErr } = await supabaseAdmin
+              .from("plan_prices")
+              .select("credits, period_days")
+              .eq("plan", payment.plan)
+              .maybeSingle();
+            if (priceErr) return new Response(priceErr.message, { status: 500 });
+            if (!planPrice?.credits) {
+              return new Response(`plan_prices sem créditos para "${payment.plan}"`, {
+                status: 500,
+              });
+            }
+
+            try {
+              await grantCredits(
+                payment.user_id,
+                planPrice.credits,
+                payment.plan,
+                payment.plan === "recarga" ? "recharge" : "purchase",
+                payment.plan === "avulso"
+                  ? new Date(Date.now() + (planPrice.period_days ?? FALLBACK_PERIOD_DAYS) * DAY_MS)
+                  : undefined,
+              );
+            } catch (err) {
+              return new Response(err instanceof Error ? err.message : "Falha ao creditar", {
+                status: 500,
+              });
+            }
           }
         } else if (payload.event === "payment.failed") {
           const { error: payErr } = await supabaseAdmin

@@ -9,6 +9,9 @@ export const EVENT_NAMES = [
   "login",
   "limit_hit",
   "cta_click",
+  "paywall_opened",
+  "checkout_started",
+  "payment_completed",
 ] as const;
 
 export type EventName = (typeof EVENT_NAMES)[number];

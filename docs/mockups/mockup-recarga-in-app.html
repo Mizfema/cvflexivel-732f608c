@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CV Flexível — Recarga in-app (Mockup)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.6.0/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:14px;background:#faf9f6}
+.page{padding:40px;max-width:920px;margin:0 auto}
+.label{font-size:11px;letter-spacing:2px;color:#1D9E75;text-transform:uppercase;font-weight:600;margin-bottom:8px}
+h1{font-family:Georgia,serif;font-size:22px;color:#1b1b19;font-weight:400;margin-bottom:8px}
+.intro{font-size:13px;color:#7a7872;margin-bottom:32px;line-height:1.6;max-width:640px}
+
+.state-label{font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#a8a7a3;font-weight:600;margin-bottom:12px;margin-top:32px}
+.state-label:first-of-type{margin-top:0}
+
+/* — Mock app frame — */
+.app-frame{background:#fff;border:1px solid #E3DFD7;border-radius:14px;overflow:hidden}
+.app-header{padding:14px 22px;background:#faf8f4;border-bottom:1px solid #E3DFD7;display:flex;align-items:center;justify-content:space-between}
+.app-header .logo{display:flex;align-items:center;gap:8px;font-weight:600;color:#1b1b19}
+.app-header .logo i{color:#1D9E75}
+
+/* Credit chip in header (varies per state) */
+.credit-chip{display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;font-size:12px;font-weight:500}
+.credit-chip.ok{background:#E1F5EE;color:#085041}
+.credit-chip.low{background:#FEF3C7;color:#92400E}
+.credit-chip.empty{background:#FEE2E2;color:#991B1B}
+.credit-chip i{font-size:14px}
+
+.app-body{padding:28px 22px;min-height:180px}
+.app-title-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.app-title{font-family:Georgia,serif;font-size:18px;color:#1b1b19}
+.editor-mock{background:#faf8f4;border:1px dashed #d4d1ca;border-radius:8px;padding:20px;text-align:center;color:#a8a7a3;font-size:12px}
+
+/* — Inline banner (aparece quando saldo cai) — */
+.banner{display:flex;align-items:center;gap:14px;padding:14px 18px;border-radius:10px;margin-bottom:16px}
+.banner.warn{background:#FEFBEB;border:1px solid #FDE68A}
+.banner .b-icon{width:36px;height:36px;border-radius:50%;background:#FEF3C7;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.banner .b-icon i{color:#92400E;font-size:18px}
+.banner .b-text{flex:1;font-size:13px;color:#5f5e5a;line-height:1.5}
+.banner .b-text strong{color:#1b1b19}
+.banner .b-btn{padding:8px 16px;border-radius:8px;border:none;background:#1b1b19;color:#fff;font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap}
+
+/* — Modal overlay — */
+.overlay{position:relative;min-height:380px;background:rgba(27,27,25,.55);border-radius:14px;display:flex;align-items:center;justify-content:center;padding:32px}
+
+.modal{background:#fff;border-radius:14px;width:100%;max-width:400px;padding:28px 26px;position:relative}
+.modal-close{position:absolute;top:12px;right:12px;background:none;border:none;cursor:pointer;color:#a8a7a3;font-size:18px}
+
+.modal-icon{width:48px;height:48px;border-radius:50%;background:#FEE2E2;display:flex;align-items:center;justify-content:center;margin-bottom:14px}
+.modal-icon i{font-size:22px;color:#991B1B}
+.modal h2{font-family:Georgia,serif;font-size:18px;color:#1b1b19;font-weight:400;margin-bottom:6px}
+.modal .desc{font-size:13px;color:#7a7872;line-height:1.55;margin-bottom:18px}
+
+.offer{background:#faf8f4;border:1px solid #E3DFD7;border-radius:10px;padding:16px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+.offer .o-left .o-name{font-weight:600;color:#1b1b19;font-size:13.5px}
+.offer .o-left .o-sub{font-size:11.5px;color:#7a7872;margin-top:2px}
+.offer .o-right{font-family:Georgia,serif;font-size:20px;color:#1b1b19;white-space:nowrap}
+.offer .o-right small{font-size:11px;font-weight:400}
+
+.btn-recarga{width:100%;padding:11px 0;border-radius:10px;border:none;background:#1b1b19;color:#fff;font-size:13.5px;font-weight:500;cursor:pointer;margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:6px}
+.btn-upgrade{width:100%;padding:11px 0;border-radius:10px;border:1px solid #1D9E75;background:#fff;color:#085041;font-size:13.5px;font-weight:500;cursor:pointer;margin-bottom:6px}
+.link-later{text-align:center;font-size:12px;color:#a8a7a3;text-decoration:none;display:block;padding:6px 0;cursor:pointer}
+
+.rule-box{margin-top:32px;padding:18px 22px;background:#fff;border:1px solid #E3DFD7;border-radius:10px}
+.rule-box h3{font-family:Georgia,serif;font-size:15px;color:#1b1b19;margin-bottom:10px;font-weight:400}
+.rule-box p{font-size:13px;color:#5f5e5a;line-height:1.6}
+.rule-box strong{color:#1b1b19}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="label">Mockup — Recarga in-app</div>
+  <h1>Onde aparece a recarga de 79 MZN (nunca na página /planos)</h1>
+  <p class="intro">
+    A recarga extra de 79 MZN por 4 créditos <strong>não aparece na página /planos</strong> — apareceria a quebrar a matemática da barra de ancoragem (149+79=228, não 298). Em vez disso, aparece <strong>apenas dentro do produto</strong>, quando o utilizador do avulso está próximo de esgotar créditos. Três estados abaixo.
+  </p>
+
+  <!-- === ESTADO 1: Saldo OK (5-8 créditos) — nada especial === -->
+  <div class="state-label">Estado 1 · Saldo confortável (4-8 créditos) — nada de recarga</div>
+  <div class="app-frame">
+    <div class="app-header">
+      <div class="logo"><i class="ti ti-file-text"></i> CV Flexível</div>
+      <div class="credit-chip ok"><i class="ti ti-coin"></i> 6 de 8 créditos</div>
+    </div>
+    <div class="app-body">
+      <div class="app-title-row">
+        <div class="app-title">Editor do CV</div>
+      </div>
+      <div class="editor-mock">[ editor do CV, sem qualquer prompt de compra ]</div>
+    </div>
+  </div>
+
+  <!-- === ESTADO 2: Saldo baixo (≤3 créditos) — banner amigável === -->
+  <div class="state-label">Estado 2 · Saldo a acabar (≤3 créditos) — banner amigável, não bloqueante</div>
+  <div class="app-frame">
+    <div class="app-header">
+      <div class="logo"><i class="ti ti-file-text"></i> CV Flexível</div>
+      <div class="credit-chip low"><i class="ti ti-coin"></i> 2 de 8 créditos</div>
+    </div>
+    <div class="app-body">
+      <div class="banner warn">
+        <div class="b-icon"><i class="ti ti-alert-triangle"></i></div>
+        <div class="b-text">
+          <strong>Só te restam 2 créditos.</strong> Podes recarregar +4 créditos por 79 MZN ou continuar como está.
+        </div>
+        <button class="b-btn">Recarregar</button>
+      </div>
+      <div class="app-title-row">
+        <div class="app-title">Editor do CV</div>
+      </div>
+      <div class="editor-mock">[ editor continua a funcionar normalmente ]</div>
+    </div>
+  </div>
+
+  <!-- === ESTADO 3: Saldo zero + tentativa de acção — modal === -->
+  <div class="state-label">Estado 3 · Saldo zero + acção premium tentada — modal com recarga OU upgrade</div>
+  <div class="overlay">
+    <div class="modal">
+      <button class="modal-close"><i class="ti ti-x"></i></button>
+      <div class="modal-icon"><i class="ti ti-coin"></i></div>
+      <h2>Os teus créditos acabaram</h2>
+      <p class="desc">Precisas de mais 2 créditos para gerar o teu CV alinhado à vaga. Podes recarregar rapidamente ou passar para o Mensal ilimitado.</p>
+
+      <div class="offer">
+        <div class="o-left">
+          <div class="o-name">Recarga rápida</div>
+          <div class="o-sub">+4 créditos · válidos até 09 Ago</div>
+        </div>
+        <div class="o-right">79 <small>MZN</small></div>
+      </div>
+
+      <div class="offer" style="border-color:#1D9E75;background:#f8fdfb">
+        <div class="o-left">
+          <div class="o-name" style="color:#085041">Mensal ilimitado</div>
+          <div class="o-sub">30 dias sem contar créditos</div>
+        </div>
+        <div class="o-right" style="color:#085041">349 <small>MZN</small></div>
+      </div>
+
+      <button class="btn-recarga">Recarregar 79 MZN <i class="ti ti-arrow-right" style="font-size:14px"></i></button>
+      <button class="btn-upgrade">Ver Mensal 349 MZN</button>
+      <a class="link-later">Continuar mais tarde</a>
+    </div>
+  </div>
+
+  <div class="rule-box">
+    <h3>Regras de exibição para a equipa frontend</h3>
+    <p>
+      <strong>Chip no header:</strong> visível apenas para donos de pacote avulso. Verde ≥4 créditos, amarelo 1–3, vermelho 0.<br>
+      <strong>Banner inline:</strong> aparece no editor quando saldo cai a ≤3 créditos, uma vez por sessão. Dispensável (<code>dismiss</code>), reaparece só na sessão seguinte se o saldo continuar a ≤3.<br>
+      <strong>Modal de esgotamento:</strong> só quando saldo=0 <em>e</em> o utilizador tenta uma acção premium. Nunca proactivamente. Oferece sempre as duas vias (recarga e upgrade para mensal) — nunca só a recarga.<br>
+      <strong>Regra dourada:</strong> nada disto aparece na página <code>/planos</code>, em nenhum estado. A página <code>/planos</code> mostra 4 ofertas — grátis, avulso 149, mensal 349, trimestral 749.
+    </p>
+  </div>
+</div>
+</body>
+</html>

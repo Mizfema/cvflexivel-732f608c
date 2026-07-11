@@ -255,7 +255,7 @@ export function VagaStepper({ open, onOpenChange }: VagaStepperProps) {
 
           {mutation.isError &&
             (parseLimitError(mutation.error) ? (
-              <UsageLimitNotice feature="ai_suggestions" {...parseLimitError(mutation.error)!} />
+              <UsageLimitNotice feature="align_cv_tdr" {...parseLimitError(mutation.error)!} />
             ) : (
               <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -296,7 +296,7 @@ export function VagaStepper({ open, onOpenChange }: VagaStepperProps) {
                 {parseLimitError(mutation.error) ? (
                   <div className="mt-2 text-left">
                     <UsageLimitNotice
-                      feature="ai_suggestions"
+                      feature="align_cv_tdr"
                       {...parseLimitError(mutation.error)!}
                     />
                   </div>

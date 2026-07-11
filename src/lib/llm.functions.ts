@@ -313,6 +313,7 @@ export const analyzeCoverage = createServerFn({ method: "POST" })
         model: gateway("google/gemini-3-flash-preview"),
         system: SYSTEM,
         prompt,
+        maxOutputTokens: 4000,
       });
       tokenUsage = usage;
       const json = extractJson(text);
@@ -403,7 +404,7 @@ export const generateCvFromInterview = createServerFn({ method: "POST" })
   .middleware([optionalIdentity])
   .inputValidator((input: unknown) => interviewInputSchema.parse(input))
   .handler(async ({ data, context }): Promise<z.infer<typeof cvDraftSectionsSchema>> => {
-    const usageCheck = await requireUsageAllowed("ai_suggestions", context.userId, context.fingerprint);
+    const usageCheck = await requireUsageAllowed("generate_cv_interview", context.userId, context.fingerprint);
     const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY);
 
     const answersBlock = data.answers
@@ -423,6 +424,7 @@ export const generateCvFromInterview = createServerFn({ method: "POST" })
         model: gateway("google/gemini-3-flash-preview"),
         system: INTERVIEW_SYSTEM,
         prompt,
+        maxOutputTokens: 4000,
       });
       tokenUsage = usage;
       const json = extractJson(text);
@@ -754,7 +756,7 @@ export const alignCvToTdr = createServerFn({ method: "POST" })
   .middleware([optionalIdentity])
   .inputValidator((input: unknown) => alignInputSchema.parse(input))
   .handler(async ({ data, context }): Promise<AlignmentResult> => {
-    const usageCheck = await requireUsageAllowed("ai_suggestions", context.userId, context.fingerprint);
+    const usageCheck = await requireUsageAllowed("align_cv_tdr", context.userId, context.fingerprint);
     const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY);
 
     const prompt = `## CV actual do candidato\n${compactForAi(data.cv)}\n\n## Termos de Referência da vaga\n${compactForAi(data.jobTdr)}\n\nReescreve o CV para o alinhar ao máximo com este TdR. Responde APENAS com um objecto JSON válido (sem markdown, sem comentários, sem texto antes ou depois) nesta forma exacta:\n{\n  "perfil": { "nome": string, "headline": string, "email": string, "telefone": string, "cidade": string, "pais": string, "linkedin": string, "website": string, "resumo": string },\n  "experiencia": [{ "cargo": string, "organizacao": string, "local": string, "inicio": string, "fim": string, "descricao": string }],\n  "formacao": [{ "curso": string, "instituicao": string, "local": string, "inicio": string, "fim": string, "descricao": string }],\n  "competencias": [{ "nome": string }],\n  "idiomas": [{ "idioma": string, "nivel": "basico"|"intermedio"|"avancado"|"fluente"|"nativo" }],\n  "alteracoes": [{ "tipo": "reformulado"|"recontextualizado", "campo": string, "de": string, "para": string, "justificacao": string }]\n}\nNunca uses arrays em campos de texto como "descricao": devolve uma única string em HTML restrito (<p>, <ul>, <li>, <strong>, <em>, <u> apenas), com os bullets dentro de <ul><li>.`;
@@ -765,6 +767,7 @@ export const alignCvToTdr = createServerFn({ method: "POST" })
         model: gateway("google/gemini-3-flash-preview"),
         system: ALIGN_SYSTEM,
         prompt,
+        maxOutputTokens: 4000,
       });
       tokenUsage = usage;
       const json = extractJson(text);
@@ -948,6 +951,7 @@ export const generateInterviewPrep = createServerFn({ method: "POST" })
         model: gateway("google/gemini-3-flash-preview"),
         system: INTERVIEW_PREP_SYSTEM,
         prompt,
+        maxOutputTokens: 3000,
       });
       tokenUsage = usage;
       const json = extractJson(text);
@@ -987,6 +991,7 @@ const fieldSuggestionsInputSchema = z.object({
   existingHtml: z.string().optional().default(""),
   cvHeadline: z.string().optional().default(""),
   language: z.literal("pt").optional().default("pt"),
+  sessionId: z.string().optional().nullable(),
 });
 
 const fieldSuggestionsOutputSchema = z.object({
@@ -1063,7 +1068,12 @@ export const generateFieldSuggestions = createServerFn({ method: "POST" })
   .middleware([optionalIdentity])
   .inputValidator((input: unknown) => fieldSuggestionsInputSchema.parse(input))
   .handler(async ({ data, context }): Promise<{ suggestions: string[] }> => {
-    const usageCheck = await requireUsageAllowed("ai_suggestions", context.userId, context.fingerprint);
+    const usageCheck = await requireUsageAllowed(
+      "field_suggestions",
+      context.userId,
+      context.fingerprint,
+      data.sessionId ?? null,
+    );
     if (!process.env.LOVABLE_API_KEY) {
       console.warn("MOCK: LOVABLE_API_KEY ausente, a devolver sugestões de campo simuladas");
       return { suggestions: MOCK_FIELD_SUGGESTIONS[data.sectionType] };
@@ -1093,6 +1103,7 @@ export const generateFieldSuggestions = createServerFn({ method: "POST" })
         model: gateway("google/gemini-3-flash-preview"),
         system: FIELD_SUGGESTIONS_SYSTEM,
         prompt,
+        maxOutputTokens: 500,
       });
       tokenUsage = usage;
       const json = extractJson(text);
@@ -1222,6 +1233,7 @@ export const generateCoverLetter = createServerFn({ method: "POST" })
         model: gateway("google/gemini-3-flash-preview"),
         system: COVER_LETTER_SYSTEM,
         prompt,
+        maxOutputTokens: 1500,
       });
       tokenUsage = usage;
       const json = extractJsonOrText(text);

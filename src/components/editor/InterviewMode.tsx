@@ -284,7 +284,7 @@ export function InterviewMode({
         {mut.isError &&
           (parseLimitError(mut.error) ? (
             <div className="mt-4">
-              <UsageLimitNotice feature="ai_suggestions" {...parseLimitError(mut.error)!} />
+              <UsageLimitNotice feature="generate_cv_interview" {...parseLimitError(mut.error)!} />
             </div>
           ) : (
             <div className="mt-4 flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">

@@ -1,14 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { computeCostUsd } from "@/lib/ai-pricing";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-/** Preço do google/gemini-3-flash-preview via Lovable AI Gateway: pass-through
- * do preço do Google, sem markup (US$0.50 / 1M tokens de entrada, US$3.00 / 1M
- * de saída). Se o modelo usado nas server functions mudar, actualizar aqui. */
-const INPUT_PRICE_PER_TOKEN_USD = 0.5 / 1_000_000;
-const OUTPUT_PRICE_PER_TOKEN_USD = 3 / 1_000_000;
 
 async function checkIsAdmin(userId: string): Promise<boolean> {
   const { data, error } = await supabaseAdmin
@@ -57,7 +52,7 @@ export const getAdminDashboard = createServerFn({ method: "GET" })
         supabaseAdmin.from("cvs").select("user_id").gte("updated_at", sevenDaysAgo),
         supabaseAdmin
           .from("ai_usage")
-          .select("feature, created_at, tokens_in, tokens_out")
+          .select("feature, created_at, tokens_in, tokens_out, cost_usd, user_id")
           .gte("created_at", thirtyDaysAgo),
       ]);
 
@@ -78,6 +73,7 @@ export const getAdminDashboard = createServerFn({ method: "GET" })
     const callsByDayMap = new Map<string, number>();
     const featureCounts = new Map<string, number>();
     const featureCosts = new Map<string, number>();
+    const userCosts = new Map<string, number>();
     let costUsd30d = 0;
     let callsWithTokens = 0;
     for (const row of aiUsageRes.data ?? []) {
@@ -86,11 +82,15 @@ export const getAdminDashboard = createServerFn({ method: "GET" })
       featureCounts.set(row.feature, (featureCounts.get(row.feature) ?? 0) + 1);
       if (row.tokens_in != null || row.tokens_out != null) {
         callsWithTokens += 1;
-        const rowCost =
-          (row.tokens_in ?? 0) * INPUT_PRICE_PER_TOKEN_USD +
-          (row.tokens_out ?? 0) * OUTPUT_PRICE_PER_TOKEN_USD;
+        // cost_usd é gravado desde a Fase 0 da Proposta V3; linhas anteriores
+        // a essa migration não têm o campo, por isso calcula-se a partir dos
+        // tokens como fallback só para esses registos históricos.
+        const rowCost = row.cost_usd ?? computeCostUsd(row.tokens_in, row.tokens_out);
         costUsd30d += rowCost;
         featureCosts.set(row.feature, (featureCosts.get(row.feature) ?? 0) + rowCost);
+        if (row.user_id) {
+          userCosts.set(row.user_id, (userCosts.get(row.user_id) ?? 0) + rowCost);
+        }
       }
     }
 
@@ -110,6 +110,31 @@ export const getAdminDashboard = createServerFn({ method: "GET" })
 
     const totalCallsLast30d = aiUsageRes.data?.length ?? 0;
 
+    // Fase 4 da Proposta V3 (§8): custo IA por utilizador + top 10 mais caros.
+    const topUserIds = [...userCosts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([userId]) => userId);
+
+    const topUsersByCost: { userId: string; label: string; costUsd: number }[] = [];
+    if (topUserIds.length > 0) {
+      const { data: profilesData, error: profilesErr } = await supabaseAdmin
+        .from("profiles")
+        .select("id, email, full_name")
+        .in("id", topUserIds);
+      if (profilesErr) throw new Error(profilesErr.message);
+
+      const profileById = new Map((profilesData ?? []).map((p) => [p.id, p]));
+      for (const userId of topUserIds) {
+        const profile = profileById.get(userId);
+        topUsersByCost.push({
+          userId,
+          label: profile?.email ?? profile?.full_name ?? `${userId.slice(0, 8)}…`,
+          costUsd: Number((userCosts.get(userId) ?? 0).toFixed(4)),
+        });
+      }
+    }
+
     return {
       totalUsers: totalUsersRes.count ?? 0,
       newThisWeek: newThisWeekRes.count ?? 0,
@@ -117,6 +142,7 @@ export const getAdminDashboard = createServerFn({ method: "GET" })
       callsByDay,
       topFeatures,
       costByFeature,
+      topUsersByCost,
       costUsd30d: Number(costUsd30d.toFixed(4)),
       costTrackedCalls: callsWithTokens,
       totalCallsLast30d,

@@ -26,7 +26,9 @@ type Dashboard = Awaited<ReturnType<typeof getAdminDashboard>>;
 
 const FEATURE_LABELS: Record<string, string> = {
   cv_analysis: "Análise de CV",
-  ai_suggestions: "Sugestões de IA",
+  field_suggestions: "Sugestões de campo",
+  align_cv_tdr: "Alinhamento CV ↔ TdR",
+  generate_cv_interview: "CV via entrevista",
   interview_prep: "Preparação de entrevista",
   cover_letter: "Carta de apresentação",
 };
@@ -118,22 +120,13 @@ function DemoBadge() {
 
 function RealBadge() {
   return (
-    <Badge
-      variant="outline"
-      className="border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
-    >
+    <Badge variant="outline" className="border-emerald-400/30 bg-emerald-400/10 text-emerald-300">
       Dados reais
     </Badge>
   );
 }
 
-function SectionHeading({
-  title,
-  action,
-}: {
-  title: string;
-  action?: React.ReactNode;
-}) {
+function SectionHeading({ title, action }: { title: string; action?: React.ReactNode }) {
   return (
     <div className="mb-4 flex items-center justify-between gap-3">
       <h2 className="font-serif text-lg text-foreground">{title}</h2>
@@ -184,29 +177,17 @@ function StatTile({
   );
 }
 
-function FunnelBar({
-  label,
-  value,
-  pct,
-}: {
-  label: string;
-  value: number;
-  pct: number;
-}) {
+function FunnelBar({ label, value, pct }: { label: string; value: number; pct: number }) {
   return (
     <div>
       <div className="mb-1 flex items-baseline justify-between text-sm">
         <span className="text-foreground">{label}</span>
         <span className="font-mono tabular-nums text-muted-foreground">
-          {value.toLocaleString("pt-PT")}{" "}
-          <span className="text-xs">({pct}%)</span>
+          {value.toLocaleString("pt-PT")} <span className="text-xs">({pct}%)</span>
         </span>
       </div>
       <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
-        <div
-          className="h-full rounded-full bg-[var(--chart-4)]"
-          style={{ width: `${pct}%` }}
-        />
+        <div className="h-full rounded-full bg-[var(--chart-4)]" style={{ width: `${pct}%` }} />
       </div>
     </div>
   );
@@ -228,15 +209,10 @@ function CostBar({
     <div>
       <div className="mb-1 flex items-baseline justify-between text-sm">
         <span className="text-foreground">{label}</span>
-        <span className="font-mono tabular-nums text-muted-foreground">
-          {formatValue(value)}
-        </span>
+        <span className="font-mono tabular-nums text-muted-foreground">{formatValue(value)}</span>
       </div>
       <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-        <div
-          className="h-full rounded-full bg-primary/70"
-          style={{ width: `${pct}%` }}
-        />
+        <div className="h-full rounded-full bg-primary/70" style={{ width: `${pct}%` }} />
       </div>
     </div>
   );
@@ -285,16 +261,14 @@ function AdminPage() {
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:py-12">
         <header className="mb-8 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-medium uppercase tracking-[0.22em] text-navy-mid">
-              Admin
-            </p>
+            <p className="text-xs font-medium uppercase tracking-[0.22em] text-navy-mid">Admin</p>
             <h1 className="mt-2 font-serif text-3xl text-foreground sm:text-4xl">
               Painel de controlo
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-              As secções de receita, funil e retenção usam dados de demonstração até a Fase
-              1.4 (assinaturas) ser implementada. Utilizadores, custo de IA e uso de
-              funcionalidades já são dados reais.
+              As secções de receita, funil e retenção usam dados de demonstração até a Fase 1.4
+              (assinaturas) ser implementada. Utilizadores, custo de IA e uso de funcionalidades já
+              são dados reais.
             </p>
           </div>
         </header>
@@ -348,11 +322,7 @@ function AdminPage() {
             value={`${DEMO.retentionM1Pct}%`}
             delta={{ direction: "down", text: `${DEMO.retentionM1DeltaPp}pp` }}
           />
-          <StatTile
-            label="LTV : CAC"
-            value={`${DEMO.ltvCac}×`}
-            sub="saudável"
-          />
+          <StatTile label="LTV : CAC" value={`${DEMO.ltvCac}×`} sub="saudável" />
         </div>
 
         <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -403,11 +373,7 @@ function AdminPage() {
             <div className="grid grid-cols-2 gap-4">
               <StatTile label="LTV" value={`US$${DEMO.ltvUsd}`} sub="valor por cliente" />
               <StatTile label="CAC" value={`US$${DEMO.cacUsd}`} sub="custo de aquisição" />
-              <StatTile
-                label="Payback"
-                value={`${DEMO.paybackMonths} mês`}
-                sub="recupera o CAC"
-              />
+              <StatTile label="Payback" value={`${DEMO.paybackMonths} mês`} sub="recupera o CAC" />
               <StatTile
                 label="Margem contrib."
                 value={`${DEMO.marginContribPct}%`}
@@ -473,14 +439,16 @@ function AdminPage() {
           </ChartContainer>
           <p className="mt-3 text-xs text-muted-foreground">
             Custo real (preço do google/gemini-3-flash-preview, pass-through do Google via Lovable
-            AI Gateway) com base em {data.costTrackedCalls} de {data.totalCallsLast30d} chamadas
-            com tokens registados.
+            AI Gateway) com base em {data.costTrackedCalls} de {data.totalCallsLast30d} chamadas com
+            tokens registados.
           </p>
         </div>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="rounded-xl border border-border bg-card p-5 shadow-card">
-            <h2 className="mb-4 font-serif text-lg text-foreground">Custo de IA por feature (30d)</h2>
+            <h2 className="mb-4 font-serif text-lg text-foreground">
+              Custo de IA por feature (30d)
+            </h2>
             {data.costByFeature.length === 0 ? (
               <p className="text-sm text-muted-foreground">Sem uso de IA registado ainda.</p>
             ) : (
@@ -518,6 +486,31 @@ function AdminPage() {
               </div>
             )}
           </div>
+        </div>
+
+        <div className="mt-6 rounded-xl border border-border bg-card p-5 shadow-card">
+          <h2 className="mb-4 font-serif text-lg text-foreground">
+            Top 10 utilizadores por custo de IA (30 dias)
+          </h2>
+          {data.topUsersByCost.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Sem uso de IA registado ainda.</p>
+          ) : (
+            <div className="space-y-4">
+              {data.topUsersByCost.map((u) => (
+                <CostBar
+                  key={u.userId}
+                  label={u.label}
+                  value={u.costUsd}
+                  maxValue={Math.max(0.0001, data.topUsersByCost[0]?.costUsd ?? 0)}
+                  formatValue={(v) => `$${v.toFixed(2)}`}
+                />
+              ))}
+            </div>
+          )}
+          <p className="mt-3 text-xs text-muted-foreground">
+            Utilizadores anónimos (sem conta) não entram aqui — o custo deles já conta em "Custo de
+            IA por feature" acima.
+          </p>
         </div>
       </div>
     </div>

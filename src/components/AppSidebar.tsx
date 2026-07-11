@@ -10,10 +10,13 @@ import {
   X,
   Menu,
   ShieldCheck,
+  Gem,
+  User,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { getIsAdmin } from "@/lib/admin.functions";
+import { getSidebarStatus } from "@/lib/subscription.functions";
 import { UserAvatar } from "@/components/UserAvatar";
 import { cn } from "@/lib/utils";
 
@@ -28,7 +31,35 @@ const NAV_ITEMS = [
     exact: false,
     auth: true,
   },
+  { label: "Planos", icon: Gem, to: "/planos", exact: false, auth: false },
 ] as const;
+
+type SidebarStatus =
+  | { tier: "anonymous" }
+  | { tier: "free"; analysesRemaining: number | null }
+  | { tier: "avulso"; balance: number; daysLeft: number }
+  | { tier: "premium"; daysLeft: number | null };
+
+/** Indicador de plano (Fase 2 da Proposta V3 §8) — dias restantes para
+ * premium, análises restantes no mês para grátis. Nunca mostra nada para
+ * anónimo (ainda não tem conta). */
+function useSidebarStatus(userId: string | undefined): SidebarStatus | null {
+  const fetchStatus = useServerFn(getSidebarStatus);
+  const [status, setStatus] = useState<SidebarStatus | null>(null);
+
+  useEffect(() => {
+    if (!userId) {
+      setStatus(null);
+      return;
+    }
+    fetchStatus()
+      .then(setStatus)
+      .catch(() => setStatus(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  return status;
+}
 
 function useIsAdmin(userId: string | undefined) {
   const fetchIsAdmin = useServerFn(getIsAdmin);
@@ -75,6 +106,7 @@ function SidebarContent({ onClose }: SidebarContentProps) {
   const { session, user, ready } = useAuth();
   const profile = useProfile(user?.id);
   const isAdmin = useIsAdmin(user?.id);
+  const sidebarStatus = useSidebarStatus(user?.id);
   const fullName = profile?.full_name ?? null;
   const router = useRouterState();
   const navigate = useNavigate();
@@ -143,6 +175,29 @@ function SidebarContent({ onClose }: SidebarContentProps) {
 
       {/* Footer */}
       <div className="shrink-0 border-t border-white/10 px-3 py-4">
+        {session && sidebarStatus && sidebarStatus.tier !== "anonymous" && (
+          <div className="mb-2 rounded-md bg-[#1D9E75]/10 px-2.5 py-2">
+            <p className="flex items-center gap-1 text-[11px] font-semibold text-[#1D9E75]">
+              <User className="h-3 w-3 shrink-0" strokeWidth={2} />
+              {sidebarStatus.tier === "premium"
+                ? "Premium"
+                : sidebarStatus.tier === "avulso"
+                  ? "Pacote avulso"
+                  : "Conta grátis"}
+            </p>
+            <p className="mt-0.5 text-[10.5px] text-[#8A8883]">
+              {sidebarStatus.tier === "premium"
+                ? sidebarStatus.daysLeft != null
+                  ? `${sidebarStatus.daysLeft} ${sidebarStatus.daysLeft === 1 ? "dia" : "dias"} restantes`
+                  : "Ilimitado"
+                : sidebarStatus.tier === "avulso"
+                  ? `${sidebarStatus.balance} créditos · expira em ${sidebarStatus.daysLeft} ${sidebarStatus.daysLeft === 1 ? "dia" : "dias"}`
+                  : sidebarStatus.analysesRemaining != null
+                    ? `${sidebarStatus.analysesRemaining} análises restantes`
+                    : "Limites do plano grátis"}
+            </p>
+          </div>
+        )}
         {!ready ? null : session ? (
           <div className="space-y-2">
             <Link

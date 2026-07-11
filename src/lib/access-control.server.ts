@@ -4,11 +4,19 @@ import { createClient } from "@supabase/supabase-js";
 import { createHash } from "node:crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { hasActivePlan } from "@/lib/subscription.server";
+import { computeCostUsd } from "@/lib/ai-pricing";
+import { getActiveCreditBalance, getCreditWeight, debitCredits } from "@/lib/credits.server";
 import type { Database } from "@/integrations/supabase/types";
 
 export type UsageTier = "anonymous" | "free" | "premium";
 
-export type UsageDenyReason = "not_allowed_tier" | "daily_limit" | "monthly_limit" | "global_limit";
+export type UsageDenyReason =
+  | "not_allowed_tier"
+  | "daily_limit"
+  | "monthly_limit"
+  | "global_limit"
+  | "session_limit"
+  | "insufficient_credits";
 
 export interface UsageCheckResult {
   allowed: boolean;
@@ -18,6 +26,9 @@ export interface UsageCheckResult {
   retryAt: string | null;
   usageId: string | null;
   tier: UsageTier;
+  /** Só definido quando a feature é coberta por créditos do avulso (Fase 3 da
+   * Proposta V3) e o utilizador tem pacote ativo — null nos restantes casos. */
+  creditsRemaining?: number | null;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -68,13 +79,15 @@ interface AccessPolicyRow {
   max_per_day: number | null;
   max_per_month: number | null;
   cooldown_hours: number | null;
+  max_per_session: number | null;
+  quota_group: string | null;
   enabled: boolean;
 }
 
 async function loadPolicy(feature: string, tier: UsageTier): Promise<AccessPolicyRow | null> {
   const { data, error } = await supabaseAdmin
     .from("access_policies")
-    .select("max_per_day, max_per_month, cooldown_hours, enabled")
+    .select("max_per_day, max_per_month, cooldown_hours, max_per_session, quota_group, enabled")
     .eq("feature", feature)
     .eq("tier", tier)
     .maybeSingle();
@@ -82,9 +95,24 @@ async function loadPolicy(feature: string, tier: UsageTier): Promise<AccessPolic
   return data;
 }
 
+/** Conta o uso de uma feature por sessão de navegador (sem janela de tempo —
+ * a sessão "expira" sozinha porque o cliente gera um novo sessionId a cada
+ * sessão, guardado em sessionStorage). Guard-rail transversal do
+ * generateFieldSuggestions (Fase 0 da Proposta V3 §6, item 3), independente
+ * dos tectos por dia/mês já existentes. */
+async function countSessionUsage(sessionId: string, feature: string): Promise<number> {
+  const { count, error } = await supabaseAdmin
+    .from("ai_usage")
+    .select("id", { count: "exact", head: true })
+    .eq("session_id", sessionId)
+    .eq("feature", feature);
+  if (error) throw new Error(error.message);
+  return count ?? 0;
+}
+
 async function countUsage(
   identity: { userId: string | null; fingerprint: string | null },
-  feature: string | null,
+  feature: string | string[] | null,
   sinceMs: number,
 ): Promise<{ count: number; oldest: string | null; latest: string | null }> {
   let query = supabaseAdmin
@@ -92,7 +120,11 @@ async function countUsage(
     .select("created_at")
     .gte("created_at", new Date(sinceMs).toISOString())
     .order("created_at", { ascending: true });
-  query = feature ? query.eq("feature", feature) : query;
+  query = Array.isArray(feature)
+    ? query.in("feature", feature)
+    : feature
+      ? query.eq("feature", feature)
+      : query;
   query = identity.userId
     ? query.eq("user_id", identity.userId)
     : query.eq("anon_fingerprint", identity.fingerprint ?? "__no_fingerprint__");
@@ -107,6 +139,107 @@ async function countUsage(
   };
 }
 
+/** Resolve as features que partilham a mesma quota combinada (Fase 1 da
+ * Proposta V3 §8, item 3 — ex.: alignCvToTdr + generateCvFromInterview
+ * partilham 2/mês no grátis, em vez de 2/mês cada uma). */
+async function resolveQuotaGroupFeatures(quotaGroup: string, tier: UsageTier): Promise<string[]> {
+  const { data, error } = await supabaseAdmin
+    .from("access_policies")
+    .select("feature")
+    .eq("quota_group", quotaGroup)
+    .eq("tier", tier);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => row.feature);
+}
+
+/** Se a feature é coberta por créditos (Fase 3 da Proposta V3 §3/§8) e o
+ * utilizador tem saldo de pacote avulso ativo, decide o pedido inteiramente
+ * por créditos — nunca cai nos tectos por dia/mês do tier "free" (já pagou).
+ * Devolve null quando não se aplica (feature fora do avulso, ou sem saldo
+ * ativo), para o chamador cair na lógica normal por tier. */
+async function tryCreditCoveredUsage(
+  feature: string,
+  userId: string,
+  sessionId: string | null,
+): Promise<UsageCheckResult | null> {
+  const weight = await getCreditWeight(feature);
+  if (weight == null) return null;
+
+  const balance = await getActiveCreditBalance(userId);
+  if (!balance) return null;
+
+  const tier: UsageTier = "free";
+
+  // O rate-limit por sessão (ex.: field_suggestions) é anti-abuso, não
+  // cobrança — continua a aplicar-se mesmo coberto por créditos.
+  const policy = await loadPolicy(feature, tier);
+  if (sessionId && policy?.max_per_session != null) {
+    const sessionCount = await countSessionUsage(sessionId, feature);
+    if (sessionCount >= policy.max_per_session) {
+      return {
+        allowed: false,
+        reason: "session_limit",
+        remainingToday: 0,
+        remainingMonth: 0,
+        retryAt: null,
+        usageId: null,
+        tier,
+      };
+    }
+  }
+
+  if (weight > 0) {
+    const newBalance = await debitCredits(userId, feature, weight);
+    if (newBalance == null) {
+      return {
+        allowed: false,
+        reason: "insufficient_credits",
+        remainingToday: 0,
+        remainingMonth: 0,
+        retryAt: null,
+        usageId: null,
+        tier,
+        creditsRemaining: balance.balance,
+      };
+    }
+    const { data: inserted, error } = await supabaseAdmin
+      .from("ai_usage")
+      .insert({ user_id: userId, anon_fingerprint: null, feature, session_id: sessionId })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    return {
+      allowed: true,
+      reason: "ok",
+      remainingToday: null,
+      remainingMonth: null,
+      retryAt: null,
+      usageId: inserted.id,
+      tier,
+      creditsRemaining: newBalance,
+    };
+  }
+
+  // Peso 0 (ex.: field_suggestions, downloads): grátis mesmo com créditos,
+  // nunca debita — regra de ouro do produto (§3 do doc V3).
+  const { data: inserted, error } = await supabaseAdmin
+    .from("ai_usage")
+    .insert({ user_id: userId, anon_fingerprint: null, feature, session_id: sessionId })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+  return {
+    allowed: true,
+    reason: "ok",
+    remainingToday: null,
+    remainingMonth: null,
+    retryAt: null,
+    usageId: inserted.id,
+    tier,
+    creditsRemaining: balance.balance,
+  };
+}
+
 /** Lê a política de acesso da feature para o tier do pedido, conta o uso na
  * janela de 24h/mês e, se permitido, regista o uso. Sem exceções hardcoded:
  * toda a lógica de limite vive nas linhas de access_policies. */
@@ -114,8 +247,16 @@ export async function checkAndRecordUsage(
   feature: string,
   userId: string | null,
   fingerprint: string | null,
+  sessionId: string | null = null,
 ): Promise<UsageCheckResult> {
-  const tier: UsageTier = userId ? ((await hasActivePlan(userId)) ? "premium" : "free") : "anonymous";
+  const isPremium = userId ? await hasActivePlan(userId) : false;
+
+  if (userId && !isPremium) {
+    const creditResult = await tryCreditCoveredUsage(feature, userId, sessionId);
+    if (creditResult) return creditResult;
+  }
+
+  const tier: UsageTier = userId ? (isPremium ? "premium" : "free") : "anonymous";
   const identity = { userId, fingerprint };
 
   if (!userId) {
@@ -149,11 +290,31 @@ export async function checkAndRecordUsage(
     };
   }
 
+  if (sessionId && policy?.max_per_session != null) {
+    const sessionCount = await countSessionUsage(sessionId, feature);
+    if (sessionCount >= policy.max_per_session) {
+      return {
+        allowed: false,
+        reason: "session_limit",
+        remainingToday: 0,
+        remainingMonth: 0,
+        retryAt: null,
+        usageId: null,
+        tier,
+      };
+    }
+  }
+
+  const quotaFeatures = policy?.quota_group
+    ? await resolveQuotaGroupFeatures(policy.quota_group, tier)
+    : null;
+  const usageScope = quotaFeatures && quotaFeatures.length > 0 ? quotaFeatures : feature;
+
   let remainingToday: number | null = null;
   let remainingMonth: number | null = null;
 
   if (policy?.max_per_month != null) {
-    const { count, oldest } = await countUsage(identity, feature, Date.now() - MONTH_MS);
+    const { count, oldest } = await countUsage(identity, usageScope, Date.now() - MONTH_MS);
     remainingMonth = Math.max(0, policy.max_per_month - count);
     if (count >= policy.max_per_month) {
       return {
@@ -169,7 +330,7 @@ export async function checkAndRecordUsage(
   }
 
   if (policy?.max_per_day != null) {
-    const { count, latest } = await countUsage(identity, feature, Date.now() - DAY_MS);
+    const { count, latest } = await countUsage(identity, usageScope, Date.now() - DAY_MS);
     remainingToday = Math.max(0, policy.max_per_day - count);
     if (count >= policy.max_per_day) {
       const cooldownMs = (policy.cooldown_hours ?? 24) * 60 * 60 * 1000;
@@ -191,6 +352,7 @@ export async function checkAndRecordUsage(
       user_id: userId,
       anon_fingerprint: userId ? null : fingerprint,
       feature,
+      session_id: sessionId,
     })
     .select("id")
     .single();
@@ -207,18 +369,52 @@ export async function checkAndRecordUsage(
   };
 }
 
-/** Regista os tokens reais da chamada de IA já autorizada (Fase 0.2: custo real
- * em vez de estimativa por contagem de chamadas). Nunca lança — telemetria não
- * pode derrubar a resposta ao utilizador. */
+/** Leitura sem efeitos secundários do saldo restante de uma feature (Fase 2 da
+ * Proposta V3 — indicador "X análises restantes" na sidebar). Nunca insere em
+ * `ai_usage`; só espelha o que checkAndRecordUsage calcularia antes de decidir. */
+export async function peekRemainingUsage(
+  feature: string,
+  userId: string | null,
+  fingerprint: string | null,
+): Promise<{ remainingMonth: number | null; tier: UsageTier }> {
+  const tier: UsageTier = userId
+    ? (await hasActivePlan(userId))
+      ? "premium"
+      : "free"
+    : "anonymous";
+  const identity = { userId, fingerprint };
+  const policy = await loadPolicy(feature, tier);
+  if (!policy?.enabled || policy.max_per_month == null) {
+    return { remainingMonth: null, tier };
+  }
+
+  const quotaFeatures = policy.quota_group
+    ? await resolveQuotaGroupFeatures(policy.quota_group, tier)
+    : null;
+  const usageScope = quotaFeatures && quotaFeatures.length > 0 ? quotaFeatures : feature;
+  const { count } = await countUsage(identity, usageScope, Date.now() - MONTH_MS);
+  return { remainingMonth: Math.max(0, policy.max_per_month - count), tier };
+}
+
+/** Regista os tokens reais e o custo USD da chamada de IA já autorizada
+ * (Fase 0.2, e Fase 0 da Proposta V3 §6 item 4 — custo real em vez de
+ * estimativa por contagem de chamadas, gravado desde o primeiro request).
+ * Nunca lança — telemetria não pode derrubar a resposta ao utilizador. */
 export async function recordUsageTokens(
   usageId: string | null,
   usage: { inputTokens?: number; outputTokens?: number } | undefined,
 ): Promise<void> {
   if (!usageId || !usage) return;
   try {
+    const tokensIn = usage.inputTokens ?? null;
+    const tokensOut = usage.outputTokens ?? null;
     await supabaseAdmin
       .from("ai_usage")
-      .update({ tokens_in: usage.inputTokens ?? null, tokens_out: usage.outputTokens ?? null })
+      .update({
+        tokens_in: tokensIn,
+        tokens_out: tokensOut,
+        cost_usd: computeCostUsd(tokensIn, tokensOut),
+      })
       .eq("id", usageId);
   } catch (err) {
     console.warn("Falha ao registar tokens de uso de IA", err);
@@ -235,6 +431,8 @@ export class LimitReachedError extends Error {
         reason: result.reason,
         retryAt: result.retryAt,
         upgrade: true,
+        tier: result.tier,
+        creditsRemaining: result.creditsRemaining ?? null,
       }),
     );
     this.name = "LimitReachedError";
@@ -245,8 +443,9 @@ export async function requireUsageAllowed(
   feature: string,
   userId: string | null,
   fingerprint: string | null,
+  sessionId: string | null = null,
 ): Promise<UsageCheckResult> {
-  const result = await checkAndRecordUsage(feature, userId, fingerprint);
+  const result = await checkAndRecordUsage(feature, userId, fingerprint, sessionId);
   if (!result.allowed) throw new LimitReachedError(result);
   return result;
 }

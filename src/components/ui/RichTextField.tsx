@@ -25,6 +25,7 @@ import {
   type FieldSuggestionSectionType,
 } from "@/lib/llm.functions";
 import { parseLimitError } from "@/lib/usage-error";
+import { getSessionId } from "@/lib/session-id";
 import { UsageLimitNotice } from "@/components/UsageLimitNotice";
 import {
   DropdownMenu,
@@ -172,7 +173,7 @@ function AiSuggestionsPanel({
         </div>
       ) : error ? (
         parseLimitError(error) ? (
-          <UsageLimitNotice feature="ai_suggestions" {...parseLimitError(error)!} />
+          <UsageLimitNotice feature="field_suggestions" {...parseLimitError(error)!} />
         ) : (
           <p className="px-1 py-2 text-xs text-red-600">
             {error instanceof Error ? error.message : "Falha ao gerar sugestões."}
@@ -278,6 +279,7 @@ export function RichTextField({
           existingHtml: editor.getHTML(),
           cvHeadline: aiSuggestions.cvHeadline ?? "",
           language: "pt",
+          sessionId: getSessionId(),
         },
       });
       setAiSuggestionsList(result.suggestions);

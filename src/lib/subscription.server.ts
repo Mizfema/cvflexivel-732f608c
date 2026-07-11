@@ -45,14 +45,7 @@ export async function hasActivePlan(userId: string | null): Promise<boolean> {
   return !!data;
 }
 
-/** Aviso de expiração próxima (Fase 1.4c): dias restantes quando o plano ativo
- * vence nos próximos 3 dias, para o app mostrar "renova pela PaySuite". Baseado
- * na data real de expiração, não no período de graça. */
-export async function getPlanExpiryWarning(
-  userId: string | null,
-): Promise<{ daysLeft: number } | null> {
-  if (!userId) return null;
-
+async function getActiveSubscriptionEnd(userId: string): Promise<number | null> {
   const { data, error } = await supabaseAdmin
     .from("subscriptions")
     .select("current_period_end")
@@ -62,9 +55,32 @@ export async function getPlanExpiryWarning(
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  if (!data?.current_period_end) return null;
+  return data?.current_period_end ? new Date(data.current_period_end).getTime() : null;
+}
 
-  const msLeft = new Date(data.current_period_end).getTime() - Date.now();
+/** Aviso de expiração próxima (Fase 1.4c): dias restantes quando o plano ativo
+ * vence nos próximos 3 dias, para o app mostrar "renova pela PaySuite". Baseado
+ * na data real de expiração, não no período de graça. */
+export async function getPlanExpiryWarning(
+  userId: string | null,
+): Promise<{ daysLeft: number } | null> {
+  if (!userId) return null;
+
+  const periodEnd = await getActiveSubscriptionEnd(userId);
+  if (!periodEnd) return null;
+
+  const msLeft = periodEnd - Date.now();
   if (msLeft <= 0 || msLeft > THREE_DAYS_MS) return null;
   return { daysLeft: Math.max(1, Math.ceil(msLeft / DAY_MS)) };
+}
+
+/** Dias restantes do plano ativo, sem o corte dos 3 dias — usado pelo
+ * indicador "Premium · X dias restantes" da sidebar (Fase 2 da Proposta V3). */
+export async function getActivePlanDaysLeft(userId: string | null): Promise<number | null> {
+  if (!userId) return null;
+  const periodEnd = await getActiveSubscriptionEnd(userId);
+  if (!periodEnd) return null;
+  const msLeft = periodEnd - Date.now();
+  if (msLeft <= 0) return null;
+  return Math.max(1, Math.ceil(msLeft / DAY_MS));
 }
