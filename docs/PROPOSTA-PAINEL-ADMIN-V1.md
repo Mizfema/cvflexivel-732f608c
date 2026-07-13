@@ -383,7 +383,7 @@ CRITÉRIOS DE ACEITAÇÃO
 
 - [x] **A0 — Fundamentos:** migrations, guard de rota, reorganização em sub-rotas, RPC de crédito.
 - [x] **A1 — KPIs reais:** matar o objeto `DEMO`.
-- [ ] **A2 — Lista + detalhe de utilizadores (só leitura).**
+- [x] **A2 — Lista + detalhe de utilizadores (só leitura).**
 - [ ] **A3 — Conceder/ajustar/revogar plano e créditos.**
 - [ ] **A4 — Suspender/reativar conta.**
 - [ ] **A5 — Visualizador de auditoria.**
