@@ -382,7 +382,7 @@ CRITÉRIOS DE ACEITAÇÃO
 ## Fases de execução (cada uma termina com `bun run build` + commit + checkbox marcado aqui)
 
 - [x] **A0 — Fundamentos:** migrations, guard de rota, reorganização em sub-rotas, RPC de crédito.
-- [ ] **A1 — KPIs reais:** matar o objeto `DEMO`.
+- [x] **A1 — KPIs reais:** matar o objeto `DEMO`.
 - [ ] **A2 — Lista + detalhe de utilizadores (só leitura).**
 - [ ] **A3 — Conceder/ajustar/revogar plano e créditos.**
 - [ ] **A4 — Suspender/reativar conta.**
