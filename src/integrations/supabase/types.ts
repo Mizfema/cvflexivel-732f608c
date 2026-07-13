@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -11,6 +11,31 @@ export type Database = {
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.5"
+  }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
@@ -47,6 +72,36 @@ export type Database = {
           max_per_session?: number | null
           quota_group?: string | null
           tier?: string
+        }
+        Relationships: []
+      }
+      admin_actions: {
+        Row: {
+          action_type: string
+          actor_user_id: string | null
+          created_at: string
+          id: string
+          metadata: Json
+          reason: string
+          target_user_id: string | null
+        }
+        Insert: {
+          action_type: string
+          actor_user_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          reason: string
+          target_user_id?: string | null
+        }
+        Update: {
+          action_type?: string
+          actor_user_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          reason?: string
+          target_user_id?: string | null
         }
         Relationships: []
       }
@@ -642,6 +697,27 @@ export type Database = {
         }
         Relationships: []
       }
+      user_suspensions: {
+        Row: {
+          reason: string
+          suspended_at: string
+          suspended_by: string | null
+          user_id: string
+        }
+        Insert: {
+          reason: string
+          suspended_at?: string
+          suspended_by?: string | null
+          user_id: string
+        }
+        Update: {
+          reason?: string
+          suspended_at?: string
+          suspended_by?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -650,6 +726,19 @@ export type Database = {
       debit_credit_balance: {
         Args: { p_user_id: string; p_weight: number }
         Returns: number
+      }
+      grant_credit_balance: {
+        Args: {
+          p_amount: number
+          p_new_expiry: string
+          p_package_id: string
+          p_require_existing: boolean
+          p_user_id: string
+        }
+        Returns: {
+          balance: number
+          expires_at: string
+        }[]
       }
       has_role: {
         Args: {
@@ -786,6 +875,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       app_role: ["admin", "user"],
