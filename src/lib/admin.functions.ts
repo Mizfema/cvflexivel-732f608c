@@ -5,11 +5,8 @@ import { computeCostUsd } from "@/lib/ai-pricing";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-async function checkIsAdmin(
-  userId: string,
-  client: typeof supabaseAdmin,
-): Promise<boolean> {
-  const { data, error } = await client
+async function checkIsAdmin(userId: string): Promise<boolean> {
+  const { data, error } = await supabaseAdmin
     .from("user_roles")
     .select("id")
     .eq("user_id", userId)
@@ -20,7 +17,7 @@ async function checkIsAdmin(
 }
 
 async function assertAdmin(userId: string) {
-  if (!(await checkIsAdmin(userId, supabaseAdmin))) {
+  if (!(await checkIsAdmin(userId))) {
     throw new Error("Acesso restrito a administradores.");
   }
 }
@@ -31,12 +28,12 @@ function dayKey(iso: string): string {
 
 /** Usado pelo menu para decidir se mostra o link Admin — não expõe nada além
  * do booleano; a verificação real de acesso ao painel continua em getAdminDashboard.
- * Usa o cliente autenticado do utilizador (RLS) para não exigir service-role key. */
+ * Tem de usar supabaseAdmin (service role): a policy "No direct access to
+ * user_roles" bloqueia leitura via RLS para anon/authenticated sempre, mesmo
+ * para o próprio dono da role — um cliente autenticado nunca vê a sua linha. */
 export const getIsAdmin = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => ({
-    isAdmin: await checkIsAdmin(context.userId, context.supabase as unknown as typeof supabaseAdmin),
-  }));
+  .handler(async ({ context }) => ({ isAdmin: await checkIsAdmin(context.userId) }));
 
 export const getAdminDashboard = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
