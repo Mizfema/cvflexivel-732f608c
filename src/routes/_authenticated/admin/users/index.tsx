@@ -106,7 +106,7 @@ function AdminUsersPage() {
                     <Link
                       to="/admin/users/$id"
                       params={{ id: u.id }}
-                      className="block hover:underline"
+                      className="block font-medium text-foreground hover:underline"
                     >
                       {u.fullName ?? "—"}
                     </Link>
@@ -117,7 +117,7 @@ function AdminUsersPage() {
                       {planLabel(u.plan)}
                     </Badge>
                   </TableCell>
-                  <TableCell className="font-mono tabular-nums">
+                  <TableCell className="font-mono tabular-nums text-foreground">
                     {u.creditsBalance ?? "—"}
                   </TableCell>
                   <TableCell>

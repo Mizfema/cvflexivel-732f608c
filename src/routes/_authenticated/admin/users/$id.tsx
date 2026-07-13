@@ -284,16 +284,16 @@ function AdminUserDetailPage() {
 
       <Section title="Ações">
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline" disabled title="Disponível na Fase A3">
+          <Button variant="outline" className="text-foreground" disabled title="Disponível na Fase A3">
             Conceder plano
           </Button>
-          <Button variant="outline" disabled title="Disponível na Fase A3">
+          <Button variant="outline" className="text-foreground" disabled title="Disponível na Fase A3">
             Revogar plano
           </Button>
-          <Button variant="outline" disabled title="Disponível na Fase A3">
+          <Button variant="outline" className="text-foreground" disabled title="Disponível na Fase A3">
             Ajustar créditos
           </Button>
-          <Button variant="outline" disabled title="Disponível na Fase A4">
+          <Button variant="outline" className="text-foreground" disabled title="Disponível na Fase A4">
             Suspender conta
           </Button>
         </div>
