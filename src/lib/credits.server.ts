@@ -64,12 +64,15 @@ export async function debitCredits(
   return newBalance;
 }
 
-/** Credita o saldo de uma compra de avulso ou recarga (Fase 3 §8). Nunca
- * reduz créditos existentes: uma nova compra de avulso soma ao saldo actual e
- * estende a validade para a mais distante das duas (nunca a encurta). Recarga
- * "herda a validade do pacote ativo" (§2 do doc V3) — só soma créditos, nunca
- * mexe na validade, e exige um pacote avulso ativo (não faz sentido recarregar
- * sem ter comprado avulso primeiro). */
+/** Credita o saldo de uma compra de avulso ou recarga (Fase 3 §8), ou uma
+ * concessão manual admin (Fase A3). Nunca reduz créditos existentes: uma nova
+ * compra de avulso soma ao saldo actual e estende a validade para a mais
+ * distante das duas (nunca a encurta) — feito atomicamente pelo RPC
+ * grant_credit_balance (migration 20260713150000, espelha debit_credit_balance)
+ * para evitar a mesma corrida de leitura-depois-escrita que debitCredits já
+ * evitava. Recarga "herda a validade do pacote ativo" (§2 do doc V3) — só soma
+ * créditos, nunca mexe na validade, e exige um pacote avulso ativo (o RPC
+ * devolve zero linhas nesse caso, tratado abaixo como erro explícito). */
 export async function grantCredits(
   userId: string,
   amount: number,
@@ -77,44 +80,27 @@ export async function grantCredits(
   reason: "purchase" | "recharge",
   purchaseExpiresAt?: Date,
 ): Promise<void> {
-  const { data: existing, error: fetchError } = await supabaseAdmin
-    .from("credit_balances")
-    .select("balance, expires_at")
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (fetchError) throw new Error(fetchError.message);
+  const requireExisting = reason === "recharge";
 
-  if (reason === "recharge" && !existing) {
+  const { data, error } = await supabaseAdmin.rpc("grant_credit_balance", {
+    p_user_id: userId,
+    p_amount: amount,
+    p_package_id: packageId,
+    p_new_expiry: (purchaseExpiresAt ?? new Date()).toISOString(),
+    p_require_existing: requireExisting,
+  });
+  if (error) throw new Error(error.message);
+
+  const row = data?.[0];
+  if (!row) {
     throw new Error("Recarga sem pacote avulso ativo.");
   }
-
-  const currentBalance = existing?.balance ?? 0;
-  const newBalance = currentBalance + amount;
-  const currentExpiryMs = existing?.expires_at ? new Date(existing.expires_at).getTime() : 0;
-  const expiresAt =
-    reason === "recharge"
-      ? (existing!.expires_at as string)
-      : new Date(
-          Math.max(currentExpiryMs, (purchaseExpiresAt ?? new Date()).getTime()),
-        ).toISOString();
-
-  const { error: upsertError } = await supabaseAdmin.from("credit_balances").upsert(
-    {
-      user_id: userId,
-      balance: newBalance,
-      expires_at: expiresAt,
-      package_id: packageId,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "user_id" },
-  );
-  if (upsertError) throw new Error(upsertError.message);
 
   const { error: txError } = await supabaseAdmin.from("credit_transactions").insert({
     user_id: userId,
     feature: null,
     delta: amount,
-    balance_after: newBalance,
+    balance_after: row.balance,
     reason,
   });
   if (txError) throw new Error(txError.message);

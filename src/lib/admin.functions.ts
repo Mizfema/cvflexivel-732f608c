@@ -2,25 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { computeCostUsd } from "@/lib/ai-pricing";
+import { assertAdmin, checkIsAdmin } from "@/lib/admin-auth.server";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-async function checkIsAdmin(userId: string): Promise<boolean> {
-  const { data, error } = await supabaseAdmin
-    .from("user_roles")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("role", "admin")
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  return !!data;
-}
-
-async function assertAdmin(userId: string) {
-  if (!(await checkIsAdmin(userId))) {
-    throw new Error("Acesso restrito a administradores.");
-  }
-}
 
 function dayKey(iso: string): string {
   return iso.slice(0, 10);

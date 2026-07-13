@@ -23,9 +23,12 @@ import { Route as AuthenticatedMeusCvsRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedEntrevistasRouteImport } from './routes/_authenticated/entrevistas'
 import { Route as AuthenticatedCartasRouteImport } from './routes/_authenticated/cartas'
 import { Route as AuthenticatedCartaEditorRouteImport } from './routes/_authenticated/carta-editor'
-import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
+import { Route as AuthenticatedAdminRouteRouteImport } from './routes/_authenticated/admin/route'
+import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as ApiCronPlanRemindersRouteImport } from './routes/api/cron/plan-reminders'
 import { Route as ApiCronAiCostAlertRouteImport } from './routes/api/cron/ai-cost-alert'
+import { Route as AuthenticatedAdminAuditoriaRouteImport } from './routes/_authenticated/admin/auditoria'
+import { Route as AuthenticatedAdminUsersIndexRouteImport } from './routes/_authenticated/admin/users/index'
 
 const VagasRoute = VagasRouteImport.update({
   id: '/vagas',
@@ -98,10 +101,15 @@ const AuthenticatedCartaEditorRoute =
     path: '/carta-editor',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
+const AuthenticatedAdminRouteRoute = AuthenticatedAdminRouteRouteImport.update({
   id: '/admin',
   path: '/admin',
   getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedAdminRouteRoute,
 } as any)
 const ApiCronPlanRemindersRoute = ApiCronPlanRemindersRouteImport.update({
   id: '/api/cron/plan-reminders',
@@ -113,6 +121,18 @@ const ApiCronAiCostAlertRoute = ApiCronAiCostAlertRouteImport.update({
   path: '/api/cron/ai-cost-alert',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAdminAuditoriaRoute =
+  AuthenticatedAdminAuditoriaRouteImport.update({
+    id: '/auditoria',
+    path: '/auditoria',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
+const AuthenticatedAdminUsersIndexRoute =
+  AuthenticatedAdminUsersIndexRouteImport.update({
+    id: '/users/',
+    path: '/users/',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -122,15 +142,18 @@ export interface FileRoutesByFullPath {
   '/planos': typeof PlanosRoute
   '/preparar-entrevista': typeof PrepararEntrevistaRoute
   '/vagas': typeof VagasRoute
-  '/admin': typeof AuthenticatedAdminRoute
+  '/admin': typeof AuthenticatedAdminRouteRouteWithChildren
   '/carta-editor': typeof AuthenticatedCartaEditorRoute
   '/cartas': typeof AuthenticatedCartasRoute
   '/entrevistas': typeof AuthenticatedEntrevistasRoute
   '/meus-cvs': typeof AuthenticatedMeusCvsRoute
   '/perfil': typeof AuthenticatedPerfilRoute
   '/api/paysuite-webhook': typeof ApiPaysuiteWebhookRoute
+  '/admin/auditoria': typeof AuthenticatedAdminAuditoriaRoute
   '/api/cron/ai-cost-alert': typeof ApiCronAiCostAlertRoute
   '/api/cron/plan-reminders': typeof ApiCronPlanRemindersRoute
+  '/admin/': typeof AuthenticatedAdminIndexRoute
+  '/admin/users/': typeof AuthenticatedAdminUsersIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -140,15 +163,17 @@ export interface FileRoutesByTo {
   '/planos': typeof PlanosRoute
   '/preparar-entrevista': typeof PrepararEntrevistaRoute
   '/vagas': typeof VagasRoute
-  '/admin': typeof AuthenticatedAdminRoute
   '/carta-editor': typeof AuthenticatedCartaEditorRoute
   '/cartas': typeof AuthenticatedCartasRoute
   '/entrevistas': typeof AuthenticatedEntrevistasRoute
   '/meus-cvs': typeof AuthenticatedMeusCvsRoute
   '/perfil': typeof AuthenticatedPerfilRoute
   '/api/paysuite-webhook': typeof ApiPaysuiteWebhookRoute
+  '/admin/auditoria': typeof AuthenticatedAdminAuditoriaRoute
   '/api/cron/ai-cost-alert': typeof ApiCronAiCostAlertRoute
   '/api/cron/plan-reminders': typeof ApiCronPlanRemindersRoute
+  '/admin': typeof AuthenticatedAdminIndexRoute
+  '/admin/users': typeof AuthenticatedAdminUsersIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -160,15 +185,18 @@ export interface FileRoutesById {
   '/planos': typeof PlanosRoute
   '/preparar-entrevista': typeof PrepararEntrevistaRoute
   '/vagas': typeof VagasRoute
-  '/_authenticated/admin': typeof AuthenticatedAdminRoute
+  '/_authenticated/admin': typeof AuthenticatedAdminRouteRouteWithChildren
   '/_authenticated/carta-editor': typeof AuthenticatedCartaEditorRoute
   '/_authenticated/cartas': typeof AuthenticatedCartasRoute
   '/_authenticated/entrevistas': typeof AuthenticatedEntrevistasRoute
   '/_authenticated/meus-cvs': typeof AuthenticatedMeusCvsRoute
   '/_authenticated/perfil': typeof AuthenticatedPerfilRoute
   '/api/paysuite-webhook': typeof ApiPaysuiteWebhookRoute
+  '/_authenticated/admin/auditoria': typeof AuthenticatedAdminAuditoriaRoute
   '/api/cron/ai-cost-alert': typeof ApiCronAiCostAlertRoute
   '/api/cron/plan-reminders': typeof ApiCronPlanRemindersRoute
+  '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
+  '/_authenticated/admin/users/': typeof AuthenticatedAdminUsersIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -187,8 +215,11 @@ export interface FileRouteTypes {
     | '/meus-cvs'
     | '/perfil'
     | '/api/paysuite-webhook'
+    | '/admin/auditoria'
     | '/api/cron/ai-cost-alert'
     | '/api/cron/plan-reminders'
+    | '/admin/'
+    | '/admin/users/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -198,15 +229,17 @@ export interface FileRouteTypes {
     | '/planos'
     | '/preparar-entrevista'
     | '/vagas'
-    | '/admin'
     | '/carta-editor'
     | '/cartas'
     | '/entrevistas'
     | '/meus-cvs'
     | '/perfil'
     | '/api/paysuite-webhook'
+    | '/admin/auditoria'
     | '/api/cron/ai-cost-alert'
     | '/api/cron/plan-reminders'
+    | '/admin'
+    | '/admin/users'
   id:
     | '__root__'
     | '/'
@@ -224,8 +257,11 @@ export interface FileRouteTypes {
     | '/_authenticated/meus-cvs'
     | '/_authenticated/perfil'
     | '/api/paysuite-webhook'
+    | '/_authenticated/admin/auditoria'
     | '/api/cron/ai-cost-alert'
     | '/api/cron/plan-reminders'
+    | '/_authenticated/admin/'
+    | '/_authenticated/admin/users/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -346,8 +382,15 @@ declare module '@tanstack/react-router' {
       id: '/_authenticated/admin'
       path: '/admin'
       fullPath: '/admin'
-      preLoaderRoute: typeof AuthenticatedAdminRouteImport
+      preLoaderRoute: typeof AuthenticatedAdminRouteRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/': {
+      id: '/_authenticated/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
     }
     '/api/cron/plan-reminders': {
       id: '/api/cron/plan-reminders'
@@ -363,11 +406,43 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronAiCostAlertRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/admin/auditoria': {
+      id: '/_authenticated/admin/auditoria'
+      path: '/auditoria'
+      fullPath: '/admin/auditoria'
+      preLoaderRoute: typeof AuthenticatedAdminAuditoriaRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/users/': {
+      id: '/_authenticated/admin/users/'
+      path: '/users'
+      fullPath: '/admin/users/'
+      preLoaderRoute: typeof AuthenticatedAdminUsersIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
   }
 }
 
+interface AuthenticatedAdminRouteRouteChildren {
+  AuthenticatedAdminAuditoriaRoute: typeof AuthenticatedAdminAuditoriaRoute
+  AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
+  AuthenticatedAdminUsersIndexRoute: typeof AuthenticatedAdminUsersIndexRoute
+}
+
+const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren =
+  {
+    AuthenticatedAdminAuditoriaRoute: AuthenticatedAdminAuditoriaRoute,
+    AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
+    AuthenticatedAdminUsersIndexRoute: AuthenticatedAdminUsersIndexRoute,
+  }
+
+const AuthenticatedAdminRouteRouteWithChildren =
+  AuthenticatedAdminRouteRoute._addFileChildren(
+    AuthenticatedAdminRouteRouteChildren,
+  )
+
 interface AuthenticatedRouteRouteChildren {
-  AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
+  AuthenticatedAdminRouteRoute: typeof AuthenticatedAdminRouteRouteWithChildren
   AuthenticatedCartaEditorRoute: typeof AuthenticatedCartaEditorRoute
   AuthenticatedCartasRoute: typeof AuthenticatedCartasRoute
   AuthenticatedEntrevistasRoute: typeof AuthenticatedEntrevistasRoute
@@ -376,7 +451,7 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
-  AuthenticatedAdminRoute: AuthenticatedAdminRoute,
+  AuthenticatedAdminRouteRoute: AuthenticatedAdminRouteRouteWithChildren,
   AuthenticatedCartaEditorRoute: AuthenticatedCartaEditorRoute,
   AuthenticatedCartasRoute: AuthenticatedCartasRoute,
   AuthenticatedEntrevistasRoute: AuthenticatedEntrevistasRoute,
