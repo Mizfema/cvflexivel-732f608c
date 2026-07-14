@@ -2,9 +2,19 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft } from "lucide-react";
+import { toast } from "sonner";
 import { getAdminUserDetail } from "@/lib/admin-users.functions";
+import {
+  adminGrantPlanFn,
+  adminRevokePlanFn,
+  adminAdjustCreditsFn,
+} from "@/lib/admin-actions.functions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -14,6 +24,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export const Route = createFileRoute("/_authenticated/admin/users/$id")({
   head: () => ({
@@ -55,6 +75,350 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+const PLAN_OPTIONS = [
+  { value: "mensal" as const, label: "Mensal" },
+  { value: "trimestral" as const, label: "Trimestral" },
+];
+
+function GrantPlanDialog({ userId, onSuccess }: { userId: string; onSuccess: () => void }) {
+  const grantPlan = useServerFn(adminGrantPlanFn);
+  const [open, setOpen] = useState(false);
+  const [plan, setPlan] = useState<"mensal" | "trimestral">("mensal");
+  const [periodDays, setPeriodDays] = useState("30");
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  function reset() {
+    setPlan("mensal");
+    setPeriodDays("30");
+    setReason("");
+    setError(null);
+  }
+
+  async function handleConfirm() {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await grantPlan({
+        data: { userId, plan, periodDays: Number(periodDays), reason },
+      });
+      toast.success("Plano concedido.");
+      setOpen(false);
+      reset();
+      onSuccess();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erro ao conceder plano.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <AlertDialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) reset();
+      }}
+    >
+      <AlertDialogTrigger asChild>
+        <Button variant="outline" className="text-foreground">
+          Conceder plano
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Conceder plano</AlertDialogTitle>
+          <AlertDialogDescription>
+            Concede ou estende manualmente um plano. Nunca gera um pagamento — expira exatamente
+            como um plano pago, a partir de agora ou do fim do período atual, o que for mais tarde.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label>Plano</Label>
+            <Select value={plan} onValueChange={(v) => setPlan(v as "mensal" | "trimestral")}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PLAN_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="grant-plan-days">Duração (dias)</Label>
+            <Input
+              id="grant-plan-days"
+              type="number"
+              min={1}
+              max={3650}
+              value={periodDays}
+              onChange={(e) => setPeriodDays(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="grant-plan-reason">Motivo (obrigatório)</Label>
+            <Textarea
+              id="grant-plan-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Ex.: promoção de lançamento, compensação por incidente…"
+            />
+          </div>
+
+          {error && (
+            <p className="text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          )}
+        </div>
+
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={submitting}>Cancelar</AlertDialogCancel>
+          <Button
+            onClick={handleConfirm}
+            disabled={submitting || reason.trim().length < 3 || !Number(periodDays)}
+          >
+            {submitting ? "A processar…" : "Conceder"}
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+function RevokePlanDialog({
+  userId,
+  disabled,
+  onSuccess,
+}: {
+  userId: string;
+  disabled: boolean;
+  onSuccess: () => void;
+}) {
+  const revokePlan = useServerFn(adminRevokePlanFn);
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleConfirm() {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await revokePlan({ data: { userId, reason } });
+      toast.success("Plano revogado.");
+      setOpen(false);
+      setReason("");
+      onSuccess();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erro ao revogar plano.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <AlertDialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) {
+          setReason("");
+          setError(null);
+        }
+      }}
+    >
+      <AlertDialogTrigger asChild>
+        <Button variant="outline" className="text-foreground" disabled={disabled}>
+          Revogar plano
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Revogar plano</AlertDialogTitle>
+          <AlertDialogDescription>
+            Termina o plano ativo imediatamente. O utilizador volta a "Grátis" já. Não apaga
+            histórico nem dados.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="revoke-plan-reason">Motivo (obrigatório)</Label>
+            <Textarea
+              id="revoke-plan-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Ex.: reembolso, abuso, suspeita de fraude…"
+            />
+          </div>
+
+          {error && (
+            <p className="text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          )}
+        </div>
+
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={submitting}>Cancelar</AlertDialogCancel>
+          <Button
+            variant="destructive"
+            onClick={handleConfirm}
+            disabled={submitting || reason.trim().length < 3}
+          >
+            {submitting ? "A processar…" : "Revogar"}
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+function AdjustCreditsDialog({
+  userId,
+  currentBalance,
+  onSuccess,
+}: {
+  userId: string;
+  currentBalance: number;
+  onSuccess: () => void;
+}) {
+  const adjustCredits = useServerFn(adminAdjustCreditsFn);
+  const [open, setOpen] = useState(false);
+  const [delta, setDelta] = useState("");
+  const [periodDays, setPeriodDays] = useState("30");
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  function reset() {
+    setDelta("");
+    setPeriodDays("30");
+    setReason("");
+    setError(null);
+  }
+
+  const deltaNumber = Number(delta);
+  const isPositive = Number.isFinite(deltaNumber) && deltaNumber > 0;
+  const isValidDelta = Number.isInteger(deltaNumber) && deltaNumber !== 0;
+  const preview = isValidDelta ? currentBalance + deltaNumber : currentBalance;
+
+  async function handleConfirm() {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const result = await adjustCredits({
+        data: {
+          userId,
+          delta: deltaNumber,
+          periodDays: isPositive ? Number(periodDays) : undefined,
+          reason,
+        },
+      });
+      toast.success(`Saldo ajustado para ${result.newBalance} créditos.`);
+      setOpen(false);
+      reset();
+      onSuccess();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erro ao ajustar créditos.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <AlertDialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) reset();
+      }}
+    >
+      <AlertDialogTrigger asChild>
+        <Button variant="outline" className="text-foreground">
+          Ajustar créditos
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Ajustar créditos</AlertDialogTitle>
+          <AlertDialogDescription>
+            Positivo concede créditos (cria ou estende o pacote avulso); negativo debita do saldo
+            atual — nunca fica abaixo de zero.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="adjust-credits-delta">Ajuste (+/-)</Label>
+            <Input
+              id="adjust-credits-delta"
+              type="number"
+              value={delta}
+              onChange={(e) => setDelta(e.target.value)}
+              placeholder="Ex.: 10 ou -5"
+            />
+            <p className="text-xs text-muted-foreground">
+              Saldo atual: {currentBalance} · Saldo resultante: {preview}
+            </p>
+          </div>
+
+          {isPositive && (
+            <div className="space-y-1.5">
+              <Label htmlFor="adjust-credits-days">Válido por (dias)</Label>
+              <Input
+                id="adjust-credits-days"
+                type="number"
+                min={1}
+                max={3650}
+                value={periodDays}
+                onChange={(e) => setPeriodDays(e.target.value)}
+              />
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <Label htmlFor="adjust-credits-reason">Motivo (obrigatório)</Label>
+            <Textarea
+              id="adjust-credits-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Ex.: compensação por bug, promoção pontual…"
+            />
+          </div>
+
+          {error && (
+            <p className="text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          )}
+        </div>
+
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={submitting}>Cancelar</AlertDialogCancel>
+          <Button
+            onClick={handleConfirm}
+            disabled={submitting || !isValidDelta || reason.trim().length < 3}
+          >
+            {submitting ? "A processar…" : "Ajustar"}
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 function AdminUserDetailPage() {
   const { id } = Route.useParams();
   const fetchDetail = useServerFn(getAdminUserDetail);
@@ -62,12 +426,17 @@ function AdminUserDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  function loadDetail() {
     setLoading(true);
     fetchDetail({ data: { userId: id } })
       .then(setData)
       .catch((e) => setError(e instanceof Error ? e.message : "Erro ao carregar utilizador."))
       .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    loadDetail();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchDetail, id]);
 
   if (loading) {
@@ -284,21 +653,24 @@ function AdminUserDetailPage() {
 
       <Section title="Ações">
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline" className="text-foreground" disabled title="Disponível na Fase A3">
-            Conceder plano
-          </Button>
-          <Button variant="outline" className="text-foreground" disabled title="Disponível na Fase A3">
-            Revogar plano
-          </Button>
-          <Button variant="outline" className="text-foreground" disabled title="Disponível na Fase A3">
-            Ajustar créditos
-          </Button>
+          <GrantPlanDialog userId={id} onSuccess={loadDetail} />
+          <RevokePlanDialog
+            userId={id}
+            disabled={data.plan.status !== "active"}
+            onSuccess={loadDetail}
+          />
+          <AdjustCreditsDialog
+            userId={id}
+            currentBalance={data.creditBalance?.balance ?? 0}
+            onSuccess={loadDetail}
+          />
           <Button variant="outline" className="text-foreground" disabled title="Disponível na Fase A4">
             Suspender conta
           </Button>
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
-          Estas ações ficam disponíveis nas próximas fases (A3 e A4).
+          Cada ação exige um motivo e fica registada no histórico admin. Suspender conta fica
+          disponível na próxima fase (A4).
         </p>
       </Section>
     </div>

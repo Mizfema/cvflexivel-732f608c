@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { verifyWebhookSignature } from "@/lib/paysuite.server";
 import { grantCredits } from "@/lib/credits.server";
+import { computeExtendedPeriodEnd } from "@/lib/subscription.server";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 // Fallback só para pagamentos criados antes da coluna payments.period_days
@@ -73,12 +74,11 @@ export const Route = createFileRoute("/api/paysuite-webhook")({
               .single();
             if (subFetchErr) return new Response(subFetchErr.message, { status: 500 });
 
-            const currentEnd = subscription.current_period_end
-              ? new Date(subscription.current_period_end).getTime()
-              : 0;
-            const base = Math.max(Date.now(), currentEnd);
             const periodDays = payment.period_days ?? FALLBACK_PERIOD_DAYS;
-            const newPeriodEnd = new Date(base + periodDays * DAY_MS).toISOString();
+            const newPeriodEnd = computeExtendedPeriodEnd(
+              subscription.current_period_end,
+              periodDays,
+            );
 
             const { error: subErr } = await supabaseAdmin
               .from("subscriptions")

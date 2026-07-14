@@ -13,6 +13,7 @@ import posthog from "posthog-js";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppSidebar } from "@/components/AppSidebar";
+import { Toaster } from "@/components/ui/sonner";
 
 if (typeof window !== "undefined") {
   posthog.init(import.meta.env.VITE_POSTHOG_KEY, {
@@ -177,6 +178,7 @@ function RootComponent() {
           <SiteFooter />
         </div>
       </div>
+      <Toaster />
     </QueryClientProvider>
   );
 }

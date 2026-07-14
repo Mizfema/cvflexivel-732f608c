@@ -7,6 +7,7 @@ import {
   hasActivePlan,
   getPlanExpiryWarning,
   getActivePlanDaysLeft,
+  SUBSCRIPTION_PLANS,
 } from "@/lib/subscription.server";
 import { getActiveCreditBalance } from "@/lib/credits.server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
@@ -15,7 +16,7 @@ import { createPaymentRequest } from "@/lib/paysuite.server";
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const checkoutInputSchema = z.object({
-  plan: z.enum(["mensal", "trimestral"]).optional().default("mensal"),
+  plan: z.enum(SUBSCRIPTION_PLANS).optional().default("mensal"),
 });
 
 const creditCheckoutInputSchema = z.object({

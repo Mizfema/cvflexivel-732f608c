@@ -1,5 +1,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 export interface CreditBalance {
   balance: number;
   expiresAt: string;
@@ -34,14 +36,11 @@ export async function getCreditWeight(feature: string): Promise<number | null> {
   return data?.weight ?? null;
 }
 
-/** Débito atómico (função de Postgres — evita corrida de dois pedidos
- * simultâneos levarem o saldo a negativo) + registo no livro-razão. Devolve o
- * saldo novo, ou null se não havia saldo suficiente/ativo (chamador deve ter
- * verificado antes, isto é só a rede de segurança final). */
-export async function debitCredits(
+async function debitCreditsInternal(
   userId: string,
-  feature: string,
   weight: number,
+  reason: "debit" | "admin_adjustment",
+  feature: string | null,
 ): Promise<number | null> {
   if (weight <= 0) return null;
 
@@ -57,11 +56,23 @@ export async function debitCredits(
     feature,
     delta: -weight,
     balance_after: newBalance,
-    reason: "debit",
+    reason,
   });
   if (txError) throw new Error(txError.message);
 
   return newBalance;
+}
+
+/** Débito atómico (função de Postgres — evita corrida de dois pedidos
+ * simultâneos levarem o saldo a negativo) + registo no livro-razão. Devolve o
+ * saldo novo, ou null se não havia saldo suficiente/ativo (chamador deve ter
+ * verificado antes, isto é só a rede de segurança final). */
+export async function debitCredits(
+  userId: string,
+  feature: string,
+  weight: number,
+): Promise<number | null> {
+  return debitCreditsInternal(userId, weight, "debit", feature);
 }
 
 /** Credita o saldo de uma compra de avulso ou recarga (Fase 3 §8), ou uma
@@ -77,7 +88,7 @@ export async function grantCredits(
   userId: string,
   amount: number,
   packageId: string,
-  reason: "purchase" | "recharge",
+  reason: "purchase" | "recharge" | "admin_grant",
   purchaseExpiresAt?: Date,
 ): Promise<void> {
   const requireExisting = reason === "recharge";
@@ -104,4 +115,41 @@ export async function grantCredits(
     reason,
   });
   if (txError) throw new Error(txError.message);
+}
+
+/** Ajuste manual de créditos pelo admin (Fase A3). Positivo reaproveita
+ * grantCredits (nunca exige pacote existente — cria um novo `credit_balances`
+ * com `package_id: "admin_grant"` se o utilizador não tiver nenhum ativo, ou
+ * estende o existente via GREATEST, nunca encurta). `grantPeriodDays` só é
+ * usado nesse caso — como não há "pacote" real a herdar validade, o admin
+ * escolhe por quantos dias a concessão vale (default 30, mesmo fallback já
+ * usado no projeto para avulso). Negativo reaproveita o mesmo RPC atómico de
+ * debitCredits, com reason "admin_adjustment" para distinguir de uso real. */
+export async function adminAdjustCredits(
+  userId: string,
+  delta: number,
+  grantPeriodDays = 30,
+): Promise<number> {
+  if (delta === 0) {
+    throw new Error("O ajuste tem de ser diferente de zero.");
+  }
+
+  if (delta > 0) {
+    await grantCredits(
+      userId,
+      delta,
+      "admin_grant",
+      "admin_grant",
+      new Date(Date.now() + grantPeriodDays * DAY_MS),
+    );
+    const balance = await getActiveCreditBalance(userId);
+    if (!balance) throw new Error("Falha ao confirmar saldo após a concessão.");
+    return balance.balance;
+  }
+
+  const newBalance = await debitCreditsInternal(userId, -delta, "admin_adjustment", null);
+  if (newBalance == null) {
+    throw new Error("Saldo insuficiente para este ajuste (ou sem pacote ativo).");
+  }
+  return newBalance;
 }
