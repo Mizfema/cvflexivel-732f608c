@@ -465,7 +465,9 @@ export type Database = {
           method: string | null
           paid_at: string | null
           period_days: number | null
+          period_minutes: number | null
           plan: string | null
+          plan_kind: string | null
           provider: string
           provider_ref: string | null
           reference: string | null
@@ -481,7 +483,9 @@ export type Database = {
           method?: string | null
           paid_at?: string | null
           period_days?: number | null
+          period_minutes?: number | null
           plan?: string | null
+          plan_kind?: string | null
           provider: string
           provider_ref?: string | null
           reference?: string | null
@@ -497,7 +501,9 @@ export type Database = {
           method?: string | null
           paid_at?: string | null
           period_days?: number | null
+          period_minutes?: number | null
           plan?: string | null
+          plan_kind?: string | null
           provider?: string
           provider_ref?: string | null
           reference?: string | null
