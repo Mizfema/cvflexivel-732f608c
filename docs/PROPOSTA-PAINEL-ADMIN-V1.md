@@ -384,9 +384,25 @@ CRITÉRIOS DE ACEITAÇÃO
 - [x] **A0 — Fundamentos:** migrations, guard de rota, reorganização em sub-rotas, RPC de crédito.
 - [x] **A1 — KPIs reais:** matar o objeto `DEMO`.
 - [x] **A2 — Lista + detalhe de utilizadores (só leitura).**
-- [ ] **A3 — Conceder/ajustar/revogar plano e créditos.**
+- [x] **A3 — Conceder/ajustar/revogar plano e créditos.**
 - [ ] **A4 — Suspender/reativar conta.**
 - [ ] **A5 — Visualizador de auditoria.**
+
+**Nota da A3 (14/07/2026):** antes de tocar em código, o `supabase db pull` obrigatório revelou uma
+vulnerabilidade ativa em produção, não introduzida por esta fase mas destapada por ela: as RPCs
+`grant_credit_balance` (A0) e `debit_credit_balance` (Fase 3) são `SECURITY DEFINER` sem
+verificação própria de quem chama, e nenhuma das duas migrations tinha `REVOKE` — o projeto tem
+`ALTER DEFAULT PRIVILEGES ... GRANT ALL ON FUNCTIONS TO anon, authenticated` a nível de schema, que
+concede EXECUTE a qualquer conta autenticada em toda função nova por omissão. Qualquer utilizador
+autenticado conseguia chamar `supabase.rpc('grant_credit_balance', ...)` diretamente do browser e
+conceder-se créditos ilimitados de graça, ou zerar os créditos de outro utilizador via
+`debit_credit_balance`. Corrigido dentro da própria A3 (migration
+`20260714160000_fase_a3_admin_plan_credits.sql`, `REVOKE ALL ... FROM PUBLIC, anon, authenticated`
+nas duas funções — confirmado no dump ao vivo que ambas ficaram só com `GRANT` a `service_role`).
+**Pendência maior registada, fora do âmbito desta fase:** o `ALTER DEFAULT PRIVILEGES` a nível de
+schema continua a conceder acesso público a toda função nova por omissão — qualquer RPC futura
+`SECURITY DEFINER` sem `REVOKE` explícito repete o mesmo buraco. Precisa de uma ronda própria de
+auditoria a todas as RPCs existentes antes de se considerar apertar o default a nível de schema.
 
 ---
 
@@ -396,8 +412,8 @@ CRITÉRIOS DE ACEITAÇÃO
 - [ ] Guard de rota redireciona não-admins antes de renderizar qualquer página `/admin/*` (A0).
 - [ ] Zero resquícios de `DEMO`; nenhuma tile sem fonte real; CAC/LTV/Payback e "Favorável para investir" removidos; "Bateu no limite" marcado indisponível (A1).
 - [ ] Lista pesquisável + detalhe completo por utilizador, distinguindo plano pago de plano `admin` (A2).
-- [ ] Conceder/estender/revogar plano e ajustar créditos funcionam, sem linha em `payments`, com motivo obrigatório e auditoria 1:1 (A3).
+- [x] Conceder/estender/revogar plano e ajustar créditos funcionam, sem linha em `payments`, com motivo obrigatório e auditoria 1:1 (A3) — `bun run build`/`tsc --noEmit` limpos; **validação end-to-end em `bun dev` com dados reais ainda por fazer** (mexe em fluxo de dinheiro, ver nota no chat).
 - [ ] Suspensão bloqueia login e IA/download com mensagem própria; reativação restaura tudo; auto-suspensão e suspensão de admin rejeitadas (A4).
 - [ ] `/admin/auditoria` mostra todas as ações com filtros (A5).
 - [ ] Cada fase: `bun run build` limpo, migrations + tipos em commit separado, `supabase db pull` antes de tocar em schema.
-- [ ] Pendências antigas que esta ronda **não** resolve e continuam abertas: logout na sidebar (não confirmado como bug real, verificar se necessário), rotas órfãs `/analise` e `/vagas` (confirmado: existem mas não estão em `NAV_ITEMS`), CRUD de `analyses`. Não deixar morrer.
+- [ ] Pendências antigas que esta ronda **não** resolve e continuam abertas: logout na sidebar (não confirmado como bug real, verificar se necessário), rotas órfãs `/analise` e `/vagas` (confirmado: existem mas não estão em `NAV_ITEMS`), CRUD de `analyses`; **default privileges de funções abertos a anon/authenticated a nível de schema (encontrado na A3, corrigido só nas duas RPCs de crédito)**. Não deixar morrer.
