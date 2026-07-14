@@ -29,6 +29,7 @@ import { Route as ApiCronPlanRemindersRouteImport } from './routes/api/cron/plan
 import { Route as ApiCronAiCostAlertRouteImport } from './routes/api/cron/ai-cost-alert'
 import { Route as AuthenticatedAdminAuditoriaRouteImport } from './routes/_authenticated/admin/auditoria'
 import { Route as AuthenticatedAdminUsersIndexRouteImport } from './routes/_authenticated/admin/users/index'
+import { Route as AuthenticatedAdminPlanosIndexRouteImport } from './routes/_authenticated/admin/planos/index'
 import { Route as AuthenticatedAdminUsersIdRouteImport } from './routes/_authenticated/admin/users/$id'
 
 const VagasRoute = VagasRouteImport.update({
@@ -134,6 +135,12 @@ const AuthenticatedAdminUsersIndexRoute =
     path: '/users/',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
+const AuthenticatedAdminPlanosIndexRoute =
+  AuthenticatedAdminPlanosIndexRouteImport.update({
+    id: '/planos/',
+    path: '/planos/',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
 const AuthenticatedAdminUsersIdRoute =
   AuthenticatedAdminUsersIdRouteImport.update({
     id: '/users/$id',
@@ -161,6 +168,7 @@ export interface FileRoutesByFullPath {
   '/api/cron/plan-reminders': typeof ApiCronPlanRemindersRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/admin/users/$id': typeof AuthenticatedAdminUsersIdRoute
+  '/admin/planos/': typeof AuthenticatedAdminPlanosIndexRoute
   '/admin/users/': typeof AuthenticatedAdminUsersIndexRoute
 }
 export interface FileRoutesByTo {
@@ -182,6 +190,7 @@ export interface FileRoutesByTo {
   '/api/cron/plan-reminders': typeof ApiCronPlanRemindersRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/admin/users/$id': typeof AuthenticatedAdminUsersIdRoute
+  '/admin/planos': typeof AuthenticatedAdminPlanosIndexRoute
   '/admin/users': typeof AuthenticatedAdminUsersIndexRoute
 }
 export interface FileRoutesById {
@@ -206,6 +215,7 @@ export interface FileRoutesById {
   '/api/cron/plan-reminders': typeof ApiCronPlanRemindersRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/admin/users/$id': typeof AuthenticatedAdminUsersIdRoute
+  '/_authenticated/admin/planos/': typeof AuthenticatedAdminPlanosIndexRoute
   '/_authenticated/admin/users/': typeof AuthenticatedAdminUsersIndexRoute
 }
 export interface FileRouteTypes {
@@ -230,6 +240,7 @@ export interface FileRouteTypes {
     | '/api/cron/plan-reminders'
     | '/admin/'
     | '/admin/users/$id'
+    | '/admin/planos/'
     | '/admin/users/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -251,6 +262,7 @@ export interface FileRouteTypes {
     | '/api/cron/plan-reminders'
     | '/admin'
     | '/admin/users/$id'
+    | '/admin/planos'
     | '/admin/users'
   id:
     | '__root__'
@@ -274,6 +286,7 @@ export interface FileRouteTypes {
     | '/api/cron/plan-reminders'
     | '/_authenticated/admin/'
     | '/_authenticated/admin/users/$id'
+    | '/_authenticated/admin/planos/'
     | '/_authenticated/admin/users/'
   fileRoutesById: FileRoutesById
 }
@@ -433,6 +446,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminUsersIndexRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
+    '/_authenticated/admin/planos/': {
+      id: '/_authenticated/admin/planos/'
+      path: '/planos'
+      fullPath: '/admin/planos/'
+      preLoaderRoute: typeof AuthenticatedAdminPlanosIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
     '/_authenticated/admin/users/$id': {
       id: '/_authenticated/admin/users/$id'
       path: '/users/$id'
@@ -447,6 +467,7 @@ interface AuthenticatedAdminRouteRouteChildren {
   AuthenticatedAdminAuditoriaRoute: typeof AuthenticatedAdminAuditoriaRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminUsersIdRoute: typeof AuthenticatedAdminUsersIdRoute
+  AuthenticatedAdminPlanosIndexRoute: typeof AuthenticatedAdminPlanosIndexRoute
   AuthenticatedAdminUsersIndexRoute: typeof AuthenticatedAdminUsersIndexRoute
 }
 
@@ -455,6 +476,7 @@ const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren
     AuthenticatedAdminAuditoriaRoute: AuthenticatedAdminAuditoriaRoute,
     AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
     AuthenticatedAdminUsersIdRoute: AuthenticatedAdminUsersIdRoute,
+    AuthenticatedAdminPlanosIndexRoute: AuthenticatedAdminPlanosIndexRoute,
     AuthenticatedAdminUsersIndexRoute: AuthenticatedAdminUsersIndexRoute,
   }
 

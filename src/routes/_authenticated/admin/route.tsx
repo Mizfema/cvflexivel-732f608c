@@ -18,6 +18,7 @@ export const Route = createFileRoute("/_authenticated/admin")({
 const TABS = [
   { to: "/admin", label: "Visão geral" },
   { to: "/admin/users", label: "Utilizadores" },
+  { to: "/admin/planos", label: "Planos" },
   { to: "/admin/auditoria", label: "Auditoria" },
 ] as const;
 
