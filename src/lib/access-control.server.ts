@@ -7,6 +7,7 @@ import { hasActivePlan } from "@/lib/subscription.server";
 import { computeCostUsd } from "@/lib/ai-pricing";
 import { getActiveCreditBalance, getCreditWeight, debitCredits } from "@/lib/credits.server";
 import { hasActiveSuspension, AccountSuspendedError } from "@/lib/user-suspension.server";
+import { checkIsAdmin } from "@/lib/admin-auth.server";
 import type { Database } from "@/integrations/supabase/types";
 
 export type UsageTier = "anonymous" | "free" | "premium";
@@ -255,6 +256,29 @@ export async function checkAndRecordUsage(
   // fica fora do alcance desta mecânica, registado no backlog).
   if (userId && (await hasActiveSuspension(userId))) {
     throw new AccountSuspendedError();
+  }
+
+  // Contas admin não têm tectos de geração (CV, carta, entrevista, etc.):
+  // regista o uso para auditoria (visualizador de auditoria da Fase A5), mas
+  // nunca conta para limites nem debita créditos avulso. Tratado como
+  // "premium" para herdar também os comportamentos associados (ex.: carta de
+  // motivação sem truncar em llm.functions.ts).
+  if (userId && (await checkIsAdmin(userId))) {
+    const { data: inserted, error } = await supabaseAdmin
+      .from("ai_usage")
+      .insert({ user_id: userId, anon_fingerprint: null, feature, session_id: sessionId })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    return {
+      allowed: true,
+      reason: "ok",
+      remainingToday: null,
+      remainingMonth: null,
+      retryAt: null,
+      usageId: inserted.id,
+      tier: "premium",
+    };
   }
 
   const isPremium = userId ? await hasActivePlan(userId) : false;

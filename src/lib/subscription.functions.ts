@@ -10,6 +10,7 @@ import {
   SUBSCRIPTION_PLANS,
 } from "@/lib/subscription.server";
 import { getActiveCreditBalance } from "@/lib/credits.server";
+import { checkIsAdmin } from "@/lib/admin-auth.server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { createPaymentRequest } from "@/lib/paysuite.server";
 
@@ -62,6 +63,13 @@ export const getSidebarStatus = createServerFn({ method: "GET" })
   .middleware([optionalIdentity])
   .handler(async ({ context }) => {
     if (!context.userId) return { tier: "anonymous" as const };
+
+    // Admin tem geração ilimitada (access-control.server.ts) — mostra o
+    // mesmo badge "Premium · Ilimitado" em vez de análises restantes do
+    // grátis, que seria enganoso.
+    if (await checkIsAdmin(context.userId)) {
+      return { tier: "premium" as const, daysLeft: null };
+    }
 
     const isPremium = await hasActivePlan(context.userId);
     if (isPremium) {
