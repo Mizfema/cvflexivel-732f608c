@@ -4,6 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { assertAdmin } from "@/lib/admin-auth.server";
 import { computeCostUsd } from "@/lib/ai-pricing";
+import { listAdminActions } from "@/lib/admin-audit.functions";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -137,7 +138,7 @@ export const getAdminUserDetail = createServerFn({ method: "POST" })
       aiUsageRes,
       rolesRes,
       suspensionRes,
-      adminActionsRes,
+      adminActionsResult,
     ] = await Promise.all([
       supabaseAdmin.from("profiles").select("*").eq("id", userId).maybeSingle(),
       supabaseAdmin
@@ -168,12 +169,7 @@ export const getAdminUserDetail = createServerFn({ method: "POST" })
         .gte("created_at", thirtyDaysAgo),
       supabaseAdmin.from("user_roles").select("role").eq("user_id", userId),
       supabaseAdmin.from("user_suspensions").select("*").eq("user_id", userId).maybeSingle(),
-      supabaseAdmin
-        .from("admin_actions")
-        .select("*")
-        .eq("target_user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(50),
+      listAdminActions({ data: { targetUserId: userId, page: 0, pageSize: 50 } }),
     ]);
 
     if (profileRes.error) throw new Error(profileRes.error.message);
@@ -185,7 +181,6 @@ export const getAdminUserDetail = createServerFn({ method: "POST" })
     if (aiUsageRes.error) throw new Error(aiUsageRes.error.message);
     if (rolesRes.error) throw new Error(rolesRes.error.message);
     if (suspensionRes.error) throw new Error(suspensionRes.error.message);
-    if (adminActionsRes.error) throw new Error(adminActionsRes.error.message);
 
     let aiCallsLast30d = 0;
     let aiCostUsd30d = 0;
@@ -212,6 +207,6 @@ export const getAdminUserDetail = createServerFn({ method: "POST" })
       aiUsage30d: { calls: aiCallsLast30d, costUsd: Number(aiCostUsd30d.toFixed(4)) },
       roles: (rolesRes.data ?? []).map((r) => r.role),
       suspension: suspensionRes.data,
-      adminActions: adminActionsRes.data ?? [],
+      adminActions: adminActionsResult.rows,
     };
   });

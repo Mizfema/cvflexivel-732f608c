@@ -12,6 +12,7 @@ import {
   adminReactivateUserFn,
 } from "@/lib/admin-actions.functions";
 import { Badge } from "@/components/ui/badge";
+import { AdminActionBadge } from "@/components/admin/AdminActionBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -795,6 +796,7 @@ function AdminUserDetailPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Ação</TableHead>
+                    <TableHead>Ator</TableHead>
                     <TableHead>Motivo</TableHead>
                     <TableHead>Data</TableHead>
                   </TableRow>
@@ -802,9 +804,14 @@ function AdminUserDetailPage() {
                 <TableBody>
                   {data.adminActions.map((a) => (
                     <TableRow key={a.id}>
-                      <TableCell>{a.action_type}</TableCell>
+                      <TableCell>
+                        <AdminActionBadge actionType={a.actionType} />
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {a.actor.name ?? a.actor.email ?? "Conta apagada"}
+                      </TableCell>
                       <TableCell>{a.reason}</TableCell>
-                      <TableCell>{fmtDate(a.created_at)}</TableCell>
+                      <TableCell>{fmtDate(a.createdAt)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

@@ -1,12 +1,14 @@
 import { getRequest } from "@tanstack/react-start/server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
-type AdminActionType =
-  | "grant_plan"
-  | "revoke_plan"
-  | "adjust_credits"
-  | "suspend_user"
-  | "reactivate_user";
+export const ADMIN_ACTION_TYPES = [
+  "grant_plan",
+  "revoke_plan",
+  "adjust_credits",
+  "suspend_user",
+  "reactivate_user",
+] as const;
+export type AdminActionType = (typeof ADMIN_ACTION_TYPES)[number];
 
 /** Regista uma ação admin em admin_actions (append-only, ver migration
  * 20260713150000). metadata sempre inclui snapshot do alvo + contexto

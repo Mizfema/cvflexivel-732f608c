@@ -386,7 +386,7 @@ CRITÉRIOS DE ACEITAÇÃO
 - [x] **A2 — Lista + detalhe de utilizadores (só leitura).**
 - [x] **A3 — Conceder/ajustar/revogar plano e créditos.**
 - [x] **A4 — Suspender/reativar conta.**
-- [ ] **A5 — Visualizador de auditoria.**
+- [x] **A5 — Visualizador de auditoria.**
 
 **Nota da A3 (14/07/2026):** antes de tocar em código, o `supabase db pull` obrigatório revelou uma
 vulnerabilidade ativa em produção, não introduzida por esta fase mas destapada por ela: as RPCs
@@ -437,6 +437,41 @@ fim. **Não testado nesta sessão:** as proteções de auto-suspensão e de susp
 pedido HTTP real que o script direto não simula) e o fluxo completo pelo browser/UI — validar no
 Lovable após o push, como o rodapé desta fase já indicava.
 
+**Nota da A5 (14/07/2026):** `src/lib/admin-audit.functions.ts` (`listAdminActions`) faz a leitura
+paginada de `admin_actions` com filtro por `actionType`/`targetUserId`, resolvendo nome/email atual
+de ator e alvo em lote (nunca N+1) via `profiles`, com fallback ao snapshot do `metadata`
+(`targetName`/`targetEmail`) quando a FK é `null` (conta apagada) — hoje só o alvo tem snapshot
+gravado, o ator nunca teve esse campo. `getAdminUserDetail` (`admin-users.functions.ts`) passou a
+reutilizar esta mesma função em vez de uma query direta a `admin_actions`, eliminando a duplicação
+que existia desde a A2 (e a tab "Histórico admin" do detalhe do utilizador ganhou o nome do ator de
+borla). Rota `/admin/auditoria` com filtro por tipo, paginação e metadata expansível
+(`Collapsible`), badge colorido por tipo partilhado (`AdminActionBadge`) entre a lista de auditoria
+e a tab de histórico. **Decisão técnica durante a implementação:** o tipo `AdminActionType` e a
+lista `ADMIN_ACTION_TYPES` vivem em `admin-audit.server.ts` (server-only) — o valor
+`ADMIN_ACTION_TYPES` NUNCA é importado por um ficheiro cliente (rota/componente); a rota deriva a
+sua própria lista de opções do filtro a partir de `Object.keys()` de um `Record` local (mesmo
+padrão já usado para `PLAN_OPTIONS` em `users/$id.tsx`), só o *type* (`import type`, sempre erasable
+em build) atravessa a fronteira cliente/servidor. Confirmado no bundle gerado
+(`.output/public/assets/auditoria-*.js`) que nenhum segredo de servidor (chave de serviço,
+`getRequest`) vazou para o cliente. Testado com `bun run build`/`tsc --noEmit` limpos + um script
+Bun temporário (apagado depois) que criou **2 linhas reais e permanentes** em `admin_actions`
+(suspender+reativar a conta de QA `azmagu01@gmail.com`, motivo "teste A5 — validação end-to-end do
+visualizador de auditoria", claramente identificável) — decisão tomada com o dono antes de correr,
+porque `admin_actions` é append-only a sério (nem o `service_role` tem UPDATE/DELETE) e não havia
+como repor o estado depois, ao contrário dos testes de A3/A4. As 9 verificações passaram:
+paginação (`pageSize=1` devolve 1 linha, total correto), filtro por tipo, filtro por
+`targetUserId`, resolução de nome/email real do ator e do alvo, e a conta de QA ficou reativada no
+final (sem suspensão pendente). Estas 2 linhas continuam visíveis para sempre em
+`/admin/auditoria` e na tab "Histórico admin" da conta de QA — é esperado, não é um bug.
+**Não testado:** guard de rota para conta não-admin em `/admin/auditoria` (só revisto por leitura de
+código — reutiliza o mesmo `beforeLoad` já validado na A0/A2 para as outras sub-rotas) e o fluxo
+completo pelo browser — validar no Lovable após o push.
+
+Com a A5 concluída, a ronda A0–A5 do painel admin está **completa**. Pendências que ficam
+deliberadamente em aberto (ver "Backlog registado" e "Checklist de fecho da ronda" mais abaixo):
+validação por browser real de várias fases (marcada em cada nota acima), e a auditoria pendente aos
+default privileges de schema (functions) encontrada na A3.
+
 ---
 
 ## Checklist de fecho da ronda A0–A5
@@ -450,6 +485,8 @@ Lovable após o push, como o rodapé desta fase já indicava.
   verificado com script direto contra a BD real (ver nota da A4 acima); **auto-suspensão e
   suspensão de conta admin só verificadas por leitura de código, não executadas end-to-end** (exigem
   contexto de pedido HTTP real).
-- [ ] `/admin/auditoria` mostra todas as ações com filtros (A5).
+- [x] `/admin/auditoria` mostra todas as ações com filtros (A5) — verificado com script direto
+  contra a BD real (ver nota da A5 acima); **guard de rota para não-admin e fluxo completo pelo
+  browser só revistos por leitura de código**, não executados end-to-end.
 - [ ] Cada fase: `bun run build` limpo, migrations + tipos em commit separado, `supabase db pull` antes de tocar em schema.
 - [ ] Pendências antigas que esta ronda **não** resolve e continuam abertas: logout na sidebar (não confirmado como bug real, verificar se necessário), rotas órfãs `/analise` e `/vagas` (confirmado: existem mas não estão em `NAV_ITEMS`), CRUD de `analyses`; **default privileges de funções abertos a anon/authenticated a nível de schema (encontrado na A3, corrigido só nas duas RPCs de crédito)**. Não deixar morrer.
