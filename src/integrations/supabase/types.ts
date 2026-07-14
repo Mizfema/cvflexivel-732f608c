@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -517,28 +517,64 @@ export type Database = {
       }
       plan_prices: {
         Row: {
+          bypasses_fair_use: boolean
           credits: number | null
+          display_order: number
           enabled: boolean
+          fair_use_hourly_cap: number | null
+          features: Json
+          id: string
+          is_promotional: boolean
+          kind: string
           label: string
           period_days: number | null
+          period_minutes: number | null
           plan: string
           price_mzn: number
+          promo_badge_text: string | null
+          promo_ends_at: string | null
+          promo_price_mzn: number | null
+          visible_on_pricing_page: boolean
         }
         Insert: {
+          bypasses_fair_use?: boolean
           credits?: number | null
+          display_order?: number
           enabled?: boolean
+          fair_use_hourly_cap?: number | null
+          features?: Json
+          id?: string
+          is_promotional?: boolean
+          kind: string
           label: string
           period_days?: number | null
+          period_minutes?: number | null
           plan: string
           price_mzn: number
+          promo_badge_text?: string | null
+          promo_ends_at?: string | null
+          promo_price_mzn?: number | null
+          visible_on_pricing_page?: boolean
         }
         Update: {
+          bypasses_fair_use?: boolean
           credits?: number | null
+          display_order?: number
           enabled?: boolean
+          fair_use_hourly_cap?: number | null
+          features?: Json
+          id?: string
+          is_promotional?: boolean
+          kind?: string
           label?: string
           period_days?: number | null
+          period_minutes?: number | null
           plan?: string
           price_mzn?: number
+          promo_badge_text?: string | null
+          promo_ends_at?: string | null
+          promo_price_mzn?: number | null
+          visible_on_pricing_page?: boolean
         }
         Relationships: []
       }
