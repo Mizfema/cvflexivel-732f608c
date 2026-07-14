@@ -4,7 +4,7 @@ import { verifyWebhookSignature } from "@/lib/paysuite.server";
 import { grantCredits } from "@/lib/credits.server";
 import { computeExtendedPeriodEnd } from "@/lib/subscription.server";
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+const MINUTE_MS = 60 * 1000;
 // Fallback só para pagamentos criados antes da coluna payments.period_days
 // existir (Fase 1 da Proposta V3) — nunca deveria disparar para pagamentos novos.
 const FALLBACK_PERIOD_DAYS = 30;
@@ -75,9 +75,11 @@ export const Route = createFileRoute("/api/paysuite-webhook")({
             if (subFetchErr) return new Response(subFetchErr.message, { status: 500 });
 
             const periodDays = payment.period_days ?? FALLBACK_PERIOD_DAYS;
+            // computeExtendedPeriodEnd passa a operar em minutos (Fase B1) — payments.period_days
+            // continua em dias inteiros até a B3 tornar o checkout data-driven em plan_prices.
             const newPeriodEnd = computeExtendedPeriodEnd(
               subscription.current_period_end,
-              periodDays,
+              periodDays * 1440,
             );
 
             const { error: subErr } = await supabaseAdmin
@@ -87,9 +89,12 @@ export const Route = createFileRoute("/api/paysuite-webhook")({
             if (subErr) return new Response(subErr.message, { status: 500 });
           } else if (payment.plan === "avulso" || payment.plan === "recarga") {
             // Fase 3 da Proposta V3: compra de créditos (sem subscription_id).
+            // Fase B1: validade dos créditos migrada de period_days para period_minutes
+            // (único caminho do sistema que deriva credit_balances.expires_at de
+            // plan_prices ao vivo, em vez de um snapshot — mapeado no Passo 0 da B0).
             const { data: planPrice, error: priceErr } = await supabaseAdmin
               .from("plan_prices")
-              .select("credits, period_days")
+              .select("credits, period_minutes")
               .eq("plan", payment.plan)
               .maybeSingle();
             if (priceErr) return new Response(priceErr.message, { status: 500 });
@@ -106,7 +111,10 @@ export const Route = createFileRoute("/api/paysuite-webhook")({
                 payment.plan,
                 payment.plan === "recarga" ? "recharge" : "purchase",
                 payment.plan === "avulso"
-                  ? new Date(Date.now() + (planPrice.period_days ?? FALLBACK_PERIOD_DAYS) * DAY_MS)
+                  ? new Date(
+                      Date.now() +
+                        (planPrice.period_minutes ?? FALLBACK_PERIOD_DAYS * 1440) * MINUTE_MS,
+                    )
                   : undefined,
               );
             } catch (err) {

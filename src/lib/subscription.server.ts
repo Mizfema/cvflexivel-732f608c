@@ -1,7 +1,9 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const MINUTE_MS = 60 * 1000;
 const THREE_DAYS_MS = 3 * DAY_MS;
+const SUB_DAY_THRESHOLD_MINUTES = 1440; // 24h — abaixo disto, "sub-diário" (N1 do Guia B0-B5)
 
 export const SUBSCRIPTION_PLANS = ["mensal", "trimestral"] as const;
 export type SubscriptionPlan = (typeof SUBSCRIPTION_PLANS)[number];
@@ -11,37 +13,76 @@ function getGraceDays(): number {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 2;
 }
 
+async function getPlanPeriodMinutes(plan: string): Promise<number | null> {
+  const { data, error } = await supabaseAdmin
+    .from("plan_prices")
+    .select("period_minutes")
+    .eq("plan", plan)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data?.period_minutes ?? null;
+}
+
+/** Regra N1 do Guia B0-B5: `GRACE_DAYS` nunca se aplica a planos sub-diários
+ * (`period_minutes < 1440`) — expiram no minuto exato do fim do período. Sem
+ * isto, um "ilimitado 12h" ganharia dias extra de acesso depois de suposto
+ * expirar, o pior lugar possível para tolerância. `periodMinutes` null
+ * (plano sem período próprio, ex. "recarga") ou >= 1440 mantém a graça normal. */
+function graceMsForPeriodMinutes(periodMinutes: number | null): number {
+  if (periodMinutes != null && periodMinutes < SUB_DAY_THRESHOLD_MINUTES) return 0;
+  return getGraceDays() * DAY_MS;
+}
+
 /** PaySuite (M-Pesa, e-Mola, mKesh, cartão) é pré-pago e não tem renovação
  * automática (docs/PLANO-EXECUCAO.md secção 1.2 item 3) — não há webhook de
  * expiração, por isso marcamos "expired" oportunisticamente sempre que
  * verificamos o plano do utilizador, em vez de depender de um cron. Só marca
- * depois do período de graça (GRACE_DAYS) passar — dentro da graça o acesso
- * continua e o status fica "active". */
+ * depois do período de graça passar — dentro da graça o acesso continua e o
+ * status fica "active". Só busca candidatos cujo period_end já passou (sem
+ * grace) — para o caminho normal (plano bem dentro do período) isto continua
+ * a ser zero queries extra a `plan_prices`, mesmo com a graça agora dependente
+ * do plano (N1). */
 async function expireDuePlans(userId: string): Promise<void> {
-  const graceCutoff = new Date(Date.now() - getGraceDays() * DAY_MS).toISOString();
-  const { error } = await supabaseAdmin
+  const now = Date.now();
+  const { data: candidates, error } = await supabaseAdmin
     .from("subscriptions")
-    .update({ status: "expired" })
+    .select("id, plan, current_period_end")
     .eq("user_id", userId)
     .eq("status", "active")
-    .lte("current_period_end", graceCutoff);
+    .not("current_period_end", "is", null)
+    .lte("current_period_end", new Date(now).toISOString());
   if (error) throw new Error(error.message);
+  if (!candidates || candidates.length === 0) return;
+
+  for (const sub of candidates) {
+    const periodMinutes = await getPlanPeriodMinutes(sub.plan);
+    const graceMs = graceMsForPeriodMinutes(periodMinutes);
+    const periodEndMs = new Date(sub.current_period_end as string).getTime();
+    if (now < periodEndMs + graceMs) continue; // ainda dentro da graça (ou nem chegou a expirar)
+
+    const { error: updError } = await supabaseAdmin
+      .from("subscriptions")
+      .update({ status: "expired" })
+      .eq("id", sub.id);
+    if (updError) throw new Error(updError.message);
+  }
 }
 
 /** Única porta de verificação de plano ativo (docs/PLANO-EXECUCAO.md secção 1.2 item 3).
- * PaySuite converge aqui: grava em `subscriptions` e esta função só olha status + validade,
- * com um período de graça configurável (GRACE_DAYS) antes de cortar acesso. */
+ * PaySuite converge aqui: grava em `subscriptions` e esta função só olha o
+ * status. `expireDuePlans` (chamada logo acima) já aplicou a graça correta
+ * por plano (N1) e marcou "expired" qualquer linha fora da janela — por isso
+ * um simples status='active' aqui já é a resposta certa, sem repetir o
+ * cálculo de graça uma segunda vez. */
 export async function hasActivePlan(userId: string | null): Promise<boolean> {
   if (!userId) return false;
   await expireDuePlans(userId);
 
-  const graceCutoff = new Date(Date.now() - getGraceDays() * DAY_MS).toISOString();
   const { data, error } = await supabaseAdmin
     .from("subscriptions")
     .select("id")
     .eq("user_id", userId)
     .eq("status", "active")
-    .gt("current_period_end", graceCutoff)
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -77,27 +118,63 @@ export async function getPlanExpiryWarning(
   return { daysLeft: Math.max(1, Math.ceil(msLeft / DAY_MS)) };
 }
 
-/** Dias restantes do plano ativo, sem o corte dos 3 dias — usado pelo
- * indicador "Premium · X dias restantes" da sidebar (Fase 2 da Proposta V3). */
-export async function getActivePlanDaysLeft(userId: string | null): Promise<number | null> {
+/** Minutos restantes do plano ativo, sem o corte dos 3 dias (Fase B1 —
+ * substitui o cálculo em dias como fonte de verdade, para planos sub-diários
+ * ("ilimitado 12h") não ficarem sem forma correta de mostrar tempo restante). */
+export async function getActivePlanTimeLeft(userId: string | null): Promise<number | null> {
   if (!userId) return null;
   const periodEnd = await getActiveSubscriptionEnd(userId);
   if (!periodEnd) return null;
   const msLeft = periodEnd - Date.now();
   if (msLeft <= 0) return null;
-  return Math.max(1, Math.ceil(msLeft / DAY_MS));
+  return Math.max(1, Math.ceil(msLeft / MINUTE_MS));
+}
+
+/** Dias restantes do plano ativo — usado pelo indicador "Premium · X dias
+ * restantes" da sidebar (Fase 2 da Proposta V3). Mantida por compatibilidade,
+ * reimplementada sobre getActivePlanTimeLeft para não duplicar a query. */
+export async function getActivePlanDaysLeft(userId: string | null): Promise<number | null> {
+  const minutesLeft = await getActivePlanTimeLeft(userId);
+  if (minutesLeft == null) return null;
+  return Math.max(1, Math.ceil(minutesLeft / SUB_DAY_THRESHOLD_MINUTES));
+}
+
+type PlanPriceRow = {
+  price_mzn: number;
+  promo_price_mzn: number | null;
+  is_promotional: boolean;
+  promo_ends_at: string | null;
+};
+
+/** Preço efetivo de um plano (N2 do Guia B0-B5) — única fonte de preço para o
+ * checkout (B3) e para `/planos` (B4). Devolve o preço promocional só enquanto
+ * `promo_ends_at` estiver no futuro; caso contrário o preço base. O countdown
+ * na UI e o valor cobrado bebem sempre da mesma função — nunca um selo
+ * decorativo sem efeito no valor real. */
+export function getEffectivePlanPrice(planRow: PlanPriceRow): number {
+  if (
+    planRow.is_promotional &&
+    planRow.promo_ends_at &&
+    new Date(planRow.promo_ends_at).getTime() > Date.now()
+  ) {
+    return planRow.promo_price_mzn ?? planRow.price_mzn;
+  }
+  return planRow.price_mzn;
 }
 
 /** Fórmula única de extensão de período (webhook PaySuite + concessão manual
- * admin, Fase A3): nunca encurta um período já em curso, estende a partir do
- * fim atual ou de agora, o que for mais tarde. */
+ * admin, Fase A3). Fase B1: unidade passa de dias para minutos, para suportar
+ * planos sub-diários ("ilimitado 12h") — os chamadores que ainda só têm um
+ * número de dias convertem para minutos (`dias * 1440`) antes de chamar.
+ * Nunca encurta um período já em curso, estende a partir do fim atual ou de
+ * agora, o que for mais tarde. */
 export function computeExtendedPeriodEnd(
   currentPeriodEndIso: string | null,
-  periodDays: number,
+  periodMinutes: number,
 ): string {
   const currentEnd = currentPeriodEndIso ? new Date(currentPeriodEndIso).getTime() : 0;
   const base = Math.max(Date.now(), currentEnd);
-  return new Date(base + periodDays * DAY_MS).toISOString();
+  return new Date(base + periodMinutes * MINUTE_MS).toISOString();
 }
 
 async function getLatestActiveSubscription(userId: string) {
@@ -117,14 +194,36 @@ async function getLatestActiveSubscription(userId: string) {
  * insere em `payments` — não houve pagamento real. `subscriptions` não tem
  * unique constraint em `user_id` (só PK em `id`, por desenho: uma linha por
  * checkout), por isso isto não é um upsert — procura a linha ativa atual e
- * estende-a, ou insere uma nova com `provider: 'admin'`. */
+ * estende-a, ou insere uma nova com `provider: 'admin'`.
+ *
+ * Fase B1: valida `plan` contra `plan_prices` ao vivo (existe, `enabled` e
+ * `kind='subscription_unlimited'`) em vez de confiar só na união estática de
+ * TypeScript — preparação para a B2/B3, quando o admin poderá criar planos
+ * novos que este union ainda não conhece. `periodDays` continua a ser o valor
+ * escolhido por quem chama (mantém a flexibilidade já existente de conceder
+ * uma duração diferente da do plano — a B3 pré-preenche este valor a partir
+ * do próprio plano, mas continua a permitir override manual), só convertido
+ * para minutos internamente. */
 export async function adminGrantPlan(
   userId: string,
   plan: SubscriptionPlan,
   periodDays: number,
 ) {
+  const { data: planRow, error: planError } = await supabaseAdmin
+    .from("plan_prices")
+    .select("enabled, kind")
+    .eq("plan", plan)
+    .maybeSingle();
+  if (planError) throw new Error(planError.message);
+  if (!planRow || !planRow.enabled || planRow.kind !== "subscription_unlimited") {
+    throw new Error("Plano não encontrado ou desativado.");
+  }
+
   const existing = await getLatestActiveSubscription(userId);
-  const newPeriodEnd = computeExtendedPeriodEnd(existing?.current_period_end ?? null, periodDays);
+  const newPeriodEnd = computeExtendedPeriodEnd(
+    existing?.current_period_end ?? null,
+    periodDays * 1440,
+  );
 
   if (existing) {
     const { data, error } = await supabaseAdmin

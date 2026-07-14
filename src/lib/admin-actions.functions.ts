@@ -8,7 +8,7 @@ import { adminGrantPlan, adminRevokePlan, SUBSCRIPTION_PLANS } from "@/lib/subsc
 import { adminAdjustCredits } from "@/lib/credits.server";
 import { suspendUser, reactivateUser } from "@/lib/user-suspension.server";
 
-const reasonSchema = z
+export const reasonSchema = z
   .string()
   .trim()
   .min(3, "O motivo tem de ter pelo menos 3 caracteres.")

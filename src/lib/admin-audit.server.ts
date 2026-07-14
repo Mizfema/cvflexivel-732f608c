@@ -7,6 +7,9 @@ export const ADMIN_ACTION_TYPES = [
   "adjust_credits",
   "suspend_user",
   "reactivate_user",
+  "create_plan",
+  "update_plan",
+  "archive_plan",
 ] as const;
 export type AdminActionType = (typeof ADMIN_ACTION_TYPES)[number];
 
@@ -14,10 +17,12 @@ export type AdminActionType = (typeof ADMIN_ACTION_TYPES)[number];
  * 20260713150000). metadata sempre inclui snapshot do alvo + contexto
  * forense do actor — este painel nasceu do incidente de segurança da v1. A
  * app corre como Cloudflare Worker (nitro.preset "cloudflare-module"), por
- * isso o IP vem do cabeçalho cf-connecting-ip, não de x-forwarded-for. */
+ * isso o IP vem do cabeçalho cf-connecting-ip, não de x-forwarded-for.
+ * `targetId` é `null` para ações sem utilizador-alvo (Fase B1: criar/editar/
+ * arquivar plano) — o "alvo" nesse caso vai no `metadata` (ex. `{ planId }`). */
 export async function recordAdminAction(
   actorId: string,
-  targetId: string,
+  targetId: string | null,
   actionType: AdminActionType,
   reason: string,
   metadata: Record<string, unknown>,

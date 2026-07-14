@@ -7,10 +7,19 @@ import { computeCostUsd } from "@/lib/ai-pricing";
 import { listAdminActions } from "@/lib/admin-audit.functions";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const SUB_DAY_THRESHOLD_MINUTES = 1440; // 24h — abaixo disto, "sub-diário" (N1 do Guia B0-B5)
 
 function getGraceDays(): number {
   const parsed = Number(process.env.GRACE_DAYS);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 2;
+}
+
+/** Cópia independente de graceMsForPeriodMinutes (subscription.server.ts) —
+ * decisão do dono (14/07/2026, Fase B1): manter as duas cópias de
+ * getGraceDays/regra de graça em vez de deduplicar num módulo partilhado. */
+function graceMsForPeriodMinutes(periodMinutes: number | null): number {
+  if (periodMinutes != null && periodMinutes < SUB_DAY_THRESHOLD_MINUTES) return 0;
+  return getGraceDays() * DAY_MS;
 }
 
 /** Remove caracteres com significado especial no filtro `.or()` do PostgREST
@@ -24,17 +33,36 @@ type PlanInfo = { status: "free" | "active"; plan: string | null; isAdminGrant: 
 
 /** Um utilizador nunca deveria ter duas subscriptions 'active' simultâneas,
  * mas se acontecer (corrida, dado histórico) escolhe a de period_end mais
- * distante — é a leitura mais otimista e menos surpreendente para o admin. */
+ * distante — é a leitura mais otimista e menos surpreendente para o admin.
+ * `periodMinutesByPlan` (Fase B1, regra N1): a graça já não é um cutoff global
+ * — cada linha usa a graça do seu próprio plano (zero para planos sub-diários,
+ * ex. "ilimitado 12h"), por isso recebe o mapa em vez de uma data já calculada. */
 function pickActivePlan(
   rows: { user_id: string; plan: string; provider: string; current_period_end: string | null }[],
-  graceCutoffIso: string,
+  periodMinutesByPlan: Map<string, number | null>,
 ): PlanInfo {
-  const active = rows.filter((r) => r.current_period_end && r.current_period_end > graceCutoffIso);
+  const now = Date.now();
+  const active = rows.filter((r) => {
+    if (!r.current_period_end) return false;
+    const graceMs = graceMsForPeriodMinutes(periodMinutesByPlan.get(r.plan) ?? null);
+    return new Date(r.current_period_end).getTime() + graceMs > now;
+  });
   if (active.length === 0) return { status: "free", plan: null, isAdminGrant: false };
   const best = active.sort((a, b) =>
     (b.current_period_end ?? "").localeCompare(a.current_period_end ?? ""),
   )[0];
   return { status: "active", plan: best.plan, isAdminGrant: best.provider === "admin" };
+}
+
+async function fetchPeriodMinutesByPlan(plans: string[]): Promise<Map<string, number | null>> {
+  const distinctPlans = [...new Set(plans)];
+  if (distinctPlans.length === 0) return new Map();
+  const { data, error } = await supabaseAdmin
+    .from("plan_prices")
+    .select("plan, period_minutes")
+    .in("plan", distinctPlans);
+  if (error) throw new Error(error.message);
+  return new Map((data ?? []).map((p) => [p.plan, p.period_minutes]));
 }
 
 const listAdminUsersSchema = z.object({
@@ -72,8 +100,6 @@ export const listAdminUsers = createServerFn({ method: "POST" })
       return { rows: [], total: count ?? 0, page, pageSize };
     }
 
-    const graceCutoff = new Date(Date.now() - getGraceDays() * DAY_MS).toISOString();
-
     const [subscriptionsRes, creditBalancesRes, suspensionsRes] = await Promise.all([
       supabaseAdmin
         .from("subscriptions")
@@ -90,6 +116,10 @@ export const listAdminUsers = createServerFn({ method: "POST" })
     if (creditBalancesRes.error) throw new Error(creditBalancesRes.error.message);
     if (suspensionsRes.error) throw new Error(suspensionsRes.error.message);
 
+    const periodMinutesByPlan = await fetchPeriodMinutesByPlan(
+      (subscriptionsRes.data ?? []).map((s) => s.plan),
+    );
+
     const subsByUser = new Map<string, typeof subscriptionsRes.data>();
     for (const sub of subscriptionsRes.data ?? []) {
       const arr = subsByUser.get(sub.user_id);
@@ -101,7 +131,7 @@ export const listAdminUsers = createServerFn({ method: "POST" })
 
     const now = new Date().toISOString();
     const usersRows = (rows ?? []).map((profile) => {
-      const plan = pickActivePlan(subsByUser.get(profile.id) ?? [], graceCutoff);
+      const plan = pickActivePlan(subsByUser.get(profile.id) ?? [], periodMinutesByPlan);
       const credits = creditsByUser.get(profile.id);
       const activeCredits = credits && credits.expires_at > now ? credits.balance : null;
       return {
@@ -191,11 +221,9 @@ export const getAdminUserDetail = createServerFn({ method: "POST" })
       }
     }
 
-    const graceCutoff = new Date(Date.now() - getGraceDays() * DAY_MS).toISOString();
-    const plan = pickActivePlan(
-      (subscriptionsRes.data ?? []).filter((s) => s.status === "active"),
-      graceCutoff,
-    );
+    const activeSubs = (subscriptionsRes.data ?? []).filter((s) => s.status === "active");
+    const periodMinutesByPlan = await fetchPeriodMinutesByPlan(activeSubs.map((s) => s.plan));
+    const plan = pickActivePlan(activeSubs, periodMinutesByPlan);
 
     return {
       profile: profileRes.data,

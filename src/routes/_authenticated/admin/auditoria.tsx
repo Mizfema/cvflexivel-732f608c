@@ -31,6 +31,9 @@ const ACTION_FILTER_LABELS: Record<AdminActionType, string> = {
   adjust_credits: "Créditos ajustados",
   suspend_user: "Conta suspensa",
   reactivate_user: "Conta reativada",
+  create_plan: "Plano criado",
+  update_plan: "Plano editado",
+  archive_plan: "Plano arquivado",
 };
 
 const ACTION_FILTER_TYPES = Object.keys(ACTION_FILTER_LABELS) as AdminActionType[];

@@ -3,6 +3,7 @@ import { sendTransactionalEmail } from "@/lib/email.server";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const THREE_DAYS_MS = 3 * DAY_MS;
+const SUB_DAY_THRESHOLD_MINUTES = 1440; // 24h — abaixo disto, "sub-diário" (N4 do Guia B0-B5)
 
 type ReminderKind = "expiring_soon" | "expired";
 
@@ -37,7 +38,7 @@ export async function runPlanReminders(): Promise<{
 
   const { data: subs, error } = await supabaseAdmin
     .from("subscriptions")
-    .select("id, user_id, current_period_end")
+    .select("id, user_id, plan, current_period_end")
     .eq("status", "active")
     .not("current_period_end", "is", null)
     .lte("current_period_end", soonCutoff);
@@ -47,7 +48,25 @@ export async function runPlanReminders(): Promise<{
   let skipped = 0;
   let failed = 0;
 
+  // N4 do Guia B0-B5: planos sub-diários (period_minutes < 1440, ex. "ilimitado
+  // 12h") nunca entram em lembretes — "expira em 0 dias" no minuto da compra
+  // não faz sentido, e o soonCutoff de 3 dias fixos apanharia qualquer um logo
+  // após a compra.
+  const distinctPlans = [...new Set((subs ?? []).map((s) => s.plan))];
+  const { data: planRows, error: planErr } =
+    distinctPlans.length > 0
+      ? await supabaseAdmin.from("plan_prices").select("plan, period_minutes").in("plan", distinctPlans)
+      : { data: [], error: null };
+  if (planErr) throw new Error(planErr.message);
+  const periodMinutesByPlan = new Map((planRows ?? []).map((p) => [p.plan, p.period_minutes]));
+
   for (const sub of subs ?? []) {
+    const periodMinutes = periodMinutesByPlan.get(sub.plan) ?? null;
+    if (periodMinutes != null && periodMinutes < SUB_DAY_THRESHOLD_MINUTES) {
+      skipped++;
+      continue;
+    }
+
     const periodEnd = sub.current_period_end as string;
     const kind: ReminderKind = new Date(periodEnd).getTime() <= now ? "expired" : "expiring_soon";
     const daysLeft = Math.max(0, Math.ceil((new Date(periodEnd).getTime() - now) / DAY_MS));
