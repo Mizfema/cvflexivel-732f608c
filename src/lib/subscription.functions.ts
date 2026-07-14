@@ -7,7 +7,7 @@ import {
   hasActivePlan,
   getPlanExpiryWarning,
   getActivePlanDaysLeft,
-  SUBSCRIPTION_PLANS,
+  getEffectivePlanPrice,
 } from "@/lib/subscription.server";
 import { getActiveCreditBalance } from "@/lib/credits.server";
 import { checkIsAdmin } from "@/lib/admin-auth.server";
@@ -16,13 +16,28 @@ import { createPaymentRequest } from "@/lib/paysuite.server";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+// Fase B3: plan deixa de ser um union estático (SUBSCRIPTION_PLANS removido) —
+// validado em runtime contra plan_prices (existe + enabled + kind certo) em vez
+// de um enum do TypeScript, para qualquer plano novo criado no admin funcionar
+// em checkout sem alteração de código.
 const checkoutInputSchema = z.object({
-  plan: z.enum(SUBSCRIPTION_PLANS).optional().default("mensal"),
+  plan: z.string().trim().min(1).optional().default("mensal"),
 });
 
 const creditCheckoutInputSchema = z.object({
-  plan: z.enum(["avulso", "recarga"]),
+  plan: z.string().trim().min(1),
 });
+
+/** Copy da descrição de pagamento (PaySuite) — period_minutes substitui
+ * period_days como fonte canónica (Fase B3), planos sub-diários mostram horas. */
+function formatDurationForDescription(periodMinutes: number): string {
+  if (periodMinutes % 1440 === 0) {
+    const days = periodMinutes / 1440;
+    return `${days} dia${days === 1 ? "" : "s"}`;
+  }
+  const hours = Math.round(periodMinutes / 60);
+  return `${hours}h`;
+}
 
 /** Usado pelo cliente para decidir entre vitrine e funcionalidade completa
  * (ex: preparação de entrevista). Sessão é opcional (anónimo também não tem
@@ -104,14 +119,18 @@ export const createSubscriptionCheckout = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: planPrice, error: priceError } = await supabaseAdmin
       .from("plan_prices")
-      .select("price_mzn, period_days, label")
+      .select("price_mzn, period_minutes, label, is_promotional, promo_ends_at, promo_price_mzn")
       .eq("plan", data.plan)
+      .eq("kind", "subscription_unlimited")
       .eq("enabled", true)
       .maybeSingle();
     if (priceError) throw new Error(priceError.message);
-    if (!planPrice || !planPrice.period_days) {
+    if (!planPrice || !planPrice.period_minutes) {
       throw new Error(`Plano "${data.plan}" indisponível de momento.`);
     }
+    // Fase B3 (N2): o valor cobrado vem sempre de getEffectivePlanPrice — nunca do
+    // cliente — para a promoção expirar mecanicamente sem depender de UI nenhuma.
+    const amount = getEffectivePlanPrice(planPrice);
 
     const request = getRequest();
     const origin = request ? new URL(request.url).origin : "";
@@ -137,10 +156,11 @@ export const createSubscriptionCheckout = createServerFn({ method: "POST" })
         subscription_id: subscription.id,
         provider: "paysuite",
         reference,
-        amount: planPrice.price_mzn,
+        amount,
         currency: "MZN",
         status: "pending",
-        period_days: planPrice.period_days,
+        period_minutes: planPrice.period_minutes,
+        plan_kind: "subscription_unlimited",
         plan: data.plan,
       })
       .select("id")
@@ -149,9 +169,9 @@ export const createSubscriptionCheckout = createServerFn({ method: "POST" })
 
     try {
       const result = await createPaymentRequest({
-        amount: planPrice.price_mzn,
+        amount,
         reference,
-        description: `${planPrice.label} — CV Flexível (${planPrice.period_days} dias)`,
+        description: `${planPrice.label} — CV Flexível (${formatDurationForDescription(planPrice.period_minutes)})`,
         returnUrl: `${origin}/planos?checkout=${subscription.id}`,
         callbackUrl: `${origin}/api/paysuite-webhook`,
       });
@@ -193,14 +213,16 @@ export const createCreditCheckout = createServerFn({ method: "POST" })
 
     const { data: planPrice, error: priceError } = await supabaseAdmin
       .from("plan_prices")
-      .select("price_mzn, credits, label")
+      .select("price_mzn, credits, label, is_promotional, promo_ends_at, promo_price_mzn")
       .eq("plan", data.plan)
+      .eq("kind", "credit_pack")
       .eq("enabled", true)
       .maybeSingle();
     if (priceError) throw new Error(priceError.message);
     if (!planPrice || !planPrice.credits) {
       throw new Error(`Pacote "${data.plan}" indisponível de momento.`);
     }
+    const amount = getEffectivePlanPrice(planPrice);
 
     const request = getRequest();
     const origin = request ? new URL(request.url).origin : "";
@@ -212,9 +234,10 @@ export const createCreditCheckout = createServerFn({ method: "POST" })
         user_id: context.userId,
         provider: "paysuite",
         reference,
-        amount: planPrice.price_mzn,
+        amount,
         currency: "MZN",
         status: "pending",
+        plan_kind: "credit_pack",
         plan: data.plan,
       })
       .select("id")
@@ -223,7 +246,7 @@ export const createCreditCheckout = createServerFn({ method: "POST" })
 
     try {
       const result = await createPaymentRequest({
-        amount: planPrice.price_mzn,
+        amount,
         reference,
         description: `${planPrice.label} — CV Flexível (+${planPrice.credits} créditos)`,
         returnUrl: `${origin}/planos?checkout=${payment.id}`,

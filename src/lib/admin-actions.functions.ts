@@ -4,7 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { assertAdmin } from "@/lib/admin-auth.server";
 import { recordAdminAction } from "@/lib/admin-audit.server";
-import { adminGrantPlan, adminRevokePlan, SUBSCRIPTION_PLANS } from "@/lib/subscription.server";
+import { adminGrantPlan, adminRevokePlan } from "@/lib/subscription.server";
 import { adminAdjustCredits } from "@/lib/credits.server";
 import { suspendUser, reactivateUser } from "@/lib/user-suspension.server";
 
@@ -24,9 +24,11 @@ async function getTargetSnapshot(userId: string) {
   return { targetEmail: data?.email ?? null, targetName: data?.full_name ?? null };
 }
 
+// Fase B3: plan deixa de ser um union estático — validado em runtime contra
+// plan_prices dentro de adminGrantPlan (Fase B1), não aqui.
 const grantPlanSchema = z.object({
   userId: z.string().uuid(),
-  plan: z.enum(SUBSCRIPTION_PLANS),
+  plan: z.string().trim().min(1),
   periodDays: z.number().int().min(1).max(3650),
   reason: reasonSchema,
 });

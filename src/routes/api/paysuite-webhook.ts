@@ -40,7 +40,7 @@ export const Route = createFileRoute("/api/paysuite-webhook")({
 
         const { data: payment, error: findError } = await supabaseAdmin
           .from("payments")
-          .select("id, user_id, subscription_id, period_days, plan")
+          .select("id, user_id, subscription_id, period_days, period_minutes, plan_kind, plan")
           .eq("provider_ref", paymentRef)
           .maybeSingle();
         if (findError) return new Response(findError.message, { status: 500 });
@@ -74,12 +74,14 @@ export const Route = createFileRoute("/api/paysuite-webhook")({
               .single();
             if (subFetchErr) return new Response(subFetchErr.message, { status: 500 });
 
-            const periodDays = payment.period_days ?? FALLBACK_PERIOD_DAYS;
-            // computeExtendedPeriodEnd passa a operar em minutos (Fase B1) — payments.period_days
-            // continua em dias inteiros até a B3 tornar o checkout data-driven em plan_prices.
+            // Fase B3: period_minutes é o snapshot canónico (suporta planos sub-diários);
+            // fallback a period_days*1440 só para pagamentos criados antes desta fase.
+            const periodMinutes =
+              payment.period_minutes ??
+              (payment.period_days != null ? payment.period_days * 1440 : FALLBACK_PERIOD_DAYS * 1440);
             const newPeriodEnd = computeExtendedPeriodEnd(
               subscription.current_period_end,
-              periodDays * 1440,
+              periodMinutes,
             );
 
             const { error: subErr } = await supabaseAdmin
@@ -87,11 +89,23 @@ export const Route = createFileRoute("/api/paysuite-webhook")({
               .update({ status: "active", current_period_end: newPeriodEnd })
               .eq("id", payment.subscription_id);
             if (subErr) return new Response(subErr.message, { status: 500 });
-          } else if (payment.plan === "avulso" || payment.plan === "recarga") {
+          } else if (
+            // Fase B3: plan_kind é o snapshot canónico; fallback ao string-check antigo só
+            // para pagamentos criados antes desta fase (plan_kind null).
+            payment.plan_kind
+              ? payment.plan_kind === "credit_pack"
+              : payment.plan === "avulso" || payment.plan === "recarga"
+          ) {
             // Fase 3 da Proposta V3: compra de créditos (sem subscription_id).
             // Fase B1: validade dos créditos migrada de period_days para period_minutes
             // (único caminho do sistema que deriva credit_balances.expires_at de
             // plan_prices ao vivo, em vez de um snapshot — mapeado no Passo 0 da B0).
+            if (!payment.plan) {
+              return new Response("payments.plan em falta para compra de créditos", {
+                status: 500,
+              });
+            }
+
             const { data: planPrice, error: priceErr } = await supabaseAdmin
               .from("plan_prices")
               .select("credits, period_minutes")

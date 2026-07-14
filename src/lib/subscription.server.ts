@@ -5,9 +5,6 @@ const MINUTE_MS = 60 * 1000;
 const THREE_DAYS_MS = 3 * DAY_MS;
 const SUB_DAY_THRESHOLD_MINUTES = 1440; // 24h — abaixo disto, "sub-diário" (N1 do Guia B0-B5)
 
-export const SUBSCRIPTION_PLANS = ["mensal", "trimestral"] as const;
-export type SubscriptionPlan = (typeof SUBSCRIPTION_PLANS)[number];
-
 function getGraceDays(): number {
   const parsed = Number(process.env.GRACE_DAYS);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 2;
@@ -197,16 +194,17 @@ async function getLatestActiveSubscription(userId: string) {
  * estende-a, ou insere uma nova com `provider: 'admin'`.
  *
  * Fase B1: valida `plan` contra `plan_prices` ao vivo (existe, `enabled` e
- * `kind='subscription_unlimited'`) em vez de confiar só na união estática de
- * TypeScript — preparação para a B2/B3, quando o admin poderá criar planos
- * novos que este union ainda não conhece. `periodDays` continua a ser o valor
- * escolhido por quem chama (mantém a flexibilidade já existente de conceder
- * uma duração diferente da do plano — a B3 pré-preenche este valor a partir
- * do próprio plano, mas continua a permitir override manual), só convertido
- * para minutos internamente. */
+ * `kind='subscription_unlimited'`) em vez de confiar numa união estática de
+ * TypeScript — `plan` é uma string qualquer desde a B3 (SUBSCRIPTION_PLANS
+ * removido), qualquer plano criado no admin passa por aqui sem alteração de
+ * código. `periodDays` continua a ser o valor escolhido por quem chama
+ * (mantém a flexibilidade já existente de conceder uma duração diferente da
+ * do plano — a B3 pré-preenche este valor a partir do próprio plano, mas
+ * continua a permitir override manual), só convertido para minutos
+ * internamente. */
 export async function adminGrantPlan(
   userId: string,
-  plan: SubscriptionPlan,
+  plan: string,
   periodDays: number,
 ) {
   const { data: planRow, error: planError } = await supabaseAdmin

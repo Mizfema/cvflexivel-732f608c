@@ -504,7 +504,7 @@ exata às 12h sem graça.
 - [x] **B1 — Backend de CRUD** + minutos como unidade + regra de graça (N1) +
       `getEffectivePlanPrice` (N2) + exclusão de lembretes sub-diários (N4).
 - [x] **B2 — UI `/admin/planos`** (criar/editar/arquivar/reativar, validações condicionais).
-- [ ] **B3 — Checkout + webhook + concessão manual** dinâmicos, preço efetivo no servidor,
+- [x] **B3 — Checkout + webhook + concessão manual** dinâmicos, preço efetivo no servidor,
       snapshot `plan_kind`.
 - [ ] **B4 — `/planos` dinâmica** + preço riscado + countdown honesto + tempo restante sub-diário
       + allowlist pública (N3).

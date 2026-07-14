@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { getAdminUserDetail } from "@/lib/admin-users.functions";
+import { listAdminPlans } from "@/lib/admin-plans.functions";
 import {
   adminGrantPlanFn,
   adminRevokePlanFn,
@@ -78,25 +79,52 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-const PLAN_OPTIONS = [
-  { value: "mensal" as const, label: "Mensal" },
-  { value: "trimestral" as const, label: "Trimestral" },
-];
+/** Duração pré-preenchida a partir do próprio plano (arredondada para cima em
+ * dias inteiros — este diálogo mantém o campo em dias por simplicidade; um
+ * plano sub-diário como "ilimitado 12h" pré-preenche "1" e o admin ajusta à
+ * mão se precisar de exatidão, mesma flexibilidade de override que já existia). */
+function daysFromPeriodMinutes(periodMinutes: number | null | undefined): string {
+  return String(Math.max(1, Math.round((periodMinutes ?? 43200) / 1440)));
+}
 
 function GrantPlanDialog({ userId, onSuccess }: { userId: string; onSuccess: () => void }) {
   const grantPlan = useServerFn(adminGrantPlanFn);
+  const fetchPlans = useServerFn(listAdminPlans);
   const [open, setOpen] = useState(false);
-  const [plan, setPlan] = useState<"mensal" | "trimestral">("mensal");
+  const [plans, setPlans] = useState<Awaited<ReturnType<typeof listAdminPlans>>>([]);
+  const [plan, setPlan] = useState("");
   const [periodDays, setPeriodDays] = useState("30");
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  useEffect(() => {
+    fetchPlans()
+      .then((rows) => {
+        const grantable = rows.filter((r) => r.kind === "subscription_unlimited" && r.enabled);
+        setPlans(grantable);
+        if (grantable.length > 0) {
+          setPlan(grantable[0].plan);
+          setPeriodDays(daysFromPeriodMinutes(grantable[0].period_minutes));
+        }
+      })
+      .catch(() => setPlans([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchPlans]);
+
   function reset() {
-    setPlan("mensal");
-    setPeriodDays("30");
+    if (plans.length > 0) {
+      setPlan(plans[0].plan);
+      setPeriodDays(daysFromPeriodMinutes(plans[0].period_minutes));
+    }
     setReason("");
     setError(null);
+  }
+
+  function handlePlanChange(newPlan: string) {
+    setPlan(newPlan);
+    const planRow = plans.find((p) => p.plan === newPlan);
+    setPeriodDays(daysFromPeriodMinutes(planRow?.period_minutes));
   }
 
   async function handleConfirm() {
@@ -126,7 +154,7 @@ function GrantPlanDialog({ userId, onSuccess }: { userId: string; onSuccess: () 
       }}
     >
       <AlertDialogTrigger asChild>
-        <Button variant="outline" className="text-foreground">
+        <Button variant="outline" className="text-foreground" disabled={plans.length === 0}>
           Conceder plano
         </Button>
       </AlertDialogTrigger>
@@ -142,13 +170,13 @@ function GrantPlanDialog({ userId, onSuccess }: { userId: string; onSuccess: () 
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label>Plano</Label>
-            <Select value={plan} onValueChange={(v) => setPlan(v as "mensal" | "trimestral")}>
+            <Select value={plan} onValueChange={handlePlanChange}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {PLAN_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
+                {plans.map((opt) => (
+                  <SelectItem key={opt.plan} value={opt.plan}>
                     {opt.label}
                   </SelectItem>
                 ))}
