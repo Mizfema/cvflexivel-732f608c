@@ -6,6 +6,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { hasActivePlan } from "@/lib/subscription.server";
 import { computeCostUsd } from "@/lib/ai-pricing";
 import { getActiveCreditBalance, getCreditWeight, debitCredits } from "@/lib/credits.server";
+import { hasActiveSuspension, AccountSuspendedError } from "@/lib/user-suspension.server";
 import type { Database } from "@/integrations/supabase/types";
 
 export type UsageTier = "anonymous" | "free" | "premium";
@@ -249,6 +250,13 @@ export async function checkAndRecordUsage(
   fingerprint: string | null,
   sessionId: string | null = null,
 ): Promise<UsageCheckResult> {
+  // D7 da Fase A4: bloqueio de IA/download com erro distinto, nunca a
+  // mensagem genérica de limite. Suspensão é só por user_id (abuso anónimo
+  // fica fora do alcance desta mecânica, registado no backlog).
+  if (userId && (await hasActiveSuspension(userId))) {
+    throw new AccountSuspendedError();
+  }
+
   const isPremium = userId ? await hasActivePlan(userId) : false;
 
   if (userId && !isPremium) {

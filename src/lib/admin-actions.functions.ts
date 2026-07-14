@@ -6,6 +6,7 @@ import { assertAdmin } from "@/lib/admin-auth.server";
 import { recordAdminAction } from "@/lib/admin-audit.server";
 import { adminGrantPlan, adminRevokePlan, SUBSCRIPTION_PLANS } from "@/lib/subscription.server";
 import { adminAdjustCredits } from "@/lib/credits.server";
+import { suspendUser, reactivateUser } from "@/lib/user-suspension.server";
 
 const reasonSchema = z
   .string()
@@ -94,4 +95,53 @@ export const adminAdjustCreditsFn = createServerFn({ method: "POST" })
     });
 
     return { newBalance };
+  });
+
+const suspendUserSchema = z.object({
+  userId: z.string().uuid(),
+  reason: reasonSchema,
+});
+
+export const adminSuspendUserFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => suspendUserSchema.parse(input))
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.userId);
+
+    if (data.userId === context.userId) {
+      throw new Error("Não podes suspender a tua própria conta.");
+    }
+
+    const { data: targetAdminRole, error: rolesError } = await supabaseAdmin
+      .from("user_roles")
+      .select("id")
+      .eq("user_id", data.userId)
+      .eq("role", "admin")
+      .maybeSingle();
+    if (rolesError) throw new Error(rolesError.message);
+    if (targetAdminRole) {
+      throw new Error(
+        "Esta conta tem a role admin — remove a role via SQL antes de suspender.",
+      );
+    }
+
+    await suspendUser(data.userId, context.userId, data.reason);
+    const snapshot = await getTargetSnapshot(data.userId);
+    await recordAdminAction(context.userId, data.userId, "suspend_user", data.reason, snapshot);
+  });
+
+const reactivateUserSchema = z.object({
+  userId: z.string().uuid(),
+  reason: reasonSchema,
+});
+
+export const adminReactivateUserFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => reactivateUserSchema.parse(input))
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.userId);
+
+    await reactivateUser(data.userId);
+    const snapshot = await getTargetSnapshot(data.userId);
+    await recordAdminAction(context.userId, data.userId, "reactivate_user", data.reason, snapshot);
   });

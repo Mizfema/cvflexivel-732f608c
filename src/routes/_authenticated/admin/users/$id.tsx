@@ -8,6 +8,8 @@ import {
   adminGrantPlanFn,
   adminRevokePlanFn,
   adminAdjustCreditsFn,
+  adminSuspendUserFn,
+  adminReactivateUserFn,
 } from "@/lib/admin-actions.functions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -419,6 +421,167 @@ function AdjustCreditsDialog({
   );
 }
 
+function SuspendUserDialog({ userId, onSuccess }: { userId: string; onSuccess: () => void }) {
+  const suspendUserFn = useServerFn(adminSuspendUserFn);
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleConfirm() {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await suspendUserFn({ data: { userId, reason } });
+      toast.success("Conta suspensa.");
+      setOpen(false);
+      setReason("");
+      onSuccess();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erro ao suspender conta.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <AlertDialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) {
+          setReason("");
+          setError(null);
+        }
+      }}
+    >
+      <AlertDialogTrigger asChild>
+        <Button variant="destructive">Suspender conta</Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Suspender conta</AlertDialogTitle>
+          <AlertDialogDescription>
+            Bloqueia novo login e todas as ações de IA/download imediatamente. Não apaga nem altera
+            nenhum dado — totalmente reversível. Uma sessão já iniciada continua válida até expirar
+            (normalmente até 1h), mas qualquer pedido de IA/download nesse período falha com uma
+            mensagem própria de suspensão.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="suspend-user-reason">Motivo (obrigatório)</Label>
+            <Textarea
+              id="suspend-user-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Ex.: abuso de recursos, suspeita de fraude, incidente de segurança…"
+            />
+          </div>
+
+          {error && (
+            <p className="text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          )}
+        </div>
+
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={submitting}>Cancelar</AlertDialogCancel>
+          <Button
+            variant="destructive"
+            onClick={handleConfirm}
+            disabled={submitting || reason.trim().length < 3}
+          >
+            {submitting ? "A processar…" : "Suspender"}
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+function ReactivateUserDialog({ userId, onSuccess }: { userId: string; onSuccess: () => void }) {
+  const reactivateUserFn = useServerFn(adminReactivateUserFn);
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleConfirm() {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await reactivateUserFn({ data: { userId, reason } });
+      toast.success("Conta reativada.");
+      setOpen(false);
+      setReason("");
+      onSuccess();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erro ao reativar conta.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <AlertDialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) {
+          setReason("");
+          setError(null);
+        }
+      }}
+    >
+      <AlertDialogTrigger asChild>
+        <Button variant="outline" className="text-foreground">
+          Reativar conta
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Reativar conta</AlertDialogTitle>
+          <AlertDialogDescription>
+            Restaura login e ações de IA/download imediatamente. Nenhum dado foi alterado durante a
+            suspensão.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="reactivate-user-reason">Motivo (obrigatório)</Label>
+            <Textarea
+              id="reactivate-user-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Ex.: engano confirmado, apelo aceite…"
+            />
+          </div>
+
+          {error && (
+            <p className="text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          )}
+        </div>
+
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={submitting}>Cancelar</AlertDialogCancel>
+          <Button
+            onClick={handleConfirm}
+            disabled={submitting || reason.trim().length < 3}
+          >
+            {submitting ? "A processar…" : "Reativar"}
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 function AdminUserDetailPage() {
   const { id } = Route.useParams();
   const fetchDetail = useServerFn(getAdminUserDetail);
@@ -664,13 +827,14 @@ function AdminUserDetailPage() {
             currentBalance={data.creditBalance?.balance ?? 0}
             onSuccess={loadDetail}
           />
-          <Button variant="outline" className="text-foreground" disabled title="Disponível na Fase A4">
-            Suspender conta
-          </Button>
+          {data.suspension ? (
+            <ReactivateUserDialog userId={id} onSuccess={loadDetail} />
+          ) : (
+            <SuspendUserDialog userId={id} onSuccess={loadDetail} />
+          )}
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
-          Cada ação exige um motivo e fica registada no histórico admin. Suspender conta fica
-          disponível na próxima fase (A4).
+          Cada ação exige um motivo e fica registada no histórico admin.
         </p>
       </Section>
     </div>

@@ -385,7 +385,7 @@ CRITÉRIOS DE ACEITAÇÃO
 - [x] **A1 — KPIs reais:** matar o objeto `DEMO`.
 - [x] **A2 — Lista + detalhe de utilizadores (só leitura).**
 - [x] **A3 — Conceder/ajustar/revogar plano e créditos.**
-- [ ] **A4 — Suspender/reativar conta.**
+- [x] **A4 — Suspender/reativar conta.**
 - [ ] **A5 — Visualizador de auditoria.**
 
 **Nota da A3 (14/07/2026):** antes de tocar em código, o `supabase db pull` obrigatório revelou uma
@@ -404,6 +404,39 @@ schema continua a conceder acesso público a toda função nova por omissão —
 `SECURITY DEFINER` sem `REVOKE` explícito repete o mesmo buraco. Precisa de uma ronda própria de
 auditoria a todas as RPCs existentes antes de se considerar apertar o default a nível de schema.
 
+**Nota da A4 (14/07/2026):** implementada sem migration nova — `user_suspensions` já existia desde
+a A0. Passo 0 (validação de API) confirmado contra a versão instalada de `@supabase/supabase-js`
+(2.108.2, via `@supabase/auth-js`): `updateUserById(userId, { ban_duration: "876000h" })` bane
+efetivamente (bloqueia login/refresh na origem, fora do alcance de RLS `public`) e
+`ban_duration: "none"` reverte; esta versão **não expõe** revogação de sessão/refresh token por
+`userId` (só `signOut(jwt, scope)`, que exige o próprio JWT do utilizador) — confirmado, não
+improvisado, e documentado como limite honesto em `src/lib/user-suspension.server.ts`: um access
+token já emitido continua válido até ao seu `exp` (TTL tipicamente 1h). `src/lib/user-suspension.server.ts`
+implementa `suspendUser`/`reactivateUser`/`hasActiveSuspension` (ban primeiro, insert depois, com
+rollback do ban se o insert falhar) e `AccountSuspendedError`. O hook de bloqueio entra no topo de
+`checkAndRecordUsage` (`access-control.server.ts`), só para pedidos com `userId` (abuso anónimo
+fica fora do alcance, conforme já previsto). `adminSuspendUserFn`/`adminReactivateUserFn`
+(`admin-actions.functions.ts`) implementam as proteções (auto-suspensão e suspensão de conta admin
+rejeitadas) e a auditoria 1:1. UI em `users/$id.tsx`: botão "Suspender conta"/"Reativar conta"
+alterna conforme `data.suspension`, ambos via `alert-dialog` com motivo obrigatório.
+**Decisão de âmbito no passo "Cliente" do prompt original:** em vez de propagar um novo código de
+erro estruturado (`ACCOUNT_SUSPENDED`) através dos 8 ecrãs que já tratam `LimitReachedError`,
+`AccountSuspendedError` é uma mensagem simples (não o envelope JSON de `LimitReachedError`) —
+`parseLimitError` devolve `null` para ela, por isso cai sempre no bloco de erro genérico já
+existente em cada ecrã, que já é visualmente distinto do `UsageLimitNotice` (paywall âmbar). Testado
+com `bun run build`/`tsc --noEmit` limpos + um script Bun temporário (apagado depois, mesmo padrão
+da A3) que exercitou `suspendUser`/`reactivateUser`/`hasActiveSuspension`/`checkAndRecordUsage`
+diretamente contra a BD real de produção com a mesma conta de QA da A3
+(`azmagu01@gmail.com`) — 10/10 verificações passaram (suspensão bane na Auth API, bloqueia
+`checkAndRecordUsage` com `AccountSuspendedError`, dupla suspensão rejeitada sem duplicar linha,
+reativação restaura login e uso normal, dupla reativação rejeitada) — incluindo, sem querer, a
+confirmação do rollback do ban quando o insert em `user_suspensions` falha (aconteceu no primeiro
+run do script, por uma FK inválida no ator de teste). Conta de QA reposta ao estado original no
+fim. **Não testado nesta sessão:** as proteções de auto-suspensão e de suspensão de conta admin em
+`adminSuspendUserFn` (guardas simples, só revistas por leitura de código — exigem contexto de
+pedido HTTP real que o script direto não simula) e o fluxo completo pelo browser/UI — validar no
+Lovable após o push, como o rodapé desta fase já indicava.
+
 ---
 
 ## Checklist de fecho da ronda A0–A5
@@ -413,7 +446,10 @@ auditoria a todas as RPCs existentes antes de se considerar apertar o default a 
 - [ ] Zero resquícios de `DEMO`; nenhuma tile sem fonte real; CAC/LTV/Payback e "Favorável para investir" removidos; "Bateu no limite" marcado indisponível (A1).
 - [ ] Lista pesquisável + detalhe completo por utilizador, distinguindo plano pago de plano `admin` (A2).
 - [x] Conceder/estender/revogar plano e ajustar créditos funcionam, sem linha em `payments`, com motivo obrigatório e auditoria 1:1 (A3) — `bun run build`/`tsc --noEmit` limpos; **validação end-to-end em `bun dev` com dados reais ainda por fazer** (mexe em fluxo de dinheiro, ver nota no chat).
-- [ ] Suspensão bloqueia login e IA/download com mensagem própria; reativação restaura tudo; auto-suspensão e suspensão de admin rejeitadas (A4).
+- [x] Suspensão bloqueia login e IA/download com mensagem própria; reativação restaura tudo (A4) —
+  verificado com script direto contra a BD real (ver nota da A4 acima); **auto-suspensão e
+  suspensão de conta admin só verificadas por leitura de código, não executadas end-to-end** (exigem
+  contexto de pedido HTTP real).
 - [ ] `/admin/auditoria` mostra todas as ações com filtros (A5).
 - [ ] Cada fase: `bun run build` limpo, migrations + tipos em commit separado, `supabase db pull` antes de tocar em schema.
 - [ ] Pendências antigas que esta ronda **não** resolve e continuam abertas: logout na sidebar (não confirmado como bug real, verificar se necessário), rotas órfãs `/analise` e `/vagas` (confirmado: existem mas não estão em `NAV_ITEMS`), CRUD de `analyses`; **default privileges de funções abertos a anon/authenticated a nível de schema (encontrado na A3, corrigido só nas duas RPCs de crédito)**. Não deixar morrer.
