@@ -184,6 +184,7 @@ function PlanosPage() {
   const [buyingPlan, setBuyingPlan] = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [returning, setReturning] = useState(!!checkout);
+  const [confirmDelayed, setConfirmDelayed] = useState(false);
 
   useEffect(() => {
     fetchPlanPrices()
@@ -209,6 +210,12 @@ function PlanosPage() {
     // ou avulso/recarga, ?checkout=<payment.id>) não diz qual dos dois — por
     // isso tenta os dois em paralelo e para assim que qualquer um confirmar
     // (Fase 4 da Proposta V3 §8: dispara "payment_completed" nesse momento).
+    // Janela rápida (5×2s) cobre o caminho feliz (webhook a funcionar); depois
+    // disso passa a polling mais espaçado (10×15s ≈ 2.5min) porque, enquanto
+    // o webhook da PaySuite devolver 401 (bug confirmado do lado deles,
+    // 15/07/2026), a confirmação só chega via job de reconciliação a cada
+    // 3min — sem isto o cliente veria "a confirmar" sumir sem nunca ter
+    // confirmado, e pensaria que perdeu o dinheiro.
     function poll() {
       Promise.all([getPlanStatus(), fetchCreditBalance()])
         .then(([planStatus, credits]) => {
@@ -224,8 +231,18 @@ function PlanosPage() {
             track("payment_completed", { kind: planStatus.isPremium ? "premium" : "credits" });
           }
 
-          if (checkout && !succeeded && attempts < 5) {
+          if (!checkout || succeeded) {
+            setReturning(false);
+            setConfirmDelayed(false);
+            return;
+          }
+
+          if (attempts < 5) {
             setTimeout(poll, 2000);
+          } else if (attempts < 15) {
+            setReturning(false);
+            setConfirmDelayed(true);
+            setTimeout(poll, 15000);
           } else {
             setReturning(false);
           }
@@ -298,6 +315,11 @@ function PlanosPage() {
       ? trimestral.effective_price_mzn
       : trimestral.price_mzn
     : null;
+
+  // Enquanto confirmDelayed, um novo pagamento ainda não é seguro (o anterior
+  // pode confirmar a qualquer momento via job de reconciliação) — mantém os
+  // botões desativados para não arriscar pagamento duplicado.
+  const checkoutInFlight = returning || confirmDelayed;
 
   const avulsoDouble = avulsoEffective ? avulsoEffective * 2 : null;
   const trimestralSavings =
@@ -413,7 +435,7 @@ function PlanosPage() {
             <Button
               variant="outline"
               className="mt-auto"
-              disabled={!avulso || buyingPlan !== null || subscribingPlan !== null || returning}
+              disabled={!avulso || buyingPlan !== null || subscribingPlan !== null || checkoutInFlight}
               onClick={() => handleBuyCredits("avulso")}
             >
               {buyingPlan === "avulso" ? (
@@ -455,7 +477,7 @@ function PlanosPage() {
           ) : (
             <Button
               className="mt-auto bg-navy hover:bg-navy/90"
-              disabled={!mensal || subscribingPlan !== null || buyingPlan !== null || returning}
+              disabled={!mensal || subscribingPlan !== null || buyingPlan !== null || checkoutInFlight}
               onClick={() => handleSubscribeClick("mensal")}
             >
               {subscribingPlan === "mensal" ? (
@@ -501,7 +523,7 @@ function PlanosPage() {
             <Button
               variant="outline"
               className="mt-auto"
-              disabled={!trimestral || subscribingPlan !== null || buyingPlan !== null || returning}
+              disabled={!trimestral || subscribingPlan !== null || buyingPlan !== null || checkoutInFlight}
               onClick={() => handleSubscribeClick("trimestral")}
             >
               {subscribingPlan === "trimestral" ? (
@@ -523,7 +545,7 @@ function PlanosPage() {
             creditBalance={creditBalance}
             subscribingPlan={subscribingPlan}
             buyingPlan={buyingPlan}
-            returning={returning}
+            returning={checkoutInFlight}
             onSubscribe={handleSubscribeClick}
             onBuyCredits={handleBuyCredits}
           />
@@ -533,6 +555,13 @@ function PlanosPage() {
       {returning && (
         <p className="mt-4 flex items-center justify-center gap-2 text-sm text-ink-soft">
           <Loader2 className="h-4 w-4 shrink-0 animate-spin" />A confirmar o teu pagamento…
+        </p>
+      )}
+      {confirmDelayed && (
+        <p className="mt-4 flex items-center justify-center gap-2 text-center text-sm text-ink-soft">
+          <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+          Recebemos o teu pagamento — a confirmação pode levar alguns minutos. O plano/créditos
+          aparecem aqui automaticamente assim que confirmar, sem precisares de fazer nada.
         </p>
       )}
       {checkoutError && (
