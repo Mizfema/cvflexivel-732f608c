@@ -17,6 +17,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AnaliseRouteImport } from './routes/analise'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiReconcilePaymentsRouteImport } from './routes/api/reconcile-payments'
 import { Route as ApiPaysuiteWebhookRouteImport } from './routes/api/paysuite-webhook'
 import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated/perfil'
 import { Route as AuthenticatedMeusCvsRouteImport } from './routes/_authenticated/meus-cvs'
@@ -69,6 +70,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiReconcilePaymentsRoute = ApiReconcilePaymentsRouteImport.update({
+  id: '/api/reconcile-payments',
+  path: '/api/reconcile-payments',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPaysuiteWebhookRoute = ApiPaysuiteWebhookRouteImport.update({
@@ -163,6 +169,7 @@ export interface FileRoutesByFullPath {
   '/meus-cvs': typeof AuthenticatedMeusCvsRoute
   '/perfil': typeof AuthenticatedPerfilRoute
   '/api/paysuite-webhook': typeof ApiPaysuiteWebhookRoute
+  '/api/reconcile-payments': typeof ApiReconcilePaymentsRoute
   '/admin/auditoria': typeof AuthenticatedAdminAuditoriaRoute
   '/api/cron/ai-cost-alert': typeof ApiCronAiCostAlertRoute
   '/api/cron/plan-reminders': typeof ApiCronPlanRemindersRoute
@@ -185,6 +192,7 @@ export interface FileRoutesByTo {
   '/meus-cvs': typeof AuthenticatedMeusCvsRoute
   '/perfil': typeof AuthenticatedPerfilRoute
   '/api/paysuite-webhook': typeof ApiPaysuiteWebhookRoute
+  '/api/reconcile-payments': typeof ApiReconcilePaymentsRoute
   '/admin/auditoria': typeof AuthenticatedAdminAuditoriaRoute
   '/api/cron/ai-cost-alert': typeof ApiCronAiCostAlertRoute
   '/api/cron/plan-reminders': typeof ApiCronPlanRemindersRoute
@@ -210,6 +218,7 @@ export interface FileRoutesById {
   '/_authenticated/meus-cvs': typeof AuthenticatedMeusCvsRoute
   '/_authenticated/perfil': typeof AuthenticatedPerfilRoute
   '/api/paysuite-webhook': typeof ApiPaysuiteWebhookRoute
+  '/api/reconcile-payments': typeof ApiReconcilePaymentsRoute
   '/_authenticated/admin/auditoria': typeof AuthenticatedAdminAuditoriaRoute
   '/api/cron/ai-cost-alert': typeof ApiCronAiCostAlertRoute
   '/api/cron/plan-reminders': typeof ApiCronPlanRemindersRoute
@@ -235,6 +244,7 @@ export interface FileRouteTypes {
     | '/meus-cvs'
     | '/perfil'
     | '/api/paysuite-webhook'
+    | '/api/reconcile-payments'
     | '/admin/auditoria'
     | '/api/cron/ai-cost-alert'
     | '/api/cron/plan-reminders'
@@ -257,6 +267,7 @@ export interface FileRouteTypes {
     | '/meus-cvs'
     | '/perfil'
     | '/api/paysuite-webhook'
+    | '/api/reconcile-payments'
     | '/admin/auditoria'
     | '/api/cron/ai-cost-alert'
     | '/api/cron/plan-reminders'
@@ -281,6 +292,7 @@ export interface FileRouteTypes {
     | '/_authenticated/meus-cvs'
     | '/_authenticated/perfil'
     | '/api/paysuite-webhook'
+    | '/api/reconcile-payments'
     | '/_authenticated/admin/auditoria'
     | '/api/cron/ai-cost-alert'
     | '/api/cron/plan-reminders'
@@ -300,6 +312,7 @@ export interface RootRouteChildren {
   PrepararEntrevistaRoute: typeof PrepararEntrevistaRoute
   VagasRoute: typeof VagasRoute
   ApiPaysuiteWebhookRoute: typeof ApiPaysuiteWebhookRoute
+  ApiReconcilePaymentsRoute: typeof ApiReconcilePaymentsRoute
   ApiCronAiCostAlertRoute: typeof ApiCronAiCostAlertRoute
   ApiCronPlanRemindersRoute: typeof ApiCronPlanRemindersRoute
 }
@@ -360,6 +373,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/reconcile-payments': {
+      id: '/api/reconcile-payments'
+      path: '/api/reconcile-payments'
+      fullPath: '/api/reconcile-payments'
+      preLoaderRoute: typeof ApiReconcilePaymentsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/paysuite-webhook': {
@@ -516,6 +536,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrepararEntrevistaRoute: PrepararEntrevistaRoute,
   VagasRoute: VagasRoute,
   ApiPaysuiteWebhookRoute: ApiPaysuiteWebhookRoute,
+  ApiReconcilePaymentsRoute: ApiReconcilePaymentsRoute,
   ApiCronAiCostAlertRoute: ApiCronAiCostAlertRoute,
   ApiCronPlanRemindersRoute: ApiCronPlanRemindersRoute,
 }
