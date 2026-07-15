@@ -140,14 +140,18 @@ type PlanPriceRow = {
  * na UI e o valor cobrado bebem sempre da mesma função — nunca um selo
  * decorativo sem efeito no valor real. */
 export function getEffectivePlanPrice(planRow: PlanPriceRow): number {
+  // Number(...): plan_prices.price_mzn/promo_price_mzn são NUMERIC no Postgres —
+  // o PostgREST devolve-os como string (ex.: "1.00"), apesar do tipo gerado
+  // dizer `number`. Sem esta conversão, esse valor seguia como string para a
+  // API real da PaySuite (amount).
   if (
     planRow.is_promotional &&
     planRow.promo_ends_at &&
     new Date(planRow.promo_ends_at).getTime() > Date.now()
   ) {
-    return planRow.promo_price_mzn ?? planRow.price_mzn;
+    return Number(planRow.promo_price_mzn ?? planRow.price_mzn);
   }
-  return planRow.price_mzn;
+  return Number(planRow.price_mzn);
 }
 
 /** Fórmula única de extensão de período (webhook PaySuite + concessão manual

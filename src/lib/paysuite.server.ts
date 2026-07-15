@@ -42,17 +42,33 @@ async function paysuiteFetch<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      Accept: "application/json",
       Authorization: `Bearer ${apiKey}`,
       ...init?.headers,
     },
   });
 
-  const body = await res.json().catch(() => null);
+  // Nunca chamar res.json() direto: se a PaySuite devolver algo que não é JSON
+  // (página de erro HTML, corpo vazio), queremos o texto bruto no erro em vez
+  // de rebentar com "Cannot read properties of null" sem contexto nenhum.
+  const rawBody = await res.text();
+  let body: unknown = null;
+  try {
+    body = rawBody ? JSON.parse(rawBody) : null;
+  } catch {
+    // body fica null; rawBody.slice(...) abaixo mostra o que veio de facto.
+  }
+
   if (!res.ok) {
     const message =
-      (body && typeof body === "object" && "message" in body && String(body.message)) ||
-      `PaySuite respondeu ${res.status}`;
+      (body && typeof body === "object" && "message" in body && String((body as { message: unknown }).message)) ||
+      `PaySuite respondeu ${res.status}: ${rawBody.slice(0, 300)}`;
     throw new Error(message);
+  }
+  if (!body || typeof body !== "object" || !("data" in body)) {
+    throw new Error(
+      `PaySuite devolveu uma resposta inesperada (status ${res.status}): ${rawBody.slice(0, 300)}`,
+    );
   }
   return (body as { data: T }).data;
 }
