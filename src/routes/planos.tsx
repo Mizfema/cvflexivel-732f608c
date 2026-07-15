@@ -25,6 +25,7 @@ import {
   getPlanPrices,
   getMyCreditBalance,
 } from "@/lib/subscription.functions";
+import { formatPlanDuration } from "@/lib/plan-time-format";
 import { track } from "@/lib/analytics";
 
 const searchSchema = z.object({
@@ -49,13 +50,58 @@ export const Route = createFileRoute("/planos")({
 /* Só um selo de confiança visual — o método real é escolhido no checkout hospedado da PaySuite. */
 const TRUSTED_METHODS = ["M-Pesa", "e-Mola", "mKesh", "Visa/Mastercard"];
 
+/* Fase B4 do Guia B0-B5: getPlanPrices() já devolve só a allowlist pública
+ * (N3) — nunca bypasses_fair_use/fair_use_hourly_cap — e já vem ordenada por
+ * display_order e filtrada a enabled+visible_on_pricing_page. */
 type PlanPrice = {
   plan: string;
-  price_mzn: number;
-  period_days: number | null;
-  credits: number | null;
   label: string;
+  kind: "subscription_unlimited" | "credit_pack";
+  price_mzn: number;
+  effective_price_mzn: number;
+  is_promotional: boolean;
+  promo_badge_text: string | null;
+  promo_ends_at: string | null;
+  period_minutes: number | null;
+  credits: number | null;
+  features: string[];
+  display_order: number;
 };
+
+/* Preço efetivo + countdown recalculados no cliente ao ritmo de 1/min (N2):
+ * ao expirar promo_ends_at, o preço risca de volta ao normal e o selo some
+ * sozinho, sem reload — a mesma condição de getEffectivePlanPrice no
+ * servidor, só que reavaliada aqui a cada minuto para ser reativa. */
+function usePromoStatus(plan: PlanPrice | null) {
+  const [now, setNow] = useState(() => Date.now());
+  const promoEndsAt = plan?.promo_ends_at ?? null;
+  const isPromotional = plan?.is_promotional ?? false;
+
+  useEffect(() => {
+    if (!isPromotional || !promoEndsAt) return;
+    const interval = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(interval);
+  }, [isPromotional, promoEndsAt]);
+
+  if (!plan || !isPromotional || !promoEndsAt) {
+    return { active: false, countdownLabel: null as string | null };
+  }
+  const msLeft = new Date(promoEndsAt).getTime() - now;
+  if (msLeft <= 0) return { active: false, countdownLabel: null };
+  return { active: true, countdownLabel: formatCountdown(msLeft) };
+}
+
+function formatCountdown(msLeft: number): string {
+  const totalMinutes = Math.ceil(msLeft / 60_000);
+  if (totalMinutes >= 48 * 60) {
+    const days = Math.floor(totalMinutes / 1440);
+    const hours = Math.floor((totalMinutes % 1440) / 60);
+    return `Termina em ${days}d ${hours}h`;
+  }
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return hours > 0 ? `Termina em ${hours}h ${minutes}min` : `Termina em ${minutes}min`;
+}
 
 /* Tabela comparativa (docs/PROPOSTA-V3-FINAL-CONSOLIDADA.md §2/§4). "Por crédito" no
  * avulso é copy, não cálculo — os pesos exactos vivem na secção 3 do documento. */
@@ -134,8 +180,8 @@ function PlanosPage() {
     balance: number;
     expiresAt: string;
   } | null>(null);
-  const [subscribingPlan, setSubscribingPlan] = useState<"mensal" | "trimestral" | null>(null);
-  const [buyingAvulso, setBuyingAvulso] = useState(false);
+  const [subscribingPlan, setSubscribingPlan] = useState<string | null>(null);
+  const [buyingPlan, setBuyingPlan] = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [returning, setReturning] = useState(!!checkout);
 
@@ -199,7 +245,7 @@ function PlanosPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, session, getPlanStatus, fetchCreditBalance]);
 
-  async function handleSubscribeClick(plan: "mensal" | "trimestral") {
+  async function handleSubscribeClick(plan: string) {
     track("cta_click", { source: `planos_subscribe_${plan}` });
     track("checkout_started", { plan });
     setCheckoutError(null);
@@ -213,29 +259,49 @@ function PlanosPage() {
     }
   }
 
-  async function handleBuyAvulso() {
-    track("cta_click", { source: "planos_subscribe_avulso" });
-    track("checkout_started", { plan: "avulso" });
+  async function handleBuyCredits(plan: string) {
+    track("cta_click", { source: `planos_subscribe_${plan}` });
+    track("checkout_started", { plan });
     setCheckoutError(null);
-    setBuyingAvulso(true);
+    setBuyingPlan(plan);
     try {
-      const { checkoutUrl } = await startCreditCheckout({ data: { plan: "avulso" } });
+      const { checkoutUrl } = await startCreditCheckout({ data: { plan } });
       window.location.href = checkoutUrl;
     } catch (err) {
       setCheckoutError(err instanceof Error ? err.message : "Erro ao iniciar o pagamento.");
-      setBuyingAvulso(false);
+      setBuyingPlan(null);
     }
   }
 
   // "recarga" nunca aparece na página /planos (regra de ouro §2 do doc V3) —
-  // filtrado aqui mesmo que a tabela plan_prices o devolva no futuro.
+  // já filtrado no servidor via visible_on_pricing_page, mas o find() abaixo
+  // continua explícito para os 3 planos com layout próprio.
   const avulso = prices?.find((p) => p.plan === "avulso") ?? null;
   const mensal = prices?.find((p) => p.plan === "mensal") ?? null;
   const trimestral = prices?.find((p) => p.plan === "trimestral") ?? null;
+  // Fase B4: qualquer plano novo criado no admin (fora dos 3 com layout
+  // próprio) aparece aqui, já na posição certa (display_order vem do servidor).
+  const otherPlans =
+    prices?.filter((p) => p.plan !== "avulso" && p.plan !== "mensal" && p.plan !== "trimestral") ??
+    [];
 
-  const avulsoDouble = avulso ? avulso.price_mzn * 2 : null;
+  // Reavaliado a cada minuto (mesma promo status do PlanPriceDisplay) — sem
+  // isto, a caixa de ancoragem ficaria presa no preço promocional do fetch
+  // inicial mesmo depois da promoção expirar.
+  const avulsoPromo = usePromoStatus(avulso);
+  const mensalPromo = usePromoStatus(mensal);
+  const trimestralPromo = usePromoStatus(trimestral);
+  const avulsoEffective = avulso ? (avulsoPromo.active ? avulso.effective_price_mzn : avulso.price_mzn) : null;
+  const mensalEffective = mensal ? (mensalPromo.active ? mensal.effective_price_mzn : mensal.price_mzn) : null;
+  const trimestralEffective = trimestral
+    ? trimestralPromo.active
+      ? trimestral.effective_price_mzn
+      : trimestral.price_mzn
+    : null;
+
+  const avulsoDouble = avulsoEffective ? avulsoEffective * 2 : null;
   const trimestralSavings =
-    mensal && trimestral ? mensal.price_mzn * 3 - trimestral.price_mzn : null;
+    mensalEffective && trimestralEffective ? mensalEffective * 3 - trimestralEffective : null;
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-16">
@@ -268,7 +334,7 @@ function PlanosPage() {
         <div className="mt-10 flex flex-col divide-y divide-navy-rule overflow-hidden rounded-xl border border-navy-rule bg-card sm:flex-row sm:divide-x sm:divide-y-0">
           <div className="flex-1 p-4 text-center">
             <p className="font-serif text-xl text-foreground">
-              {avulso.price_mzn} <small className="text-xs font-sans text-ink-soft">MZN</small>
+              {avulsoEffective} <small className="text-xs font-sans text-ink-soft">MZN</small>
             </p>
             <p className="mt-1 text-xs text-ink-soft">1 candidatura avulsa</p>
           </div>
@@ -280,7 +346,7 @@ function PlanosPage() {
           </div>
           <div className="flex-1 bg-emerald-50 p-4 text-center">
             <p className="font-serif text-xl text-navy">
-              {mensal.price_mzn} <small className="text-xs font-sans text-ink-soft">MZN</small>
+              {mensalEffective} <small className="text-xs font-sans text-ink-soft">MZN</small>
             </p>
             <p className="mt-1 text-xs font-semibold text-emerald-700">Mês inteiro sem contar</p>
           </div>
@@ -313,9 +379,11 @@ function PlanosPage() {
 
         <PlanCard
           title={avulso ? `${avulso.label}` : "Avulso"}
-          price={avulso ? `${avulso.price_mzn} MZN` : "—"}
+          price={<PlanPriceDisplay plan={avulso} fallback="—" />}
           meta={
-            avulso ? `${avulso.credits ?? "—"} créditos · válido ${avulso.period_days} dias` : ""
+            avulso
+              ? `${avulso.credits ?? "—"} créditos · válido ${formatPlanDuration(avulso.period_minutes)}`
+              : ""
           }
         >
           <Feat icon={<Coins className="h-3.5 w-3.5 text-navy" />}>
@@ -323,7 +391,7 @@ function PlanosPage() {
           </Feat>
           <Feat ok>Templates premium desbloqueados</Feat>
           <Feat ok>Downloads sem marca d'água</Feat>
-          <Feat ok>Válido {avulso?.period_days ?? 30} dias sem renovar</Feat>
+          <Feat ok>Válido {formatPlanDuration(avulso?.period_minutes ?? 43200)} sem renovar</Feat>
           {!session && ready ? (
             <Link
               to="/auth"
@@ -345,23 +413,27 @@ function PlanosPage() {
             <Button
               variant="outline"
               className="mt-auto"
-              disabled={!avulso || buyingAvulso || subscribingPlan !== null || returning}
-              onClick={handleBuyAvulso}
+              disabled={!avulso || buyingPlan !== null || subscribingPlan !== null || returning}
+              onClick={() => handleBuyCredits("avulso")}
             >
-              {buyingAvulso ? <Loader2 className="h-4 w-4 animate-spin" /> : "Comprar avulso"}
+              {buyingPlan === "avulso" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Comprar avulso"
+              )}
             </Button>
           )}
         </PlanCard>
 
         <PlanCard
-          title={mensal ? `${mensal.label} · ${mensal.period_days} dias` : "Mensal"}
-          price={mensal ? `${mensal.price_mzn} MZN` : "—"}
+          title={mensal ? `${mensal.label} · ${formatPlanDuration(mensal.period_minutes)}` : "Mensal"}
+          price={<PlanPriceDisplay plan={mensal} fallback="—" />}
           meta="Pagamento único, sem renovação automática"
           highlight
           badge="Mais escolhido"
         >
           <Feat icon={<InfinityIcon className="h-3.5 w-3.5 text-navy" />}>
-            <strong>Tudo ilimitado</strong> por {mensal?.period_days ?? 30} dias
+            <strong>Tudo ilimitado</strong> por {formatPlanDuration(mensal?.period_minutes ?? 43200)}
           </Feat>
           <Feat ok>Análises, IA e cartas sem contar</Feat>
           <Feat ok>Todos os templates premium</Feat>
@@ -383,7 +455,7 @@ function PlanosPage() {
           ) : (
             <Button
               className="mt-auto bg-navy hover:bg-navy/90"
-              disabled={!mensal || subscribingPlan !== null || returning}
+              disabled={!mensal || subscribingPlan !== null || buyingPlan !== null || returning}
               onClick={() => handleSubscribeClick("mensal")}
             >
               {subscribingPlan === "mensal" ? (
@@ -396,14 +468,19 @@ function PlanosPage() {
         </PlanCard>
 
         <PlanCard
-          title={trimestral ? `${trimestral.label} · ${trimestral.period_days} dias` : "Trimestral"}
-          price={trimestral ? `${trimestral.price_mzn} MZN` : "—"}
+          title={
+            trimestral
+              ? `${trimestral.label} · ${formatPlanDuration(trimestral.period_minutes)}`
+              : "Trimestral"
+          }
+          price={<PlanPriceDisplay plan={trimestral} fallback="—" />}
           meta="Pagamento único, sem renovação automática"
           badge={trimestralSavings ? `Poupa ${trimestralSavings} MZN` : undefined}
           badgeVariant="save"
         >
           <Feat icon={<InfinityIcon className="h-3.5 w-3.5 text-navy" />}>
-            <strong>Tudo ilimitado</strong> por {trimestral?.period_days ?? 90} dias
+            <strong>Tudo ilimitado</strong> por{" "}
+            {formatPlanDuration(trimestral?.period_minutes ?? 129600)}
           </Feat>
           <Feat ok>Cobre o ciclo de procura completo</Feat>
           <Feat ok>Sem renovações manuais no meio</Feat>
@@ -424,7 +501,7 @@ function PlanosPage() {
             <Button
               variant="outline"
               className="mt-auto"
-              disabled={!trimestral || subscribingPlan !== null || returning}
+              disabled={!trimestral || subscribingPlan !== null || buyingPlan !== null || returning}
               onClick={() => handleSubscribeClick("trimestral")}
             >
               {subscribingPlan === "trimestral" ? (
@@ -435,6 +512,22 @@ function PlanosPage() {
             </Button>
           )}
         </PlanCard>
+
+        {otherPlans.map((plan) => (
+          <GenericPlanCard
+            key={plan.plan}
+            plan={plan}
+            session={session}
+            ready={ready}
+            isPremium={isPremium}
+            creditBalance={creditBalance}
+            subscribingPlan={subscribingPlan}
+            buyingPlan={buyingPlan}
+            returning={returning}
+            onSubscribe={handleSubscribeClick}
+            onBuyCredits={handleBuyCredits}
+          />
+        ))}
       </div>
 
       {returning && (
@@ -545,7 +638,7 @@ function PlanCard({
   children,
 }: {
   title: string;
-  price: string;
+  price: React.ReactNode;
   meta?: string;
   highlight?: boolean;
   badge?: string;
@@ -631,5 +724,121 @@ function CreditItem({ cost, title, desc }: { cost: number; title: string; desc: 
         <p className="text-[11px] text-muted-foreground">{desc}</p>
       </div>
     </div>
+  );
+}
+
+/* Preço base riscado + preço efetivo + selo + countdown quando a promoção
+ * está vigente (N2) — some sozinho ao expirar, sem reload (usePromoStatus
+ * reavalia a cada minuto). `effective_price_mzn` é só um snapshot do servidor
+ * no momento do fetch — depois de expirar (sem refetch), o preço mostrado
+ * TEM de cair para `price_mzn` (base) e não para o snapshot promocional
+ * congelado, senão o preço "voltaria sozinho" só na aparência, mentindo. */
+function PlanPriceDisplay({ plan, fallback }: { plan: PlanPrice | null; fallback: string }) {
+  const { active, countdownLabel } = usePromoStatus(plan);
+  if (!plan) return <>{fallback}</>;
+  if (active) {
+    return (
+      <span className="inline-flex flex-col items-center gap-0.5">
+        <span className="flex items-baseline gap-1.5">
+          <s className="text-sm font-normal text-muted-foreground/60">{plan.price_mzn} MZN</s>
+          <span>{plan.effective_price_mzn} MZN</span>
+        </span>
+        <span className="whitespace-nowrap text-[11px] font-semibold text-amber-700">
+          {plan.promo_badge_text ?? "Promoção"} · {countdownLabel}
+        </span>
+      </span>
+    );
+  }
+  return <>{plan.price_mzn} MZN</>;
+}
+
+/** Card genérico para qualquer plano criado no admin fora de
+ * avulso/mensal/trimestral (Fase B4) — sem badge fixo nem caixa de
+ * comparação (isso é tratamento especial dos 3 planos com layout próprio),
+ * mas com preço/promo/duração/features data-driven e o botão certo conforme
+ * `kind`. Features vêm como texto puro — nunca dangerouslySetInnerHTML. */
+function GenericPlanCard({
+  plan,
+  session,
+  ready,
+  isPremium,
+  creditBalance,
+  subscribingPlan,
+  buyingPlan,
+  returning,
+  onSubscribe,
+  onBuyCredits,
+}: {
+  plan: PlanPrice;
+  session: unknown;
+  ready: boolean;
+  isPremium: boolean | null;
+  creditBalance: { balance: number; expiresAt: string } | null;
+  subscribingPlan: string | null;
+  buyingPlan: string | null;
+  returning: boolean;
+  onSubscribe: (plan: string) => void;
+  onBuyCredits: (plan: string) => void;
+}) {
+  const isSubscription = plan.kind === "subscription_unlimited";
+  const busy = subscribingPlan === plan.plan || buyingPlan === plan.plan;
+  const otherActionInFlight =
+    (subscribingPlan !== null && subscribingPlan !== plan.plan) ||
+    (buyingPlan !== null && buyingPlan !== plan.plan);
+
+  return (
+    <PlanCard
+      title={`${plan.label}${plan.period_minutes ? ` · ${formatPlanDuration(plan.period_minutes)}` : ""}`}
+      price={<PlanPriceDisplay plan={plan} fallback="—" />}
+      meta={
+        isSubscription
+          ? "Pagamento único, sem renovação automática"
+          : `${plan.credits ?? "—"} créditos · válido ${formatPlanDuration(plan.period_minutes)}`
+      }
+    >
+      {plan.features.map((feature, i) => (
+        <Feat key={i} ok>
+          {feature}
+        </Feat>
+      ))}
+      {!session && ready ? (
+        <Link
+          to="/auth"
+          search={{ next: "/planos" }}
+          className="mt-auto inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium shadow-sm transition-colors hover:bg-accent"
+        >
+          Criar conta grátis
+        </Link>
+      ) : isSubscription && isPremium ? (
+        <Button variant="outline" className="mt-auto" disabled>
+          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+          Plano ativo
+        </Button>
+      ) : !isSubscription && isPremium ? (
+        <Button variant="outline" className="mt-auto" disabled>
+          Inclui o teu plano
+        </Button>
+      ) : !isSubscription && creditBalance ? (
+        <Button variant="outline" className="mt-auto" disabled>
+          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+          {creditBalance.balance} créditos ativos
+        </Button>
+      ) : (
+        <Button
+          variant="outline"
+          className="mt-auto"
+          disabled={busy || otherActionInFlight || returning}
+          onClick={() => (isSubscription ? onSubscribe(plan.plan) : onBuyCredits(plan.plan))}
+        >
+          {busy ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : isSubscription ? (
+            `Ativar ${plan.label}`
+          ) : (
+            `Comprar ${plan.label}`
+          )}
+        </Button>
+      )}
+    </PlanCard>
   );
 }

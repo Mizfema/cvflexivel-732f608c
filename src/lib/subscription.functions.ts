@@ -6,7 +6,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   hasActivePlan,
   getPlanExpiryWarning,
-  getActivePlanDaysLeft,
+  getActivePlanTimeLeft,
   getEffectivePlanPrice,
 } from "@/lib/subscription.server";
 import { getActiveCreditBalance } from "@/lib/credits.server";
@@ -50,16 +50,30 @@ export const getMyPlanStatus = createServerFn({ method: "GET" })
     expiryWarning: await getPlanExpiryWarning(context.userId),
   }));
 
-/** Preços/pacotes vivos em `plan_prices` (Fase 1 da Proposta V3) — a página
- * `/planos` nunca hardcoda valores, só lê esta tabela. `UPDATE` muda preço
- * sem deploy. */
+/** Preços/pacotes vivos em `plan_prices` (Fase 1 da Proposta V3, allowlist
+ * pública da Fase B4/N3 do Guia B0-B5) — a página `/planos` nunca hardcoda
+ * valores, só lê esta função. `bypasses_fair_use`/`fair_use_hourly_cap` e
+ * planos desativados/ocultos NUNCA chegam ao browser de um visitante — só os
+ * campos selecionados abaixo saem daqui. Ordenado por `display_order` para um
+ * plano novo criado no admin aparecer na posição certa sem deploy. */
 export const getPlanPrices = createServerFn({ method: "GET" }).handler(async () => {
   const { data, error } = await supabaseAdmin
     .from("plan_prices")
-    .select("plan, price_mzn, period_days, credits, label, enabled")
-    .eq("enabled", true);
+    .select(
+      "plan, label, kind, price_mzn, promo_price_mzn, is_promotional, promo_badge_text, promo_ends_at, period_minutes, credits, features, display_order",
+    )
+    .eq("enabled", true)
+    .eq("visible_on_pricing_page", true)
+    .order("display_order", { ascending: true });
   if (error) throw new Error(error.message);
-  return data;
+  // promo_price_mzn nunca sai daqui — o browser só recebe o preço efetivo já
+  // calculado (N2); o valor promocional em si não é um campo público.
+  return data.map(({ promo_price_mzn, ...row }) => ({
+    ...row,
+    kind: row.kind as "subscription_unlimited" | "credit_pack",
+    features: (row.features as string[] | null) ?? [],
+    effective_price_mzn: getEffectivePlanPrice({ ...row, promo_price_mzn }),
+  }));
 });
 
 /** Saldo de créditos do avulso do utilizador autenticado, ou null se nunca
@@ -71,9 +85,11 @@ export const getMyCreditBalance = createServerFn({ method: "GET" })
     return getActiveCreditBalance(context.userId);
   });
 
-/** Indicador da sidebar (Fase 2+3 da Proposta V3 §8): premium vê dias
- * restantes reais do plano; dono de pacote avulso vê saldo de créditos e
- * validade; grátis/anónimo vê análises restantes no mês. */
+/** Indicador da sidebar (Fase 2+3 da Proposta V3 §8; minutos desde a Fase B4
+ * do Guia B0-B5): premium vê tempo restante real do plano (dias ou horas,
+ * conforme a duração — um "ilimitado 12h" nunca pode mostrar "0 dias"); dono
+ * de pacote avulso vê saldo de créditos e validade; grátis/anónimo vê
+ * análises restantes no mês. */
 export const getSidebarStatus = createServerFn({ method: "GET" })
   .middleware([optionalIdentity])
   .handler(async ({ context }) => {
@@ -83,13 +99,13 @@ export const getSidebarStatus = createServerFn({ method: "GET" })
     // mesmo badge "Premium · Ilimitado" em vez de análises restantes do
     // grátis, que seria enganoso.
     if (await checkIsAdmin(context.userId)) {
-      return { tier: "premium" as const, daysLeft: null };
+      return { tier: "premium" as const, minutesLeft: null };
     }
 
     const isPremium = await hasActivePlan(context.userId);
     if (isPremium) {
-      const daysLeft = await getActivePlanDaysLeft(context.userId);
-      return { tier: "premium" as const, daysLeft };
+      const minutesLeft = await getActivePlanTimeLeft(context.userId);
+      return { tier: "premium" as const, minutesLeft };
     }
 
     const credits = await getActiveCreditBalance(context.userId);

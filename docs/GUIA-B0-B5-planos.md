@@ -506,7 +506,7 @@ exata às 12h sem graça.
 - [x] **B2 — UI `/admin/planos`** (criar/editar/arquivar/reativar, validações condicionais).
 - [x] **B3 — Checkout + webhook + concessão manual** dinâmicos, preço efetivo no servidor,
       snapshot `plan_kind`.
-- [ ] **B4 — `/planos` dinâmica** + preço riscado + countdown honesto + tempo restante sub-diário
+- [x] **B4 — `/planos` dinâmica** + preço riscado + countdown honesto + tempo restante sub-diário
       + allowlist pública (N3).
 - [ ] **B5 — Bypass de fair-use** com teto por plano + kill switch vivo documentado.
 

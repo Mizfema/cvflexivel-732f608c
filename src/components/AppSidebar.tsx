@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { getIsAdmin } from "@/lib/admin.functions";
 import { getSidebarStatus } from "@/lib/subscription.functions";
+import { formatPlanTimeLeft } from "@/lib/plan-time-format";
 import { UserAvatar } from "@/components/UserAvatar";
 import { cn } from "@/lib/utils";
 
@@ -38,11 +39,11 @@ type SidebarStatus =
   | { tier: "anonymous" }
   | { tier: "free"; analysesRemaining: number | null }
   | { tier: "avulso"; balance: number; daysLeft: number }
-  | { tier: "premium"; daysLeft: number | null };
+  | { tier: "premium"; minutesLeft: number | null };
 
-/** Indicador de plano (Fase 2 da Proposta V3 §8) — dias restantes para
- * premium, análises restantes no mês para grátis. Nunca mostra nada para
- * anónimo (ainda não tem conta). */
+/** Indicador de plano (Fase 2 da Proposta V3 §8; minutos desde a Fase B4 do
+ * Guia B0-B5) — tempo restante para premium, análises restantes no mês para
+ * grátis. Nunca mostra nada para anónimo (ainda não tem conta). */
 function useSidebarStatus(userId: string | undefined): SidebarStatus | null {
   const fetchStatus = useServerFn(getSidebarStatus);
   const [status, setStatus] = useState<SidebarStatus | null>(null);
@@ -187,8 +188,8 @@ function SidebarContent({ onClose }: SidebarContentProps) {
             </p>
             <p className="mt-0.5 text-[10.5px] text-[#8A8883]">
               {sidebarStatus.tier === "premium"
-                ? sidebarStatus.daysLeft != null
-                  ? `${sidebarStatus.daysLeft} ${sidebarStatus.daysLeft === 1 ? "dia" : "dias"} restantes`
+                ? sidebarStatus.minutesLeft != null
+                  ? `${formatPlanTimeLeft(sidebarStatus.minutesLeft)} restantes`
                   : "Ilimitado"
                 : sidebarStatus.tier === "avulso"
                   ? `${sidebarStatus.balance} créditos · expira em ${sidebarStatus.daysLeft} ${sidebarStatus.daysLeft === 1 ? "dia" : "dias"}`

@@ -127,15 +127,6 @@ export async function getActivePlanTimeLeft(userId: string | null): Promise<numb
   return Math.max(1, Math.ceil(msLeft / MINUTE_MS));
 }
 
-/** Dias restantes do plano ativo — usado pelo indicador "Premium · X dias
- * restantes" da sidebar (Fase 2 da Proposta V3). Mantida por compatibilidade,
- * reimplementada sobre getActivePlanTimeLeft para não duplicar a query. */
-export async function getActivePlanDaysLeft(userId: string | null): Promise<number | null> {
-  const minutesLeft = await getActivePlanTimeLeft(userId);
-  if (minutesLeft == null) return null;
-  return Math.max(1, Math.ceil(minutesLeft / SUB_DAY_THRESHOLD_MINUTES));
-}
-
 type PlanPriceRow = {
   price_mzn: number;
   promo_price_mzn: number | null;
