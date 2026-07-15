@@ -150,8 +150,11 @@ export const createSubscriptionCheckout = createServerFn({ method: "POST" })
 
     const request = getRequest();
     const origin = request ? new URL(request.url).origin : "";
-    // Referência única: user + plano + período (timestamp de criação).
-    const reference = `cv-${context.userId.slice(0, 8)}-${data.plan}-${Date.now()}`;
+    // Referência única: user + plano + período (timestamp de criação). A PaySuite real
+    // rejeita qualquer caractere fora de [a-zA-Z0-9] (confirmado 15/07/2026 contra a API
+    // real — a doc não menciona essa restrição) — nunca usar hífen/underscore aqui, mesmo
+    // que `data.plan` já seja validado como [a-z0-9_] no admin.
+    const reference = `cv${context.userId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 8)}${data.plan.replace(/[^a-zA-Z0-9]/g, "")}${Date.now()}`;
 
     const { data: subscription, error: subError } = await supabaseAdmin
       .from("subscriptions")
@@ -242,7 +245,9 @@ export const createCreditCheckout = createServerFn({ method: "POST" })
 
     const request = getRequest();
     const origin = request ? new URL(request.url).origin : "";
-    const reference = `cv-${context.userId.slice(0, 8)}-${data.plan}-${Date.now()}`;
+    // Ver comentário equivalente em createSubscriptionCheckout: a PaySuite real rejeita
+    // qualquer caractere fora de [a-zA-Z0-9] na reference.
+    const reference = `cv${context.userId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 8)}${data.plan.replace(/[^a-zA-Z0-9]/g, "")}${Date.now()}`;
 
     const { data: payment, error: payError } = await supabaseAdmin
       .from("payments")
