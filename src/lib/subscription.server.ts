@@ -178,6 +178,31 @@ async function getLatestActiveSubscription(userId: string) {
   return data;
 }
 
+export interface FairUseBypass {
+  fairUseHourlyCap: number | null;
+}
+
+/** Bypass de fair-use do plano ativo (Fase B5, Q1/Q3/N3 do Guia B0-B5) — devolve
+ * `null` quando o plano ativo não tem `bypasses_fair_use`. Exceção deliberada à
+ * regra de edição prospetiva (Q3): este lookup é VIVO a cada pedido, nunca
+ * cacheado — desligar `bypasses_fair_use` no admin corta o bypass imediatamente
+ * para todos os assinantes ativos desse plano (kill switch de abuso), sem
+ * esperar a próxima renovação. */
+export async function getActiveFairUseBypass(userId: string | null): Promise<FairUseBypass | null> {
+  if (!userId) return null;
+  const sub = await getLatestActiveSubscription(userId);
+  if (!sub) return null;
+
+  const { data, error } = await supabaseAdmin
+    .from("plan_prices")
+    .select("bypasses_fair_use, fair_use_hourly_cap")
+    .eq("plan", sub.plan)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data?.bypasses_fair_use) return null;
+  return { fairUseHourlyCap: data.fair_use_hourly_cap };
+}
+
 /** Concede/estende um plano manualmente (Fase A3 do painel admin). Nunca
  * insere em `payments` — não houve pagamento real. `subscriptions` não tem
  * unique constraint em `user_id` (só PK em `id`, por desenho: uma linha por

@@ -508,7 +508,7 @@ exata às 12h sem graça.
       snapshot `plan_kind`.
 - [x] **B4 — `/planos` dinâmica** + preço riscado + countdown honesto + tempo restante sub-diário
       + allowlist pública (N3).
-- [ ] **B5 — Bypass de fair-use** com teto por plano + kill switch vivo documentado.
+- [x] **B5 — Bypass de fair-use** com teto por plano + kill switch vivo documentado.
 
 ## Checklist de fecho da ronda B0–B5
 
@@ -516,8 +516,12 @@ exata às 12h sem graça.
       de créditos, `PLAN_OPTIONS`, cards JSX fixos, branch de string no webhook).
 - [ ] Criar, editar, arquivar e reativar planos de ponta a ponta pela UI, sem deploy nem SQL
       manual.
-- [ ] Um "ilimitado 12h" pode ser criado, vendido/concedido e usado sem os tectos normais — mas
-      com teto horário invisível obrigatório (Q1) e **sem período de graça** (N1).
+- [x] Um "ilimitado 12h" pode ser criado, vendido/concedido e usado sem os tectos normais — mas
+      com teto horário invisível obrigatório (Q1) e **sem período de graça** (N1). Verificado por
+      script contra a BD real (conta de QA, cap de teste=5): 5 operações passam sem o tecto diário
+      normal de 10, a 6ª é barrada com `reason=daily_limit`/mensagem genérica já existente na UI
+      (`UsageLimitNotice.isPremiumFairUse`); desligar `bypasses_fair_use` corta o bypass na mesma
+      hora (kill switch); expiração sub-diária confirmada sem graça.
 - [ ] O preço cobrado no checkout coincide sempre com o preço mostrado em `/planos`, incluindo
       antes/depois de `promo_ends_at` (N2 — countdown com consequência real).
 - [ ] Edição/arquivamento nunca retroage sobre assinaturas/pagamentos existentes (Q3), com a única

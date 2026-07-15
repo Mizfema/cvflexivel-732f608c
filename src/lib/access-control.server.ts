@@ -3,7 +3,7 @@ import { getRequest } from "@tanstack/react-start/server";
 import { createClient } from "@supabase/supabase-js";
 import { createHash } from "node:crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { hasActivePlan } from "@/lib/subscription.server";
+import { hasActivePlan, getActiveFairUseBypass } from "@/lib/subscription.server";
 import { computeCostUsd } from "@/lib/ai-pricing";
 import { getActiveCreditBalance, getCreditWeight, debitCredits } from "@/lib/credits.server";
 import { hasActiveSuspension, AccountSuspendedError } from "@/lib/user-suspension.server";
@@ -35,6 +35,7 @@ export interface UsageCheckResult {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MONTH_MS = 30 * DAY_MS;
+const HOUR_MS = 60 * 60 * 1000;
 
 function getClientIp(headers: Headers): string {
   return (
@@ -286,6 +287,48 @@ export async function checkAndRecordUsage(
   if (userId && !isPremium) {
     const creditResult = await tryCreditCoveredUsage(feature, userId, sessionId);
     if (creditResult) return creditResult;
+  }
+
+  // Fase B5 (Q1/Q3): plano com bypass de fair-use ignora os tectos normais do
+  // tier premium e passa a ter só um teto horário técnico, invisível ao
+  // utilizador. Lookup VIVO (getActiveFairUseBypass) — ver comentário lá.
+  if (userId && isPremium) {
+    const bypass = await getActiveFairUseBypass(userId);
+    if (bypass) {
+      const identity = { userId, fingerprint };
+      if (bypass.fairUseHourlyCap != null) {
+        const { count } = await countUsage(identity, null, Date.now() - HOUR_MS);
+        if (count >= bypass.fairUseHourlyCap) {
+          // Mesmo erro/mensagem genérica já usada pelo tecto diário normal do
+          // premium (UsageLimitNotice.isPremiumFairUse) — nunca expor o teto.
+          return {
+            allowed: false,
+            reason: "daily_limit",
+            remainingToday: 0,
+            remainingMonth: null,
+            retryAt: null,
+            usageId: null,
+            tier: "premium",
+          };
+        }
+      }
+
+      const { data: inserted, error } = await supabaseAdmin
+        .from("ai_usage")
+        .insert({ user_id: userId, anon_fingerprint: null, feature, session_id: sessionId })
+        .select("id")
+        .single();
+      if (error) throw new Error(error.message);
+      return {
+        allowed: true,
+        reason: "ok",
+        remainingToday: null,
+        remainingMonth: null,
+        retryAt: null,
+        usageId: inserted.id,
+        tier: "premium",
+      };
+    }
   }
 
   const tier: UsageTier = userId ? (isPremium ? "premium" : "free") : "anonymous";
