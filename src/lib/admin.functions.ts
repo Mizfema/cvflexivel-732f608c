@@ -143,44 +143,47 @@ export const getAdminDashboard = createServerFn({ method: "GET" })
     });
 
     // ===== Receita (D1: "MRR" renomeado para "Receita confirmada (30d)") =====
+    // payments.amount é sempre MZN (nunca USD) — as variáveis abaixo já se
+    // chamaram *Usd por engano, o que levava o dashboard a rotular receita
+    // real em MZN como se fosse dólar. Corrigido: sufixo Mzn em todo o lado.
     const payments = paymentsRes.data ?? [];
-    let revenue30dUsd = 0;
-    let revenuePrev30dUsd = 0;
-    let revenueAllTimeUsd = 0;
+    let revenue30dMzn = 0;
+    let revenuePrev30dMzn = 0;
+    let revenueAllTimeMzn = 0;
     let upgrades30d = 0;
     const payingUserIds = new Set<string>();
     const revenueByMonth = new Map<string, number>();
     for (const p of payments) {
       if (!p.paid_at) continue;
       const amount = Number(p.amount);
-      revenueAllTimeUsd += amount;
+      revenueAllTimeMzn += amount;
       if (p.user_id) payingUserIds.add(p.user_id);
       revenueByMonth.set(monthKey(p.paid_at), (revenueByMonth.get(monthKey(p.paid_at)) ?? 0) + amount);
       if (p.paid_at >= thirtyDaysAgo) {
-        revenue30dUsd += amount;
+        revenue30dMzn += amount;
         if (p.subscription_id) upgrades30d += 1;
       } else if (p.paid_at >= sixtyDaysAgo) {
-        revenuePrev30dUsd += amount;
+        revenuePrev30dMzn += amount;
       }
     }
     const revenueSeries = [...revenueByMonth.entries()]
       .sort(([a], [b]) => (a < b ? -1 : 1))
-      .map(([month, amountUsd]) => ({ month, amountUsd: Number(amountUsd.toFixed(2)) }));
+      .map(([month, amountMzn]) => ({ month, amountMzn: Number(amountMzn.toFixed(2)) }));
 
     const revenueDeltaPct =
-      revenuePrev30dUsd > 0
-        ? Number((((revenue30dUsd - revenuePrev30dUsd) / revenuePrev30dUsd) * 100).toFixed(1))
+      revenuePrev30dMzn > 0
+        ? Number((((revenue30dMzn - revenuePrev30dMzn) / revenuePrev30dMzn) * 100).toFixed(1))
         : null;
 
     const conversionPct = totalUsers > 0 ? (payingUserIds.size / totalUsers) * 100 : null;
 
-    const contributionMarginPct =
-      revenue30dUsd > 0
-        ? Number((((revenue30dUsd - costUsd30d) / revenue30dUsd) * 100).toFixed(1))
-        : null;
+    // Removido contributionMarginPct: comparava receita (MZN) com custo de IA
+    // (USD) sem taxa de câmbio nenhuma, inflando artificialmente a margem
+    // mostrada. Sem uma taxa de câmbio real para converter, os dois números
+    // ficam separados no dashboard (receita em MZN, custo de IA em USD).
 
-    const ltvUsd =
-      payingUserIds.size > 0 ? Number((revenueAllTimeUsd / payingUserIds.size).toFixed(2)) : null;
+    const ltvMzn =
+      payingUserIds.size > 0 ? Number((revenueAllTimeMzn / payingUserIds.size).toFixed(2)) : null;
 
     // ===== Retenção (D2 + D11: janelas em UTC) =====
     // M1: utilizadores com pelo menos 30 dias de conta, ativos nos seus
@@ -241,7 +244,7 @@ export const getAdminDashboard = createServerFn({ method: "GET" })
       costTrackedCalls: callsWithTokens,
       totalCallsLast30d,
       revenue: {
-        confirmed30dUsd: Number(revenue30dUsd.toFixed(2)),
+        confirmed30dMzn: Number(revenue30dMzn.toFixed(2)),
         deltaPct: revenueDeltaPct,
         series: revenueSeries,
       },
@@ -255,9 +258,8 @@ export const getAdminDashboard = createServerFn({ method: "GET" })
         m1CohortSize,
         weeklySeries: retentionWeeklySeries,
       },
-      contributionMarginPct,
       ltv: {
-        avgRevenuePerPayingUserUsd: ltvUsd,
+        avgRevenuePerPayingUserMzn: ltvMzn,
       },
       funnel: {
         registrations: totalUsers,

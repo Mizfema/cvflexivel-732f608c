@@ -48,8 +48,8 @@ function monthLabel(monthKey: string): string {
   return `${MONTH_LABELS[month] ?? month}/${year.slice(2)}`;
 }
 
-function fmtUsdOrDash(value: number | null): string {
-  return value === null ? "—" : `US$${value.toLocaleString("pt-PT", { maximumFractionDigits: 2 })}`;
+function fmtMznOrDash(value: number | null): string {
+  return value === null ? "—" : `${value.toLocaleString("pt-PT", { maximumFractionDigits: 2 })} MZN`;
 }
 
 function fmtPctOrDash(value: number | null): string {
@@ -61,7 +61,7 @@ const callsChartConfig = {
 } satisfies ChartConfig;
 
 const revenueChartConfig = {
-  amountUsd: { label: "Receita confirmada", color: "var(--chart-4)" },
+  amountMzn: { label: "Receita confirmada", color: "var(--chart-4)" },
 } satisfies ChartConfig;
 
 const retentionChartConfig = {
@@ -230,7 +230,7 @@ function AdminPage() {
 
   const revenueChartData = data.revenue.series.map((p) => ({
     monthLabel: monthLabel(p.month),
-    amountUsd: p.amountUsd,
+    amountMzn: p.amountMzn,
   }));
 
   const pctOf = (value: number, total: number) => (total > 0 ? Math.round((value / total) * 100) : 0);
@@ -273,10 +273,10 @@ function AdminPage() {
         </div>
       </header>
 
-      <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatTile
           label="Receita confirmada (30d)"
-          value={fmtUsdOrDash(data.revenue.confirmed30dUsd)}
+          value={fmtMznOrDash(data.revenue.confirmed30dMzn)}
           sub="run-rate mensal equivalente"
           delta={
             data.revenue.deltaPct !== null
@@ -297,11 +297,6 @@ function AdminPage() {
           value={fmtPctOrDash(data.retention.m1Pct)}
           sub={`${data.retention.m1CohortSize} elegíveis`}
         />
-        <StatTile
-          label="Margem contrib."
-          value={fmtPctOrDash(data.contributionMarginPct)}
-          sub="após custo de IA"
-        />
       </div>
 
       <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -316,10 +311,10 @@ function AdminPage() {
                 <XAxis dataKey="monthLabel" tickLine={false} axisLine={false} />
                 <ChartTooltip content={<ChartTooltipContent />} />
                 <Area
-                  dataKey="amountUsd"
+                  dataKey="amountMzn"
                   type="monotone"
-                  stroke="var(--color-amountUsd)"
-                  fill="var(--color-amountUsd)"
+                  stroke="var(--color-amountMzn)"
+                  fill="var(--color-amountMzn)"
                   fillOpacity={0.15}
                 />
               </AreaChart>
@@ -342,7 +337,7 @@ function AdminPage() {
           <SectionHeading title="LTV simples" action={<RealBadge />} />
           <StatTile
             label="Receita média por pagante"
-            value={fmtUsdOrDash(data.ltv.avgRevenuePerPayingUserUsd)}
+            value={fmtMznOrDash(data.ltv.avgRevenuePerPayingUserMzn)}
             sub="estimativa preliminar, histórico curto"
           />
         </div>
