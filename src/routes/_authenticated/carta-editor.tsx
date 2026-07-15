@@ -31,7 +31,7 @@ export const Route = createFileRoute("/_authenticated/carta-editor")({
   validateSearch: searchSchema,
   head: () => ({
     meta: [
-      { title: "Editor de Carta — CV Flexível" },
+      { title: "Editor de Carta — CVelite" },
       { name: "description", content: "Edita, guarda e exporta a tua carta de motivação." },
     ],
   }),

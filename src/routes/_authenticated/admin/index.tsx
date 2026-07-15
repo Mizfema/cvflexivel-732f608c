@@ -70,7 +70,7 @@ const retentionChartConfig = {
 
 export const Route = createFileRoute("/_authenticated/admin/")({
   head: () => ({
-    meta: [{ title: "Painel admin — CV Flexível" }],
+    meta: [{ title: "Painel admin — CVelite" }],
   }),
   component: AdminPage,
 });

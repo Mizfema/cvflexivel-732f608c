@@ -1,4 +1,4 @@
-# Instruções do projeto — CV Flexível
+# Instruções do projeto — CVelite
 
 Este projeto foi criado e é sincronizado com o Lovable (two-way sync via GitHub, apenas na branch `main`). Leia isto antes de criar, editar ou alterar qualquer coisa.
 

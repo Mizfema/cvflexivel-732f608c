@@ -1,4 +1,4 @@
-# Briefing para especialista de precificação — CV Flexível
+# Briefing para especialista de precificação — CVelite
 
 > Preparado em 10/07/2026. Objectivo: dar a um especialista externo de pricing/planos toda a
 > informação de produto, custo e restrições de negócio necessária para propor preços e desenhar
@@ -9,7 +9,7 @@
 
 ## 1. O produto, em uma frase
 
-**CV Flexível** é um editor de currículos com IA para o mercado moçambicano: cria, melhora,
+**CVelite** é um editor de currículos com IA para o mercado moçambicano: cria, melhora,
 alinha o CV a uma vaga específica, gera carta de apresentação e prepara entrevistas — tudo em
 português, pensado para uso a partir do telemóvel.
 

@@ -89,14 +89,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "CV Flexível — Alinha o teu CV à vaga" },
+      { title: "CVelite — Alinha o teu CV à vaga" },
       {
         name: "description",
         content:
           "Descobre o que a vaga realmente avalia e alinha o teu CV. Para vagas de ONGs, desenvolvimento, consultoria e administração pública. Em português.",
       },
-      { name: "author", content: "CV Flexível" },
-      { property: "og:title", content: "CV Flexível — Alinha o teu CV à vaga" },
+      { name: "author", content: "CVelite" },
+      { property: "og:title", content: "CVelite — Alinha o teu CV à vaga" },
       {
         property: "og:description",
         content:
@@ -104,7 +104,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:title", content: "CV Flexível — Alinha o teu CV à vaga" },
+      { name: "twitter:title", content: "CVelite — Alinha o teu CV à vaga" },
       {
         name: "twitter:description",
         content:
@@ -155,9 +155,9 @@ function SiteFooter() {
   return (
     <footer className="border-t border-navy-rule py-4 text-center">
       <p className="text-xs text-muted-foreground">
-        &copy; 2026 CV Flexível. Todos os direitos reservados. contacto:{" "}
-        <a href="mailto:cvflexivel@gmail.com" className="hover:text-foreground">
-          cvflexivel@gmail.com
+        &copy; 2026 CVelite. Todos os direitos reservados. contacto:{" "}
+        <a href="mailto:cvelite@gmail.com" className="hover:text-foreground">
+          cvelite@gmail.com
         </a>
       </p>
     </footer>

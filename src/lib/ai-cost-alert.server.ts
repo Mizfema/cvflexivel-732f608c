@@ -8,7 +8,7 @@ function todayUtcDateKey(): string {
 }
 
 function buildAlertEmailHtml(costUsd: number, thresholdUsd: number): string {
-  return `<p>O custo de IA do CV Flexível hoje já ultrapassou o limiar de alerta.</p>
+  return `<p>O custo de IA do CVelite hoje já ultrapassou o limiar de alerta.</p>
 <p>Custo acumulado hoje: <strong>US$${costUsd.toFixed(2)}</strong> (limiar: US$${thresholdUsd.toFixed(2)}).</p>
 <p>Verifica o painel admin para identificar a operação/utilizador responsável.</p>`;
 }

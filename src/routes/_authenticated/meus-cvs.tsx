@@ -32,7 +32,7 @@ function toThumbnailDraft(cv: CvRow): CvDraft {
 export const Route = createFileRoute("/_authenticated/meus-cvs")({
   head: () => ({
     meta: [
-      { title: "Os meus CVs — CV Flexível" },
+      { title: "Os meus CVs — CVelite" },
       { name: "description", content: "Lista de CVs guardados na tua conta." },
     ],
   }),

@@ -43,7 +43,7 @@ const SECONDARY_BTN =
 export const Route = createFileRoute("/preparar-entrevista")({
   head: () => ({
     meta: [
-      { title: "Preparar Entrevista — CV Flexível" },
+      { title: "Preparar Entrevista — CVelite" },
       {
         name: "description",
         content:

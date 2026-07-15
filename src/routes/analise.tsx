@@ -14,7 +14,7 @@ import { UsageLimitNotice } from "@/components/UsageLimitNotice";
 export const Route = createFileRoute("/analise")({
   head: () => ({
     meta: [
-      { title: "Análise de cobertura — CV Flexível" },
+      { title: "Análise de cobertura — CVelite" },
       {
         name: "description",
         content:

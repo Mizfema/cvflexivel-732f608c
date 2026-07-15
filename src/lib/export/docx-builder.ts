@@ -320,7 +320,7 @@ export async function buildCvDocx(cv: CvSections, design: CvDesign): Promise<Doc
   const margin = PAGE_MARGIN_TWIPS[design.spacing.pageMargin];
 
   return new Document({
-    creator: "CV Flexível",
+    creator: "CVelite",
     styles: buildStyles(design),
     numbering: buildNumbering(),
     sections: [

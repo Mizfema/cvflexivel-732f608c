@@ -47,7 +47,7 @@ import {
 
 export const Route = createFileRoute("/_authenticated/admin/planos/")({
   head: () => ({
-    meta: [{ title: "Planos — Admin — CV Flexível" }],
+    meta: [{ title: "Planos — Admin — CVelite" }],
   }),
   component: AdminPlanosPage,
 });

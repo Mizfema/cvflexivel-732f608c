@@ -26,7 +26,7 @@ const PREMIUM_FAIR_USE_MESSAGE =
  * — ver docs/PLANO-EXECUCAO.md): define VITE_SUPPORT_CONTACT_URL com um mailto:
  * ou link de WhatsApp real assim que existir um canal de suporte. */
 const SUPPORT_CONTACT_URL =
-  import.meta.env.VITE_SUPPORT_CONTACT_URL || "mailto:suporte@cvflexivel.co.mz";
+  import.meta.env.VITE_SUPPORT_CONTACT_URL || "mailto:suporte@cvelite.co.mz";
 
 function formatCountdown(ms: number): string {
   if (ms <= 0) return "já disponível";

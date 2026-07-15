@@ -40,7 +40,7 @@ const EMPTY_FORM: ProfileForm = {
 export const Route = createFileRoute("/_authenticated/perfil")({
   head: () => ({
     meta: [
-      { title: "O meu perfil — CV Flexível" },
+      { title: "O meu perfil — CVelite" },
       { name: "description", content: "Edita os teus dados de perfil e foto." },
     ],
   }),

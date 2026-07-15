@@ -135,7 +135,7 @@ function SidebarContent({ onClose }: SidebarContentProps) {
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] bg-[#1D9E75] font-serif text-[13px] font-bold text-white">
           CV
         </span>
-        <span className="font-serif text-[16px] tracking-tight text-[#F1EFE8]">CV Flexível</span>
+        <span className="font-serif text-[16px] tracking-tight text-[#F1EFE8]">CVelite</span>
         {onClose && (
           <button
             onClick={onClose}

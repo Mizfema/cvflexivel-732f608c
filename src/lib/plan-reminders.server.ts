@@ -9,17 +9,17 @@ type ReminderKind = "expiring_soon" | "expired";
 
 function buildEmailHtml(kind: ReminderKind, daysLeft: number): string {
   if (kind === "expired") {
-    return `<p>O teu plano premium do CV Flexível expirou.</p>
+    return `<p>O teu plano premium do CVelite expirou.</p>
 <p>Renova a qualquer momento pela PaySuite (M-Pesa, e-Mola, mKesh ou cartão) para voltar a ter acesso.</p>`;
   }
-  return `<p>O teu plano premium do CV Flexível expira em ${daysLeft} dia${daysLeft === 1 ? "" : "s"}.</p>
+  return `<p>O teu plano premium do CVelite expira em ${daysLeft} dia${daysLeft === 1 ? "" : "s"}.</p>
 <p>Renova pela PaySuite (M-Pesa, e-Mola, mKesh ou cartão) para não perder o acesso.</p>`;
 }
 
 function buildEmailSubject(kind: ReminderKind, daysLeft: number): string {
   return kind === "expired"
-    ? "O teu plano CV Flexível expirou"
-    : `O teu plano CV Flexível expira em ${daysLeft} dia${daysLeft === 1 ? "" : "s"}`;
+    ? "O teu plano CVelite expirou"
+    : `O teu plano CVelite expira em ${daysLeft} dia${daysLeft === 1 ? "" : "s"}`;
 }
 
 /** Motor de lembretes (Fase 1.4d item 1), pensado para correr uma vez por dia

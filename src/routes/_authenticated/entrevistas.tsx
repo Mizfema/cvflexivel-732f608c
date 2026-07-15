@@ -18,7 +18,7 @@ type PrepRow = {
 export const Route = createFileRoute("/_authenticated/entrevistas")({
   head: () => ({
     meta: [
-      { title: "Preparar Entrevista — CV Flexível" },
+      { title: "Preparar Entrevista — CVelite" },
       { name: "description", content: "Os teus planos de preparação de entrevista." },
     ],
   }),

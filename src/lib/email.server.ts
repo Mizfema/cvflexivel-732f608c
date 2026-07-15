@@ -7,7 +7,7 @@
 
 function getConfig() {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM || "CV Flexível <onboarding@resend.dev>";
+  const from = process.env.EMAIL_FROM || "CVelite <onboarding@resend.dev>";
   return { apiKey, from };
 }
 

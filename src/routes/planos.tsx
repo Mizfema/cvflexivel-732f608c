@@ -36,11 +36,11 @@ export const Route = createFileRoute("/planos")({
   validateSearch: searchSchema,
   head: () => ({
     meta: [
-      { title: "Planos — CV Flexível" },
+      { title: "Planos — CVelite" },
       {
         name: "description",
         content:
-          "Compara o plano grátis, o pacote avulso e a assinatura Premium do CV Flexível: download ilimitado, cartas de apresentação completas e preparação de entrevista.",
+          "Compara o plano grátis, o pacote avulso e a assinatura Premium do CVelite: download ilimitado, cartas de apresentação completas e preparação de entrevista.",
       },
     ],
   }),

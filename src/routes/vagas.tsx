@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 export const Route = createFileRoute("/vagas")({
   head: () => ({
     meta: [
-      { title: "Vagas — CV Flexível" },
+      { title: "Vagas — CVelite" },
       {
         name: "description",
         content:

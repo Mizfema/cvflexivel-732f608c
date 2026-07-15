@@ -35,7 +35,7 @@ export const Route = createFileRoute("/editor")({
   validateSearch: editorSearchSchema,
   head: () => ({
     meta: [
-      { title: "Editor — CV Flexível" },
+      { title: "Editor — CVelite" },
       {
         name: "description",
         content:

@@ -187,7 +187,7 @@ export const createSubscriptionCheckout = createServerFn({ method: "POST" })
       const result = await createPaymentRequest({
         amount,
         reference,
-        description: `${planPrice.label} — CV Flexível (${formatDurationForDescription(planPrice.period_minutes)})`,
+        description: `${planPrice.label} — CVelite (${formatDurationForDescription(planPrice.period_minutes)})`,
         returnUrl: `${origin}/planos?checkout=${subscription.id}`,
         callbackUrl: `${origin}/api/paysuite-webhook`,
       });
@@ -264,7 +264,7 @@ export const createCreditCheckout = createServerFn({ method: "POST" })
       const result = await createPaymentRequest({
         amount,
         reference,
-        description: `${planPrice.label} — CV Flexível (+${planPrice.credits} créditos)`,
+        description: `${planPrice.label} — CVelite (+${planPrice.credits} créditos)`,
         returnUrl: `${origin}/planos?checkout=${payment.id}`,
         callbackUrl: `${origin}/api/paysuite-webhook`,
       });

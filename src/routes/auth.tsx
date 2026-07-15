@@ -17,7 +17,7 @@ export const Route = createFileRoute("/auth")({
   validateSearch: searchSchema,
   head: () => ({
     meta: [
-      { title: "Entrar — CV Flexível" },
+      { title: "Entrar — CVelite" },
       {
         name: "description",
         content:
@@ -227,7 +227,7 @@ function AuthPage() {
         {/* tagline */}
         <div className="absolute bottom-10 left-10 right-10 z-10">
           <p className="text-xs font-medium uppercase tracking-[0.32em] text-cream/70">
-            CV Flexível
+            CVelite
           </p>
           <h2 className="mt-3 font-serif text-4xl leading-tight text-cream">
             O teu CV,
@@ -251,7 +251,7 @@ function AuthPage() {
 
         <div className="w-full max-w-md rounded-xl border border-navy-rule bg-card p-7 shadow-card">
           <p className="text-xs font-medium uppercase tracking-[0.22em] text-navy-mid">
-            CV Flexível
+            CVelite
           </p>
           <h1 className="mt-2 font-serif text-3xl text-foreground">
             {mode === "signin" ? "Entrar" : "Criar conta"}

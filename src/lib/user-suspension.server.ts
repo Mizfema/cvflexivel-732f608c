@@ -67,7 +67,7 @@ export async function reactivateUser(userId: string): Promise<void> {
  * visualmente distinto do `UsageLimitNotice` (paywall). */
 export class AccountSuspendedError extends Error {
   constructor() {
-    super("A tua conta foi suspensa. Contacta cvflexivel@gmail.com.");
+    super("A tua conta foi suspensa. Contacta cvelite@gmail.com.");
     this.name = "AccountSuspendedError";
   }
 }

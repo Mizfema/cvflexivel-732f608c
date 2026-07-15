@@ -39,7 +39,7 @@ function toThumbnailDraft(letter: LetterRow): CartaDraft {
 export const Route = createFileRoute("/_authenticated/cartas")({
   head: () => ({
     meta: [
-      { title: "Cartas de Motivação — CV Flexível" },
+      { title: "Cartas de Motivação — CVelite" },
       { name: "description", content: "As tuas cartas de motivação guardadas." },
     ],
   }),

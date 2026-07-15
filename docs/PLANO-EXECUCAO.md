@@ -1,4 +1,4 @@
-# Plano de Execução — Monetização do CV Flexível
+# Plano de Execução — Monetização do CVelite
 
 > **Aprovado em 09/07/2026.** Este documento é a fonte de verdade do plano de monetização.
 > Como usar: no início de cada sessão nova do Claude Code, cole o **Prompt de Retomada** (secção 2).
@@ -213,7 +213,7 @@ Implementado em 11/07/2026 (migration supabase/migrations/20260711124340_fase1_v
    (src/components/UsageLimitNotice.tsx) recebe `tier` no LimitInfo (usage-error.ts)
    e, quando tier === "premium" e a razão é tecto diário/mensal (fair-use, não
    venda), troca o CTA "Veja os planos" por "Contacta-nos" (VITE_SUPPORT_CONTACT_URL,
-   default mailto:suporte@cvflexivel.co.mz — trocar por canal real quando existir).
+   default mailto:suporte@cvelite.co.mz — trocar por canal real quando existir).
 ```
 
 #### [x] 0.6 — Fase 2 da Proposta V3: página `/planos` (docs/PROPOSTA-V3-FINAL-CONSOLIDADA.md §8)

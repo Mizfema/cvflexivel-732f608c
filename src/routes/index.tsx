@@ -13,13 +13,13 @@ import { track } from "@/lib/analytics";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "CV Flexível — Alinha o teu CV à vaga" },
+      { title: "CVelite — Alinha o teu CV à vaga" },
       {
         name: "description",
         content:
           "Descobre o que a vaga realmente avalia e alinha o teu CV. Para vagas de ONGs, desenvolvimento, consultoria e administração pública.",
       },
-      { property: "og:title", content: "CV Flexível — Alinha o teu CV à vaga" },
+      { property: "og:title", content: "CVelite — Alinha o teu CV à vaga" },
       {
         property: "og:description",
         content:
@@ -71,7 +71,7 @@ function LandingPage() {
 
           <div className="flex flex-col justify-center order-1 lg:order-2">
             <p className="text-xs font-medium uppercase tracking-[0.22em] text-navy-mid">
-              CV Flexível
+              CVelite
             </p>
             <h1 className="mt-3 font-serif text-3xl leading-tight text-foreground sm:text-4xl lg:text-[2.75rem]">
               O teu próximo <em className="font-serif text-navy">CV, alinhado.</em>
