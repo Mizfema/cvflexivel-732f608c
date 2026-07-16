@@ -61,8 +61,9 @@ async function paysuiteFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const message =
-      (body && typeof body === "object" && "message" in body && String((body as { message: unknown }).message)) ||
-      `PaySuite respondeu ${res.status}: ${rawBody.slice(0, 300)}`;
+      body && typeof body === "object" && "message" in body
+        ? String((body as { message: unknown }).message)
+        : `PaySuite respondeu ${res.status}: ${rawBody.slice(0, 300)}`;
     throw new Error(message);
   }
   if (!body || typeof body !== "object" || !("data" in body)) {
