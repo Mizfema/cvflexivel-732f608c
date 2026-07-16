@@ -135,11 +135,11 @@ export async function reconcilePendingPayments(): Promise<{
           status.transaction.paid_at ?? new Date().toISOString(),
         );
         if (result.status === 200) confirmed++;
-        else errors.push({ reference: payment.reference, message: result.message });
+        else errors.push({ reference: payment.reference ?? payment.provider_ref, message: result.message });
       }
     } catch (err) {
       errors.push({
-        reference: payment.reference,
+        reference: payment.reference ?? payment.provider_ref,
         message: err instanceof Error ? err.message : "erro desconhecido",
       });
     }
