@@ -8,20 +8,13 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
   tanstackStart: {
+    server: { entry: "server" },
     spa: {
       enabled: true,
-      prerender: { enabled: false },
     },
     router: {
       codeSplittingOptions: {
         defaultBehavior: [],
-      },
-    },
-  },
-  vite: {
-    build: {
-      rollupOptions: {
-        // Ensure prerender crawl does not fail the build.
       },
     },
   },
