@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import type {} from "@tanstack/react-start";
+import "@tanstack/react-start";
 import { runPlanReminders } from "@/lib/plan-reminders.server";
 
 /** Gatilho do motor de lembretes (Fase 1.4d item 1). Protegido por CRON_SECRET
