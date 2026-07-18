@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import "@tanstack/react-start";
 import { reconcilePendingPayments } from "@/lib/payment-reconciliation.server";
 
 /** Chamada periódica (pg_cron + pg_net no Supabase, ver migration) — paliativo

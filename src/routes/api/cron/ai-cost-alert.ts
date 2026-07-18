@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import "@tanstack/react-start";
 import { checkDailyAiCostAndAlert } from "@/lib/ai-cost-alert.server";
 
 /** Gatilho do fail-safe de custo diário (Fase 0 da Proposta V3 §6, item 5).
