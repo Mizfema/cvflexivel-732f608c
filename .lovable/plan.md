@@ -1,63 +1,35 @@
-
 ## Objetivo
+Corrigir o erro de produção em que qualquer refresh abre a página genérica “This page didn’t load” e as funcionalidades de IA falham com `Cannot read properties of undefined (reading 'bind')`.
 
-Quando o utilizador abrir **/perfil**, ver um cartão com o plano de assinatura ativo (ou pacote avulso / grátis) e ter um botão claro para fazer **upgrade** para um plano superior ao que já tem.
+## Diagnóstico confirmado
+- A produção está a falhar durante SSR com `TypeError: Cannot read properties of undefined (reading 'bind')` dentro do renderizador do TanStack Router.
+- O stack aponta para componentes `Lazy`, embora o `routeTree.gen.ts` local use imports estáticos.
+- O lockfile está com versões TanStack desalinhadas: `@tanstack/react-start` em `1.168.28`, `@tanstack/router-plugin` em `1.168.20`, enquanto `@tanstack/react-router` está em `1.170.18` e dependências internas resolvem `router-core@1.171.15` / `start-plugin-core@1.171.20`.
+- A configuração atual `codeSplittingOptions.defaultBehavior: []` reduz o splitting, mas não elimina a raiz provável: mistura de versões do runtime/plugin de Router/Start em produção.
 
-## O que fica visível no /perfil
+## Plano de implementação
+1. **Alinhar dependências TanStack**
+   - Atualizar `@tanstack/react-start`, `@tanstack/react-router` e `@tanstack/router-plugin` para uma versão compatível entre si.
+   - Preferir uma versão estável já disponível no cache/registry e compatível com Bun e o `minimumReleaseAge`.
+   - Manter o uso de Bun, sem npm/yarn.
 
-Novo bloco "A minha assinatura" acima do formulário de dados pessoais, com um dos 4 estados:
+2. **Manter o workaround anti-lazy para produção**
+   - Preservar `tanstackStart.router.codeSplittingOptions.defaultBehavior: []` no `vite.config.ts`.
+   - Não adicionar plugins manualmente ao Vite, respeitando a configuração do projeto.
 
-- **Premium ativo** — mostra `label` do plano (ex.: "Ilimitado 30 dias"), preço pago, data de expiração e tempo restante formatado (reusar `formatPlanTimeLeft`). Botão **"Fazer upgrade"** só aparece se existir pelo menos um plano superior.
-- **Pacote avulso ativo** — mostra créditos restantes + validade. Botões **"Recarregar"** e **"Assinar Premium"**.
-- **Grátis** — mostra "Plano grátis" + análises restantes no mês. Botão **"Ver planos"**.
-- **Admin** — badge "Premium · Ilimitado (admin)", sem botão de upgrade.
+3. **Verificar build limpo localmente**
+   - Rodar a validação de produção com `bun run build`.
+   - Inspecionar o output gerado para confirmar que não restaram referências problemáticas de route lazy chunks como `lazyRouteComponent` nos bundles SSR.
 
-Cada botão navega para `/planos` (fluxo de checkout já existente, não duplicamos lógica de pagamento).
+4. **Validar a app no preview local**
+   - Abrir `/`, `/analise`, `/editor`, `/planos` e uma rota autenticada quando possível.
+   - Confirmar que refresh direto não devolve 500 no ambiente local.
 
-## Regra de upgrade
+5. **Republicar se o build passar**
+   - Publicar novamente o app para que a produção receba o lockfile atualizado e o build limpo.
+   - Depois da publicação, orientar teste de produção em duas frentes: refresh direto de páginas e chamadas de IA.
 
-Um plano é considerado "superior" ao atual quando `effective_price_mzn > effective_price_mzn do plano atual` **e** é do mesmo `kind: subscription_unlimited`. Se o utilizador estiver em avulso/grátis, qualquer `subscription_unlimited` conta como upgrade.
-
-Na `/planos`, quando chegar via `?from=perfil`, marcar o plano atual com badge "O teu plano atual" e desativar o botão de compra desse cartão específico (evita o utilizador re-comprar o mesmo plano por engano). Planos inferiores continuam clicáveis mas ganham um aviso subtil "É inferior ao plano ativo".
-
-## Ficheiros a alterar / criar
-
-**Novo server function** em `src/lib/subscription.functions.ts`:
-
-- `getMyActivePlan` — devolve, para o utilizador autenticado:
-  - `tier`: `"premium" | "avulso" | "free" | "admin"`
-  - Se premium: `{ plan, label, priceMzn, periodEnd, minutesLeft, periodMinutes }` lido de `subscriptions` (status active mais recente) + `plan_prices`
-  - Se avulso: `{ balance, expiresAt, packageId, label }`
-  - Se grátis: `{ analysesRemaining }`
-  - Se admin: `{}` (flag basta)
-
-  Reutiliza `hasActivePlan`, `getActivePlanTimeLeft`, `getActiveCreditBalance`, `checkIsAdmin` já existentes — nova função só orquestra e junta o `label`/`price` do plano atual via query a `subscriptions.plan` + `plan_prices`.
-
-**Novo componente** `src/components/perfil/ActivePlanCard.tsx`:
-- Rende o cartão consoante o `tier`
-- Botões usam `<Link to="/planos" search={{ from: "perfil" }}>`
-
-**Alterações em `src/routes/_authenticated/perfil.tsx`**:
-- Chamar `getMyActivePlan` no `useEffect` inicial (em paralelo com `getProfile`)
-- Renderizar `<ActivePlanCard />` acima do formulário
-
-**Alterações em `src/routes/planos.tsx`**:
-- Estender `searchSchema` com `from: z.enum(["perfil"]).optional()`
-- Chamar `getMyActivePlan` quando autenticado, guardar `currentPlan`
-- Nos cartões de subscription:
-  - Se `plan === currentPlan.plan` → botão desativado, badge "O teu plano atual"
-  - Se `effective_price_mzn < currentPlan.effective_price_mzn` → nota "Inferior ao plano ativo" (ainda comprável, mas avisa)
-- Cartões de credit_pack ficam iguais (avulso é ortogonal a subscription)
-
-## Fora de âmbito
-
-- Sem prorated/refund/troca — na PaySuite (pré-pago) o "upgrade" é literalmente comprar um plano novo; o backend/webhook existente já sobrepõe `current_period_end`, portanto não precisa de novo endpoint.
-- Sem cancelamento de plano (nem existe hoje).
-- Sem alterações a `plan_prices`, RLS ou schema DB.
-
-## Verificação
-
-- `bun run build` passa
-- `/perfil` mostra o cartão correto em cada tier (testar como grátis e como premium)
-- Clicar "Fazer upgrade" no /perfil leva a /planos com o plano atual marcado como "atual"
-- Comprar um plano superior via /planos continua a funcionar (fluxo PaySuite não muda)
+## Critério de sucesso
+- Refresh direto em páginas publicadas deixa de mostrar “This page didn’t load”.
+- Console deixa de mostrar 500 generalizado em navegação/refresh.
+- Server functions de IA deixam de falhar com `Cannot read properties of undefined (reading 'bind')`.
