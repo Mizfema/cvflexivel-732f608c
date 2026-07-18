@@ -100,5 +100,12 @@
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
     "vite": "^8.0.16"
+  },
+  "overrides": {
+    "@tanstack/start-plugin-core": "1.167.35"
+  },
+  "resolutions": {
+    "@tanstack/start-plugin-core": "1.167.35"
   }
 }
+
