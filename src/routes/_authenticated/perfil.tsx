@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Camera } from "lucide-react";
 import { getProfile, updateProfile } from "@/lib/profile.functions";
+import { getMyActivePlan } from "@/lib/subscription.functions";
+import { ActivePlanCard } from "@/components/perfil/ActivePlanCard";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { UserAvatar } from "@/components/UserAvatar";
