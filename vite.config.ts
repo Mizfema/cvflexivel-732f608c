@@ -11,8 +11,8 @@ export default defineConfig({
     environments: {
       ssr: {
         build: {
-          rollupOptions: { input: "server" },
-          rolldownOptions: { input: "server" },
+          rollupOptions: { input: "src/server.ts" },
+          rolldownOptions: { input: "src/server.ts" },
         },
       },
     },
