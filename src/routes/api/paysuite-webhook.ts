@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import type {} from "@tanstack/react-start";
 import { verifyWebhookSignature } from "@/lib/paysuite.server";
 import { confirmPendingPayment, markPendingPaymentFailed } from "@/lib/payment-reconciliation.server";
 
