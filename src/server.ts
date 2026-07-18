@@ -2,12 +2,20 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
-
-const CLIENT_ENTRY_SCRIPT_RE = /<script[^>]+type="module"[^>]+src="([^"]*\/assets\/index-[^"]+\.js)"[^>]*><\/script>/;
-const CLIENT_CSS_LINK_RE = /<link[^>]+rel="stylesheet"[^>]+href="([^"]*\/assets\/styles-[^"]+\.css)"[^>]*>/;
+import { tsrStartManifest } from "tanstack-start-manifest:v";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
+};
+
+type StartManifest = {
+  routes?: {
+    __root__?: {
+      preloads?: Array<string>;
+      scripts?: Array<{ attrs?: Record<string, string | boolean | undefined> }>;
+      links?: Array<{ attrs?: Record<string, string | boolean | undefined> }>;
+    };
+  };
 };
 
 let serverEntryPromise: Promise<ServerEntry> | undefined;
@@ -48,28 +56,34 @@ function isPageRequest(request: Request): boolean {
   return request.method === "GET" && (accept.includes("text/html") || accept.includes("*/*"));
 }
 
-async function renderClientShell(request: Request, handler: ServerEntry): Promise<Response | null> {
-  const url = new URL(request.url);
-  const assetProbe = new Request(new URL("/__cvelite-shell-probe__", url.origin), {
-    headers: { accept: "text/html" },
-  });
+function attr(name: string, value: string | boolean | undefined): string {
+  if (value === true) return ` ${name}`;
+  if (value === false || value == null) return "";
+  return ` ${name}="${String(value).replaceAll("&", "&amp;").replaceAll('"', "&quot;")}"`;
+}
 
-  try {
-    const response = await handler.fetch(assetProbe, undefined, undefined);
-    const html = await response.text();
-    const scriptSrc = html.match(CLIENT_ENTRY_SCRIPT_RE)?.[1];
-    const cssHref = html.match(CLIENT_CSS_LINK_RE)?.[1];
-    if (!scriptSrc) return null;
+function renderClientShell(): Response | null {
+  const manifest = tsrStartManifest() as StartManifest;
+  const root = manifest.routes?.__root__;
+  const scripts = root?.scripts ?? [];
+  const links = root?.links ?? [];
+  const preloads = root?.preloads ?? [];
+  if (scripts.length === 0) return null;
 
-    const cssLink = cssHref ? `<link rel="stylesheet" href="${cssHref}">` : "";
-    return new Response(
-      `<!doctype html><html lang="pt-PT"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>CVelite — Alinha o teu CV à vaga</title><meta name="description" content="Descobre o que a vaga realmente avalia e alinha o teu CV.">${cssLink}</head><body><div id="root"></div><script type="module" src="${scriptSrc}"></script></body></html>`,
-      { status: 200, headers: { "content-type": "text/html; charset=utf-8" } },
-    );
-  } catch (error) {
-    console.error(error);
-    return null;
-  }
+  const preloadTags = preloads
+    .map((href) => `<link rel="modulepreload" href="${href}">`)
+    .join("");
+  const linkTags = links
+    .map(({ attrs }) => `<link${Object.entries(attrs ?? {}).map(([key, value]) => attr(key, value)).join("")}>`)
+    .join("");
+  const scriptTags = scripts
+    .map(({ attrs }) => `<script${Object.entries(attrs ?? {}).map(([key, value]) => attr(key, value)).join("")}></script>`)
+    .join("");
+
+  return new Response(
+    `<!doctype html><html lang="pt-PT"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>CVelite — Alinha o teu CV à vaga</title><meta name="description" content="Descobre o que a vaga realmente avalia e alinha o teu CV.">${preloadTags}${linkTags}</head><body>${scriptTags}</body></html>`,
+    { status: 200, headers: { "content-type": "text/html; charset=utf-8" } },
+  );
 }
 
 export default {
@@ -77,7 +91,7 @@ export default {
     try {
       const handler = await getServerEntry();
       if (isPageRequest(request)) {
-        const shell = await renderClientShell(request, handler);
+        const shell = renderClientShell();
         if (shell) return shell;
       }
 
