@@ -50,10 +50,12 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
 
 function isPageRequest(request: Request): boolean {
   const url = new URL(request.url);
+  if (request.method !== "GET") return false;
   if (url.pathname.startsWith("/_serverFn") || url.pathname.startsWith("/api/")) return false;
   if (url.pathname.includes(".")) return false;
+  if (request.headers.has("x-nitro-prerender")) return true;
   const accept = request.headers.get("accept") ?? "";
-  return request.method === "GET" && (accept.includes("text/html") || accept.includes("*/*"));
+  return accept.includes("text/html") || accept.includes("*/*");
 }
 
 function attr(name: string, value: string | boolean | undefined): string {
