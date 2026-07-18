@@ -13,7 +13,7 @@
     "test:webhook": "bun run scripts/test-paysuite-webhook.ts"
   },
   "dependencies": {
-    "@ai-sdk/openai-compatible": "^2.0.50",
+    "@ai-sdk/openai-compatible": "2.0.61",
     "@fontsource-variable/ibm-plex-sans": "^5.2.8",
     "@fontsource/libre-baskerville": "^5.2.10",
     "@hookform/resolvers": "^5.2.2",
