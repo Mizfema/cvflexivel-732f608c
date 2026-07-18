@@ -86,8 +86,12 @@ function PerfilPage() {
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Erro ao carregar perfil."))
       .finally(() => setLoading(false));
+    fetchActivePlan()
+      .then(setActivePlan)
+      .catch(() => setActivePlan(null));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
 
   function updateField<K extends keyof ProfileForm>(key: K, value: ProfileForm[K]) {
     setForm((f) => ({ ...f, [key]: value }));
