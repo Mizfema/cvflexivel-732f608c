@@ -7,6 +7,17 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
+  nitro: {
+    // The app is served as a client shell in src/server.ts to avoid the
+    // production SSR route-chunk crash. Nitro's crawler was still trying to
+    // prerender `/` during `build:dev`, which re-entered that SSR/prerender
+    // path and failed the build after the bundle had already compiled.
+    prerender: {
+      crawlLinks: false,
+      routes: [],
+      failOnError: false,
+    },
+  } as never,
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
