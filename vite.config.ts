@@ -7,16 +7,6 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
-  vite: {
-    environments: {
-      ssr: {
-        build: {
-          rollupOptions: { input: "src/server.ts" },
-          rolldownOptions: { input: "src/server.ts" },
-        },
-      },
-    },
-  },
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
@@ -26,6 +16,7 @@ export default defineConfig({
     // let the browser render routes while keeping server functions/API routes
     // active; this removes the SSR crash path that returns HTTP 500 on refresh.
     spa: { enabled: true },
+    prerender: { enabled: false },
     router: {
       // TanStack Start strips `autoCodeSplitting` from its config, so setting it
       // at `tanstackStart.autoCodeSplitting` is ignored. Keep Start's required
