@@ -172,6 +172,10 @@ function PerfilPage() {
         </p>
       </header>
 
+      <ActivePlanCard plan={activePlan} />
+
+
+
       <div className="mb-8 flex items-center gap-5">
         <UserAvatar fullName={form.full_name} avatarUrl={avatarUrl} size="lg" />
         <div>
