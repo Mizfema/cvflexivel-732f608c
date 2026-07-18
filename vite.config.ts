@@ -8,14 +8,20 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
   tanstackStart: {
-    // Serve a prerendered SPA shell for page requests. This avoids the per-request
-    // SSR path that crashes with `Cannot read properties of undefined (reading 'bind')`
-    // on lazy route chunks, while keeping server functions and /api/* fully working.
-    spa: { enabled: true },
+    spa: {
+      enabled: true,
+      prerender: { enabled: false },
+    },
     router: {
-      // Disable route option splitting to prevent lazy-chunk `bind` crashes.
       codeSplittingOptions: {
         defaultBehavior: [],
+      },
+    },
+  },
+  vite: {
+    build: {
+      rollupOptions: {
+        // Ensure prerender crawl does not fail the build.
       },
     },
   },
