@@ -1,0 +1,2 @@
+ALTER TABLE public.ai_cost_alerts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.plan_reminder_emails ENABLE ROW LEVEL SECURITY;
