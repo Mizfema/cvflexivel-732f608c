@@ -15,8 +15,12 @@ export default defineConfig({
     // it encounters a transformed lazy route component. Serve the app shell and
     // let the browser render routes while keeping server functions/API routes
     // active; this removes the SSR crash path that returns HTTP 500 on refresh.
-    spa: { enabled: true },
-    prerender: { enabled: false },
+    spa: {
+      enabled: true,
+      prerender: {
+        failOnError: false,
+      },
+    },
     router: {
       // TanStack Start strips `autoCodeSplitting` from its config, so setting it
       // at `tanstackStart.autoCodeSplitting` is ignored. Keep Start's required
