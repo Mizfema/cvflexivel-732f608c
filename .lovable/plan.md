@@ -1,36 +1,73 @@
-## Problema
+## Diagnóstico confirmado
 
-O erro `window.$_TSR?.h is not a function` (páginas em branco em dev e produção) vem do shell HTML manual que introduzi em `src/server.ts`. O cliente do TanStack Start chama `window.$_TSR.h(...)` incondicionalmente durante a bootstrap — essa função `h` só existe quando o servidor emite o payload de streaming SSR real. O bootstrap manual que escrevi (`{ initialized: false, buffer: [], router: {...} }`) não tem `h`, então qualquer página carregada falha imediatamente e o React nunca hydrata.
+- A produção em `https://cvelite.lovable.app/` responde **HTTP 500**.
+- Os logs publicados mostram o erro real durante SSR:
 
-Um shell caseiro não consegue emular esse contrato interno. A solução correta é usar o **SPA mode oficial do TanStack Start** (`tanstackStart.spa.enabled: true`), que é exatamente para este caso: o próprio framework prerenderiza um shell `/_shell` no build com o `$_TSR.h` correto e serve para todas as rotas de página, sem executar SSR por request (evita também o bug do `bind` que motivou o shell manual).
+```text
+Error in renderToReadableStream: TypeError: Cannot read properties of undefined (reading 'bind')
+at Lazy
+at MatchInnerImpl
+```
 
-## Mudanças
+- Portanto, isto não é um problema visual da landing page. É o servidor de produção a tentar renderizar uma route lazy do TanStack Start e a falhar antes da página chegar ao browser.
+- O dev funciona porque o ambiente local não reproduz exatamente o bundling/SSR de produção.
 
-### 1. `vite.config.ts`
-- Remover o override `tanstackStart.server.entry = "server"` (deixa o entry padrão do framework rodar).
-- Remover os hacks `nitro.prerender` / `routeRules` que só existiam por causa do shell manual.
-- Ativar `tanstackStart.spa: { enabled: true }`.
-- Manter `router.codeSplittingOptions.defaultBehavior: []` (é o que evita o crash de `bind` em lazy chunks).
+## Plano de correção
 
-### 2. `src/server.ts`
-- Reverter para um wrapper mínimo: import lazy de `@tanstack/react-start/server-entry`, try/catch, `normalizeCatastrophicSsrResponse`, e nada mais. Sem `renderClientShell`, sem `isPageRequest`, sem `tsrStartManifest`.
-- Manter `import "./lib/error-capture"` no topo e o uso de `consumeLastCapturedError`.
+### 1. Estabilizar as versões TanStack
 
-### 3. `src/start-manifest.d.ts`
-- Deletar (só existia para o shell manual).
+O `package.json` está com versões desalinhadas:
 
-### 4. `src/start.ts`
-- Sem alterações — o `errorMiddleware` continua correto.
+```text
+@tanstack/react-router 1.170.17
+@tanstack/react-start  1.168.27
+@tanstack/router-plugin 1.168.19
+```
 
-## Validação
+Vou alinhar `@tanstack/react-router`, `@tanstack/react-start` e `@tanstack/router-plugin` para a mesma família compatível, evitando que o runtime SSR use contratos internos diferentes entre router/start/plugin.
 
-1. `bun run build` deve passar (o SPA prerender gera `/_shell` sem crawler).
-2. Preview local: `/` renderiza a landing sem erro no console.
-3. Server functions (analyzeCoverage, alignCvToTdr, etc.) continuam funcionando pois `spa.enabled` só troca a resposta HTML — as rotas `/api/*` e `/_serverFn/*` seguem o handler normal do TanStack Start.
-4. Republicar e confirmar em `https://cvelite.lovable.app`.
+### 2. Desativar SSR apenas para as páginas React
 
-## Notas técnicas
+Em vez de continuar a tentar renderizar as páginas por SSR em produção, vou usar a forma oficial do TanStack Start para evitar SSR de rotas:
 
-- SPA mode ≠ desativar server functions. `spa.enabled: true` só faz o request HTML servir o shell prerenderizado; RPC e server routes continuam operacionais.
-- Não mexer no `codeSplittingOptions.defaultBehavior: []` — foi o que estabilizou o `bind` de lazy chunks anteriormente.
-- Se o build do SPA falhar por causa do prerender do `/_shell`, é sinal de erro genuíno num loader/head/root — a mensagem do prerender vai apontar a linha exata, e aí resolvemos o loader (não voltamos ao shell manual).
+```ts
+createStart(() => ({
+  defaultSsr: false,
+  ...
+}))
+```
+
+Isto faz as páginas carregarem como app client-side, evitando o crash `Lazy.bind` no servidor.
+
+Importante: server functions e APIs continuam a funcionar; isto só muda a renderização inicial das páginas.
+
+### 3. Manter o wrapper de erro, mas não depender dele como solução principal
+
+`src/server.ts` já transforma o 500 genérico em página de erro. Vou manter esse wrapper para logging/fallback, mas a correção real será impedir que as páginas entrem no caminho SSR que está a quebrar.
+
+### 4. Rever configuração Vite/TanStack sem voltar ao shell manual
+
+Não vou reintroduzir o shell HTML manual que causou `window.$_TSR?.h is not a function`.
+
+A configuração deve ficar simples:
+
+- manter `server.entry = "server"` para preservar o wrapper de erros;
+- manter `prerender.enabled = false` para evitar o erro de crawler/prerender;
+- manter ou ajustar `codeSplittingOptions.defaultBehavior` apenas se continuar necessário depois do `defaultSsr: false`.
+
+### 5. Validar
+
+Depois da implementação:
+
+1. Rodar build de produção.
+2. Testar localmente a resposta HTML.
+3. Publicar/republicar.
+4. Confirmar que `/` em produção deixa de responder 500.
+5. Verificar logs publicados para garantir que o erro `Cannot read properties of undefined (reading 'bind')` parou.
+
+## Resultado esperado
+
+- Produção deixa de mostrar `This page didn't load`.
+- As páginas públicas e autenticadas passam a abrir.
+- Funcionalidades de IA/server functions continuam acessíveis via chamadas RPC/API.
+- Evitamos repetir as duas soluções que já falharam: SPA shell manual e prerender SPA que quebra no crawler.
