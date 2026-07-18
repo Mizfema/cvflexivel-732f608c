@@ -53,16 +53,21 @@ function PerfilPage() {
   const { user } = useAuth();
   const fetchProfile = useServerFn(getProfile);
   const saveProfile = useServerFn(updateProfile);
+  const fetchActivePlan = useServerFn(getMyActivePlan);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<ProfileForm>(EMPTY_FORM);
   const [email, setEmail] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [activePlan, setActivePlan] = useState<Awaited<ReturnType<typeof getMyActivePlan>> | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
 
   useEffect(() => {
     fetchProfile()
