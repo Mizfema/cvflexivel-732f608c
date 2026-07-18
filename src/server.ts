@@ -62,6 +62,10 @@ function attr(name: string, value: string | boolean | undefined): string {
   return ` ${name}="${String(value).replaceAll("&", "&amp;").replaceAll('"', "&quot;")}"`;
 }
 
+function safeScriptJson(value: unknown): string {
+  return JSON.stringify(value).replaceAll("<", "\\u003c");
+}
+
 function renderClientShell(): Response | null {
   const manifest = tsrStartManifest() as StartManifest;
   const root = manifest.routes?.__root__;
@@ -79,9 +83,17 @@ function renderClientShell(): Response | null {
   const scriptTags = scripts
     .map(({ attrs }) => `<script${Object.entries(attrs ?? {}).map(([key, value]) => attr(key, value)).join("")}></script>`)
     .join("");
+  const bootstrap = {
+    initialized: false,
+    buffer: [],
+    router: {
+      manifest,
+      matches: [],
+    },
+  };
 
   return new Response(
-    `<!doctype html><html lang="pt-PT"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>CVelite — Alinha o teu CV à vaga</title><meta name="description" content="Descobre o que a vaga realmente avalia e alinha o teu CV.">${preloadTags}${linkTags}</head><body>${scriptTags}</body></html>`,
+    `<!doctype html><html lang="pt-PT"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>CVelite — Alinha o teu CV à vaga</title><meta name="description" content="Descobre o que a vaga realmente avalia e alinha o teu CV.">${preloadTags}${linkTags}</head><body><script>window.$_TSR=${safeScriptJson(bootstrap)}</script>${scriptTags}</body></html>`,
     { status: 200, headers: { "content-type": "text/html; charset=utf-8" } },
   );
 }
