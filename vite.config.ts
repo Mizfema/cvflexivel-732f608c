@@ -11,16 +11,6 @@ export default defineConfig({
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
     server: { entry: "server" },
-    // Production is currently failing inside TanStack Router's SSR renderer when
-    // it encounters a transformed lazy route component. Serve the app shell and
-    // let the browser render routes while keeping server functions/API routes
-    // active; this removes the SSR crash path that returns HTTP 500 on refresh.
-    spa: {
-      enabled: true,
-      prerender: {
-        failOnError: false,
-      },
-    },
     router: {
       // TanStack Start strips `autoCodeSplitting` from its config, so setting it
       // at `tanstackStart.autoCodeSplitting` is ignored. Keep Start's required
