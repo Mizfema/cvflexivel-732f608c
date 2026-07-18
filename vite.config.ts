@@ -9,10 +9,14 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 export default defineConfig({
   tanstackStart: {
     server: { entry: "server" },
-    spa: {
-      enabled: true,
-    },
+    // Disable prerender/SPA-shell steps — this project runs SSR at request
+    // time via the Cloudflare Worker output. Enabling SPA mode conflicts with
+    // the Nitro adapter (Nitro rewrites dist/server, so the Vite preview
+    // server can't find server.js for the prerender crawl).
+    prerender: { enabled: false },
     router: {
+      // Disable route option splitting to prevent lazy-chunk `bind` crashes
+      // at runtime in production.
       codeSplittingOptions: {
         defaultBehavior: [],
       },
