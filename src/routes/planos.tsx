@@ -30,7 +30,9 @@ import { track } from "@/lib/analytics";
 
 const searchSchema = z.object({
   checkout: z.string().optional(),
+  from: z.enum(["perfil"]).optional(),
 });
+
 
 export const Route = createFileRoute("/planos")({
   validateSearch: searchSchema,

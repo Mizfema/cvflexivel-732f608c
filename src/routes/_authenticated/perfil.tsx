@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Camera } from "lucide-react";
 import { getProfile, updateProfile } from "@/lib/profile.functions";
+import { getMyActivePlan } from "@/lib/subscription.functions";
+import { ActivePlanCard } from "@/components/perfil/ActivePlanCard";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { UserAvatar } from "@/components/UserAvatar";
@@ -51,16 +53,21 @@ function PerfilPage() {
   const { user } = useAuth();
   const fetchProfile = useServerFn(getProfile);
   const saveProfile = useServerFn(updateProfile);
+  const fetchActivePlan = useServerFn(getMyActivePlan);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<ProfileForm>(EMPTY_FORM);
   const [email, setEmail] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [activePlan, setActivePlan] = useState<Awaited<ReturnType<typeof getMyActivePlan>> | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
 
   useEffect(() => {
     fetchProfile()
@@ -79,8 +86,12 @@ function PerfilPage() {
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Erro ao carregar perfil."))
       .finally(() => setLoading(false));
+    fetchActivePlan()
+      .then(setActivePlan)
+      .catch(() => setActivePlan(null));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
 
   function updateField<K extends keyof ProfileForm>(key: K, value: ProfileForm[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -160,6 +171,10 @@ function PerfilPage() {
           Estes dados aparecem no teu CV e na tua conta.
         </p>
       </header>
+
+      <ActivePlanCard plan={activePlan} />
+
+
 
       <div className="mb-8 flex items-center gap-5">
         <UserAvatar fullName={form.full_name} avatarUrl={avatarUrl} size="lg" />
