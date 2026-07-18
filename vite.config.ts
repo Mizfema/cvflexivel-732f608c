@@ -17,6 +17,9 @@ export default defineConfig({
       routes: [],
       failOnError: false,
     },
+    routeRules: {
+      "/**": { prerender: false },
+    },
   } as never,
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
