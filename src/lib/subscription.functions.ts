@@ -121,6 +121,80 @@ export const getSidebarStatus = createServerFn({ method: "GET" })
     return { tier: "free" as const, analysesRemaining: remainingMonth };
   });
 
+/** Detalhe do plano ativo do utilizador para a página /perfil — dá ao cliente
+ * o suficiente para renderizar o cartão "A minha assinatura" e decidir se
+ * mostra CTA de upgrade. Mesma prioridade de tiers do getSidebarStatus (admin
+ * > premium > avulso > free), mas devolve `label`/`priceMzn` reais do plano
+ * comprado (via `subscriptions.plan` join `plan_prices`), não só o tempo
+ * restante. */
+export const getMyActivePlan = createServerFn({ method: "GET" })
+  .middleware([optionalIdentity])
+  .handler(async ({ context }) => {
+    if (!context.userId) return { tier: "anonymous" as const };
+
+    if (await checkIsAdmin(context.userId)) {
+      return { tier: "admin" as const };
+    }
+
+    if (await hasActivePlan(context.userId)) {
+      const { data: sub, error: subError } = await supabaseAdmin
+        .from("subscriptions")
+        .select("plan, current_period_end")
+        .eq("user_id", context.userId)
+        .eq("status", "active")
+        .order("current_period_end", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (subError) throw new Error(subError.message);
+
+      let label: string | null = null;
+      let priceMzn: number | null = null;
+      let periodMinutes: number | null = null;
+      if (sub?.plan) {
+        const { data: price } = await supabaseAdmin
+          .from("plan_prices")
+          .select("label, price_mzn, promo_price_mzn, is_promotional, promo_ends_at, period_minutes")
+          .eq("plan", sub.plan)
+          .maybeSingle();
+        if (price) {
+          label = price.label;
+          priceMzn = getEffectivePlanPrice(price);
+          periodMinutes = price.period_minutes;
+        }
+      }
+
+      const minutesLeft = await getActivePlanTimeLeft(context.userId);
+      return {
+        tier: "premium" as const,
+        plan: sub?.plan ?? null,
+        label,
+        priceMzn,
+        periodMinutes,
+        periodEnd: sub?.current_period_end ?? null,
+        minutesLeft,
+      };
+    }
+
+    const credits = await getActiveCreditBalance(context.userId);
+    if (credits) {
+      const { data: price } = await supabaseAdmin
+        .from("plan_prices")
+        .select("label")
+        .eq("plan", credits.packageId)
+        .maybeSingle();
+      return {
+        tier: "avulso" as const,
+        packageId: credits.packageId,
+        label: price?.label ?? "Pacote avulso",
+        balance: credits.balance,
+        expiresAt: credits.expiresAt,
+      };
+    }
+
+    const { remainingMonth } = await peekRemainingUsage("cv_analysis", context.userId, null);
+    return { tier: "free" as const, analysesRemaining: remainingMonth };
+  });
+
 /** Fase 1 da Proposta V3 (docs/PROPOSTA-V3-FINAL-CONSOLIDADA.md §8): cria a
  * intenção de assinatura (subscriptions+payments em "pending") e devolve o
  * checkout_url da PaySuite para o cliente redirecionar. Preço e período vêm
