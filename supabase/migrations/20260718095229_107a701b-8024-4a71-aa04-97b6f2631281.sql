@@ -1,0 +1,2 @@
+CREATE POLICY "Deny all client access" ON public.ai_cost_alerts AS RESTRICTIVE FOR ALL TO anon, authenticated USING (false) WITH CHECK (false);
+CREATE POLICY "Deny all client access" ON public.plan_reminder_emails AS RESTRICTIVE FOR ALL TO anon, authenticated USING (false) WITH CHECK (false);
