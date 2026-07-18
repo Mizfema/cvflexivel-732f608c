@@ -7,30 +7,13 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
-  nitro: {
-    // The app is served as a client shell in src/server.ts to avoid the
-    // production SSR route-chunk crash. Nitro's crawler was still trying to
-    // prerender `/` during `build:dev`, which re-entered that SSR/prerender
-    // path and failed the build after the bundle had already compiled.
-    prerender: {
-      crawlLinks: false,
-      routes: [],
-      failOnError: false,
-    },
-    routeRules: {
-      "/**": { prerender: false },
-    },
-  } as never,
   tanstackStart: {
-    // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
-    // nitro/vite builds from this
-    server: { entry: "server" },
+    // Serve a prerendered SPA shell for page requests. This avoids the per-request
+    // SSR path that crashes with `Cannot read properties of undefined (reading 'bind')`
+    // on lazy route chunks, while keeping server functions and /api/* fully working.
+    spa: { enabled: true },
     router: {
-      // TanStack Start strips `autoCodeSplitting` from its config, so setting it
-      // at `tanstackStart.autoCodeSplitting` is ignored. Keep Start's required
-      // route transformer active, but make it split zero route options; this
-      // removes the production React.lazy route chunks that crash server
-      // functions with `Cannot read properties of undefined (reading 'bind')`.
+      // Disable route option splitting to prevent lazy-chunk `bind` crashes.
       codeSplittingOptions: {
         defaultBehavior: [],
       },
