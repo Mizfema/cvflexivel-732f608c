@@ -11,7 +11,7 @@ import { ExportMenu } from "@/components/editor/ExportMenu";
 import { useDraftCv } from "@/hooks/use-draft-cv";
 import { useAuth } from "@/hooks/use-auth";
 import { useCvAutosave } from "@/hooks/use-cv-autosave";
-import { exportCvDocx, exportCvPdf } from "@/lib/cv-export";
+import { exportCvPdf } from "@/lib/cv-export";
 import { getCv } from "@/lib/cvs.functions";
 import { normalizeCvDesign } from "@/lib/cv-design-presets";
 import { useServerFn } from "@tanstack/react-start";
@@ -21,7 +21,7 @@ const editorSearchSchema = z.object({
   modo: z.enum(["cv-vaga", "cv", "entrevista-vaga", "entrevista-zero"]).optional(),
   jobId: z.string().optional(),
   id: z.string().uuid().optional(),
-  export: z.enum(["pdf", "docx"]).optional(),
+  export: z.enum(["pdf"]).optional(),
 });
 
 const labelModo: Record<string, string> = {
@@ -39,7 +39,7 @@ export const Route = createFileRoute("/editor")({
       {
         name: "description",
         content:
-          "Edita o teu CV com pré-visualização ao vivo, escolhe template ATS ou visual e exporta em PDF/DOCX.",
+          "Edita o teu CV com pré-visualização ao vivo, escolhe template ATS ou visual e exporta em PDF.",
       },
     ],
   }),
@@ -112,11 +112,10 @@ function EditorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated, session, id]);
 
-  // Auto-export depois do login (gate único): /editor?export=pdf|docx
+  // Auto-export depois do login (gate único): /editor?export=pdf
   useEffect(() => {
     if (!hydrated || !session || !autoExport) return;
-    if (autoExport === "docx") exportCvDocx(draft);
-    else exportCvPdf(draft);
+    exportCvPdf(draft);
     navigate({ to: "/editor", search: { modo: "cv" }, replace: true });
   }, [hydrated, session, autoExport, draft, navigate]);
 

@@ -21,7 +21,7 @@ export const Route = createFileRoute("/auth")({
       {
         name: "description",
         content:
-          "Entra ou cria conta para guardar o teu CV e exportar em PDF ou DOCX.",
+          "Entra ou cria conta para guardar o teu CV e exportar em PDF.",
       },
     ],
   }),
@@ -235,7 +235,7 @@ function AuthPage() {
             adaptado a cada vaga.
           </h2>
           <p className="mt-3 max-w-md text-sm text-cream/70">
-            Guarda, alinha e exporta em PDF ou DOCX em segundos.
+            Guarda, alinha e exporta em PDF em segundos.
           </p>
         </div>
       </div>
@@ -258,7 +258,7 @@ function AuthPage() {
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {mode === "signin"
-              ? "Acede ao teu CV guardado e exporta em PDF/DOCX."
+              ? "Acede ao teu CV guardado e exporta em PDF."
               : "Cria uma conta para guardar o teu CV e exportar."}
           </p>
 

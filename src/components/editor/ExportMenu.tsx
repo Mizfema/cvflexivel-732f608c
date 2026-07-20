@@ -1,19 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { Download, FileText, FileType2, Loader2 } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import type { CvDraft } from "@/lib/cv-types";
 import { useAuth } from "@/hooks/use-auth";
 import { saveCv } from "@/lib/cvs.functions";
 import { checkDownloadAllowed } from "@/lib/download-gate.functions";
-import { exportCvDocx, exportCvPdf } from "@/lib/cv-export";
+import { exportCvPdf } from "@/lib/cv-export";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { parseLimitError, type LimitInfo } from "@/lib/usage-error";
 import { UsageLimitNotice } from "@/components/UsageLimitNotice";
 
@@ -30,11 +24,11 @@ export function ExportMenu({
   const navigate = useNavigate();
   const save = useServerFn(saveCv);
   const checkDownload = useServerFn(checkDownloadAllowed);
-  const [busy, setBusy] = useState<"pdf" | "docx" | null>(null);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [limitInfo, setLimitInfo] = useState<LimitInfo | null>(null);
 
-  async function handleExport(kind: "pdf" | "docx") {
+  async function handleExport() {
     setError(null);
     setLimitInfo(null);
 
@@ -42,12 +36,12 @@ export function ExportMenu({
     if (!session) {
       navigate({
         to: "/auth",
-        search: { next: `/editor?modo=cv&export=${kind}` },
+        search: { next: "/editor?modo=cv&export=pdf" },
       });
       return;
     }
 
-    setBusy(kind);
+    setBusy(true);
     try {
       // Verificação server-side de limite/plano (Fase 1.3) — antes de gerar o arquivo.
       await checkDownload({ data: { templateId: draft.template } });
@@ -64,11 +58,7 @@ export function ExportMenu({
       });
       onSaved?.(res.id);
 
-      if (kind === "docx") {
-        await exportCvDocx(draft);
-      } else {
-        await exportCvPdf(draft);
-      }
+      await exportCvPdf(draft);
     } catch (err) {
       const limit = parseLimitError(err);
       if (limit) {
@@ -77,34 +67,20 @@ export function ExportMenu({
         setError(err instanceof Error ? err.message : "Falha ao exportar.");
       }
     } finally {
-      setBusy(null);
+      setBusy(false);
     }
   }
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button size="sm" disabled={!ready || busy !== null}>
-            {busy ? (
-              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-            ) : (
-              <Download className="mr-1.5 h-4 w-4" />
-            )}
-            Exportar
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => handleExport("pdf")}>
-            <FileText className="mr-2 h-4 w-4" />
-            PDF (imprimir)
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => handleExport("docx")}>
-            <FileType2 className="mr-2 h-4 w-4" />
-            DOCX (Word)
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <Button size="sm" disabled={!ready || busy} onClick={handleExport}>
+        {busy ? (
+          <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+        ) : (
+          <Download className="mr-1.5 h-4 w-4" />
+        )}
+        Exportar PDF
+      </Button>
       {error && (
         <p className="max-w-xs text-right text-xs text-destructive">{error}</p>
       )}

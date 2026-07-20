@@ -1,25 +1,4 @@
-import { Packer } from "docx";
-import FileSaver from "file-saver";
-const { saveAs } = FileSaver;
 import type { CvDraft } from "./cv-types";
-import { buildCvDocx } from "./export/docx-builder";
-
-function slugify(s: string) {
-  return (
-    s
-      .normalize("NFD")
-      .replace(/[̀-ͯ]/g, "")
-      .replace(/[^a-zA-Z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")
-      .toLowerCase() || "cv"
-  );
-}
-
-export async function exportCvDocx(draft: CvDraft) {
-  const doc = await buildCvDocx(draft.sections, draft.design);
-  const blob = await Packer.toBlob(doc);
-  saveAs(blob, `${slugify(draft.sections.perfil.nome || draft.title)}.docx`);
-}
 
 function filenameSafeTitle(s: string) {
   return s.replace(/[\\/:*?"<>|]/g, "").trim() || "CV";

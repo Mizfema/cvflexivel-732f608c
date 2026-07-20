@@ -591,7 +591,7 @@ function PlanosPage() {
             title="CV via entrevista com IA"
             desc="A IA constrói o CV numa conversa"
           />
-          <CreditItem cost={0} title="Download PDF/Word" desc="Durante a validade do pacote" />
+          <CreditItem cost={0} title="Download PDF" desc="Durante a validade do pacote" />
           <CreditItem cost={0} title="Trocar template" desc="Grátis, inclusive premium" />
         </div>
         <p className="mt-4 rounded-lg bg-muted/40 p-3 text-xs leading-relaxed text-ink-soft">
