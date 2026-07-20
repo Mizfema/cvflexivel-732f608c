@@ -94,7 +94,7 @@ export function CvPagedPreview({
   // flushSync garante que o portal já está no DOM quando o browser captura o
   // layout para imprimir (beforeprint/afterprint disparam à volta de
   // window.print(), incluindo o Ctrl+P nativo do utilizador). O bypass do
-  // DOMPurify tem de estar activo ANTES do flushSync, porque é esse render
+  // bypass da sanitização tem de estar activo ANTES do flushSync, porque é esse render
   // síncrono que volta a chamar sanitizeCvHtml em cada RichText.
   const [isPrinting, setIsPrinting] = useState(false);
   useEffect(() => {

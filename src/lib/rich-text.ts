@@ -1,32 +1,25 @@
 // Sanitização e conversão de texto rico para os campos longos do CV.
 // Usado tanto no cliente (RichTextField, CvPreview) como no servidor (llm.functions, mocks).
-import DOMPurify from "isomorphic-dompurify";
+// Usa sanitize-html (não precisa de DOM real) em vez de DOMPurify: o
+// Cloudflare Worker de produção não tem `window`/`document`, e o DOMPurify
+// fica sem os métodos inicializados nesse ambiente (crash "reading 'bind'"
+// em toda página, não só nas de IA).
+import sanitizeHtml from "sanitize-html";
 
 const ALLOWED_TAGS = ["p", "br", "ul", "ol", "li", "strong", "em", "u"];
 
 // Só o alinhamento de texto é permitido dentro de "style" — qualquer outra propriedade é descartada.
-const ALIGN_VALUES = new Set(["left", "center", "right", "justify"]);
+const ALIGN_VALUES = ["left", "center", "right", "justify"];
 
-DOMPurify.addHook("uponSanitizeAttribute", (_node, data) => {
-  if (data.attrName !== "style") return;
-  const match = data.attrValue.match(/text-align\s*:\s*([a-z]+)/i);
-  const value = match?.[1]?.toLowerCase();
-  if (value && ALIGN_VALUES.has(value)) {
-    data.attrValue = `text-align: ${value}`;
-  } else {
-    data.keepAttr = false;
-  }
-});
-
-// Alguns browsers invalidam a TrustedTypePolicy interna do DOMPurify
+// Alguns browsers invalidam a TrustedTypePolicy interna do sanitizador
 // precisamente durante a transição síncrona beforeprint→afterprint (ver
-// CvPagedPreview.tsx), fazendo `DOMPurify.sanitize` rebentar nesse instante.
+// CvPagedPreview.tsx), fazendo `sanitizeCvHtml` rebentar nesse instante.
 // O conteúdo que é impresso já passou por sanitizeCvHtml antes — na gravação
 // (RichTextField/llm.functions) e/ou na preview em ecrã que o utilizador viu
 // mesmo antes de imprimir — por isso é seguro saltar apenas nesta janela.
 let printBypassActive = false;
 
-/** Ativa/desativa o bypass do DOMPurify durante a impressão. Só chamar à
+/** Ativa/desativa o bypass da sanitização durante a impressão. Só chamar à
  * volta da janela beforeprint→afterprint (ver CvPagedPreview.tsx). */
 export function setRichTextPrintBypass(active: boolean) {
   printBypassActive = active;
@@ -35,9 +28,12 @@ export function setRichTextPrintBypass(active: boolean) {
 /** Sanitiza HTML de um campo de CV, restringindo à allowlist estrita da app. */
 export function sanitizeCvHtml(html: string): string {
   if (printBypassActive) return html ?? "";
-  return DOMPurify.sanitize(html ?? "", {
-    ALLOWED_TAGS,
-    ALLOWED_ATTR: ["style"],
+  return sanitizeHtml(html ?? "", {
+    allowedTags: ALLOWED_TAGS,
+    allowedAttributes: { "*": ["style"] },
+    allowedStyles: {
+      "*": { "text-align": ALIGN_VALUES.map((v) => new RegExp(`^${v}$`)) },
+    },
   });
 }
 
