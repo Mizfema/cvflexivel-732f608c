@@ -46,6 +46,19 @@ export const Route = createFileRoute("/editor")({
   component: EditorPage,
 });
 
+/** Constrói o destino de volta ao editor preservando o CV exacto em edição
+ * (?id=) e o modo — usado nos gates de login para nunca perder a ligação ao
+ * registo guardado (sem isto, o autosave/export criava um CV novo). */
+function buildEditorNext(modo: string | undefined, id: string | undefined, extra?: Record<string, string>) {
+  const params = new URLSearchParams();
+  params.set("modo", modo ?? "cv");
+  if (id) params.set("id", id);
+  if (extra) {
+    for (const [k, v] of Object.entries(extra)) params.set(k, v);
+  }
+  return `/editor?${params.toString()}`;
+}
+
 function EditorPage() {
   const { modo, id, export: autoExport } = Route.useSearch();
   const navigate = useNavigate();
@@ -173,7 +186,12 @@ function EditorPage() {
             onToggleFullscreen={() => setFullscreen(true)}
             className="shadow-none"
           />
-          <ExportMenu draft={draft} cvId={cvId} onSaved={setCvId} />
+          <ExportMenu
+            draft={draft}
+            cvId={cvId}
+            onSaved={setCvId}
+            authNext={buildEditorNext(modo, cvId, { export: "pdf" })}
+          />
         </div>
       </header>
 
@@ -216,7 +234,7 @@ function EditorPage() {
               update={update}
               userId={session?.user.id}
               onGatedPhotoClick={() =>
-                navigate({ to: "/auth", search: { next: "/editor?modo=cv" } })
+                navigate({ to: "/auth", search: { next: buildEditorNext(modo, cvId) } })
               }
             />
           </section>

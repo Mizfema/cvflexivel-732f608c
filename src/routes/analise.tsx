@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle, ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,6 +11,14 @@ import type { CoverageAnalysis, SectionCoverage } from "@/lib/coverage-types";
 import { parseLimitError } from "@/lib/usage-error";
 import { UsageLimitNotice } from "@/components/UsageLimitNotice";
 import { SIDEBAR_STATUS_QUERY_KEY } from "@/components/AppSidebar";
+import { saveResumeState, readResumeState, clearResumeState } from "@/lib/resume-state";
+
+const RESUME_FLOW = "analise-page";
+
+type AnalisePageResumeState = {
+  tdr: string;
+  result: CoverageAnalysis | null;
+};
 
 export const Route = createFileRoute("/analise")({
   head: () => ({
@@ -29,13 +37,28 @@ export const Route = createFileRoute("/analise")({
 function AnalisePage() {
   const { draft, hydrated } = useDraftCv();
   const [tdr, setTdr] = useState("");
+  const [result, setResult] = useState<CoverageAnalysis | null>(null);
   const analyze = useServerFn(analyzeCoverage);
+
+  // Ao voltar de /auth a meio da análise, repor o TdR colado e o resultado já gerado.
+  useEffect(() => {
+    const saved = readResumeState<AnalisePageResumeState>(RESUME_FLOW);
+    if (!saved) return;
+    setTdr(saved.tdr);
+    setResult(saved.result);
+    clearResumeState(RESUME_FLOW);
+  }, []);
+
+  function handleGoToAuth() {
+    saveResumeState<AnalisePageResumeState>(RESUME_FLOW, { tdr, result });
+  }
 
   const queryClient = useQueryClient();
   const mutation = useMutation<CoverageAnalysis, Error, { cv: typeof draft; jobTdr: string }>({
     mutationFn: (vars) => analyze({ data: vars }) as Promise<CoverageAnalysis>,
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: SIDEBAR_STATUS_QUERY_KEY });
+      setResult(data);
     },
   });
 
@@ -101,7 +124,7 @@ function AnalisePage() {
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" /> A analisar…
                 </>
-              ) : mutation.data ? (
+              ) : result ? (
                 "Voltar a analisar"
               ) : (
                 <>
@@ -121,19 +144,25 @@ function AnalisePage() {
                 {(mutation.error as Error).message}
               </div>
             ))}
-          {!mutation.data && !mutation.isPending && !mutation.isError && (
+          {!result && !mutation.isPending && !mutation.isError && (
             <div className="flex h-full min-h-[300px] items-center justify-center rounded-lg border border-dashed border-navy-rule bg-surface/40 p-8 text-center text-sm text-muted-foreground">
               A análise aparece aqui depois de carregares em <em className="mx-1">Analisar</em>.
             </div>
           )}
-          {mutation.data && <Resultado data={mutation.data} />}
+          {result && <Resultado data={result} onGoToAuth={handleGoToAuth} />}
         </section>
       </div>
     </div>
   );
 }
 
-function Resultado({ data }: { data: CoverageAnalysis }) {
+function Resultado({
+  data,
+  onGoToAuth,
+}: {
+  data: CoverageAnalysis;
+  onGoToAuth: () => void;
+}) {
   const pct = data.totalRequisitos
     ? Math.round((data.requisitosCobertos / data.totalRequisitos) * 100)
     : 0;
@@ -190,7 +219,7 @@ function Resultado({ data }: { data: CoverageAnalysis }) {
             <SectionRow key={i} c={c} />
           ))}
         </div>
-        {data.hasMore && <UpgradeOverlay />}
+        {data.hasMore && <UpgradeOverlay onGoToAuth={onGoToAuth} />}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -209,7 +238,7 @@ function Resultado({ data }: { data: CoverageAnalysis }) {
   );
 }
 
-function UpgradeOverlay() {
+function UpgradeOverlay({ onGoToAuth }: { onGoToAuth: () => void }) {
   return (
     <div className="relative mt-4 -mx-5 -mb-5 overflow-hidden rounded-b-lg">
       <div aria-hidden className="pointer-events-none select-none space-y-3 p-5 blur-[4px]">
@@ -227,6 +256,7 @@ function UpgradeOverlay() {
         <Link
           to="/auth"
           search={{ next: "/analise" }}
+          onClick={onGoToAuth}
           className="rounded-md bg-navy px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
         >
           Criar conta grátis

@@ -15,10 +15,14 @@ export function ExportMenu({
   draft,
   cvId,
   onSaved,
+  authNext,
 }: {
   draft: CvDraft;
   cvId?: string;
   onSaved?: (id: string) => void;
+  /** Destino após login, preservando o CV exacto em edição (?id=) — sem isto,
+   * o gate de login perdia a ligação ao registo e criava um CV duplicado. */
+  authNext?: string;
 }) {
   const { session, ready } = useAuth();
   const navigate = useNavigate();
@@ -36,7 +40,7 @@ export function ExportMenu({
     if (!session) {
       navigate({
         to: "/auth",
-        search: { next: "/editor?modo=cv&export=pdf" },
+        search: { next: authNext ?? "/editor?modo=cv&export=pdf" },
       });
       return;
     }

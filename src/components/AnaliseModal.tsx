@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -18,6 +18,17 @@ import type { CoverageAnalysis, GapDetail, GapType } from "@/lib/coverage-types"
 import { parseLimitError } from "@/lib/usage-error";
 import { UsageLimitNotice } from "@/components/UsageLimitNotice";
 import { SIDEBAR_STATUS_QUERY_KEY } from "@/components/AppSidebar";
+import { saveResumeState, readResumeState, clearResumeState } from "@/lib/resume-state";
+
+const RESUME_FLOW = "analise-modal";
+
+type AnaliseModalResumeState = {
+  cvText: string;
+  tdrText: string;
+  cvFileName: string | null;
+  tdrFileName: string | null;
+  result: CoverageAnalysis | null;
+};
 
 /* ── Tipos de gap ── */
 
@@ -205,7 +216,13 @@ function SectionCoverageRow({ c }: { c: CoverageAnalysis["cobertura"][number] })
   );
 }
 
-function ResultadoCompleto({ data }: { data: CoverageAnalysis }) {
+function ResultadoCompleto({
+  data,
+  onGoToAuth,
+}: {
+  data: CoverageAnalysis;
+  onGoToAuth: () => void;
+}) {
   const pct = data.totalRequisitos
     ? Math.round((data.requisitosCobertos / data.totalRequisitos) * 100)
     : 0;
@@ -304,6 +321,8 @@ function ResultadoCompleto({ data }: { data: CoverageAnalysis }) {
               </p>
               <Link
                 to="/auth"
+                search={{ next: "/" }}
+                onClick={onGoToAuth}
                 className="rounded-md bg-[#1b1b19] px-4 py-2 text-sm font-medium text-[#F1EFE8] transition-opacity hover:opacity-90"
               >
                 Criar conta grátis
@@ -382,20 +401,46 @@ export function AnaliseModal({ open, onOpenChange }: AnaliseModalProps) {
   const [tdrFileName, setTdrFileName] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [result, setResult] = useState<CoverageAnalysis | null>(null);
+
+  // Ao reabrir (ex.: depois de voltar de /auth a meio da análise), repor
+  // exactamente o que estava colado e o resultado já gerado.
+  useEffect(() => {
+    if (!open) return;
+    const saved = readResumeState<AnaliseModalResumeState>(RESUME_FLOW);
+    if (!saved) return;
+    setCvText(saved.cvText);
+    setTdrText(saved.tdrText);
+    setCvFileName(saved.cvFileName);
+    setTdrFileName(saved.tdrFileName);
+    setResult(saved.result);
+    clearResumeState(RESUME_FLOW);
+  }, [open]);
+
+  function handleGoToAuth() {
+    saveResumeState<AnaliseModalResumeState>(RESUME_FLOW, {
+      cvText,
+      tdrText,
+      cvFileName,
+      tdrFileName,
+      result,
+    });
+  }
 
   const analyze = useServerFn(analyzeCoverage);
   const queryClient = useQueryClient();
   const mutation = useMutation<CoverageAnalysis, Error, { cv: string; jobTdr: string }>({
     mutationFn: (vars) => analyze({ data: vars }) as Promise<CoverageAnalysis>,
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: SIDEBAR_STATUS_QUERY_KEY });
+      setResult(data);
     },
   });
 
   function handleClose(v: boolean) {
     if (!v && !mutation.isPending) {
       onOpenChange(false);
-      if (!mutation.data) {
+      if (!result) {
         setCvText("");
         setTdrText("");
         setCvFileName(null);
@@ -422,12 +467,15 @@ export function AnaliseModal({ open, onOpenChange }: AnaliseModalProps) {
     >
       {mutation.isPending ? (
         <ScannerAnimation />
-      ) : mutation.data ? (
+      ) : result ? (
         <>
-          <ResultadoCompleto data={mutation.data} />
+          <ResultadoCompleto data={result} onGoToAuth={handleGoToAuth} />
           <div className="mt-4 flex justify-end gap-2 border-t border-[#E3DFD7] pt-4">
             <button
-              onClick={() => mutation.reset()}
+              onClick={() => {
+                mutation.reset();
+                setResult(null);
+              }}
               className="rounded-[10px] border border-[#E3DFD7] px-4 py-2 text-sm text-[#5F5E5A] transition-colors hover:bg-black/4 hover:text-[#2C2C2A]"
             >
               Nova análise

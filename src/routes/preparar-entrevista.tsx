@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -24,6 +24,20 @@ import type { InterviewQuestion } from "@/lib/interview-types";
 import { parseLimitError } from "@/lib/usage-error";
 import { UsageLimitNotice } from "@/components/UsageLimitNotice";
 import { SIDEBAR_STATUS_QUERY_KEY } from "@/components/AppSidebar";
+import { saveResumeState, readResumeState, clearResumeState } from "@/lib/resume-state";
+
+const RESUME_FLOW = "entrevista-prep";
+
+type EntrevistaResumeState = {
+  step: 1 | 2 | 3 | 4;
+  tdrText: string;
+  cartaText: string;
+  cvText: string;
+  tdrFileName: string | null;
+  cartaFileName: string | null;
+  cvFileName: string | null;
+  questions: InterviewQuestion[] | null;
+};
 
 const PREP_MESSAGES = [
   "A ler os Termos de Referência…",
@@ -154,6 +168,39 @@ function InterviewPrepStepper() {
   const [cvFileName, setCvFileName] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [processingFile, setProcessingFile] = useState(false);
+  const [generatedQuestions, setGeneratedQuestions] = useState<InterviewQuestion[] | null>(null);
+  const pendingAutoSave = useRef<InterviewQuestion[] | null>(null);
+
+  // Ao voltar de /auth a meio da preparação, repor tudo o que foi colado e as
+  // perguntas já geradas — e, se o login teve sucesso, guardar automaticamente
+  // na conta (era exactamente o que o utilizador estava a tentar fazer).
+  useEffect(() => {
+    const saved = readResumeState<EntrevistaResumeState>(RESUME_FLOW);
+    if (!saved) return;
+    setStep(saved.step);
+    setTdrText(saved.tdrText);
+    setCartaText(saved.cartaText);
+    setCvText(saved.cvText);
+    setTdrFileName(saved.tdrFileName);
+    setCartaFileName(saved.cartaFileName);
+    setCvFileName(saved.cvFileName);
+    setGeneratedQuestions(saved.questions);
+    if (saved.questions) pendingAutoSave.current = saved.questions;
+    clearResumeState(RESUME_FLOW);
+  }, []);
+
+  function handleGoToAuth() {
+    saveResumeState<EntrevistaResumeState>(RESUME_FLOW, {
+      step,
+      tdrText,
+      cartaText,
+      cvText,
+      tdrFileName,
+      cartaFileName,
+      cvFileName,
+      questions: generatedQuestions,
+    });
+  }
 
   const generate = useServerFn(generateInterviewPrep);
   const queryClient = useQueryClient();
@@ -165,6 +212,7 @@ function InterviewPrepStepper() {
     mutationFn: (vars) => generate({ data: vars }) as Promise<InterviewQuestion[]>,
     onSuccess: (questions) => {
       queryClient.invalidateQueries({ queryKey: SIDEBAR_STATUS_QUERY_KEY });
+      setGeneratedQuestions(questions);
       if (session) {
         save.mutate({ cvId: null, jobTdr: tdrText, questions });
       }
@@ -180,6 +228,16 @@ function InterviewPrepStepper() {
     mutationFn: (vars) => saveFn({ data: vars }) as Promise<{ id: string }>,
   });
 
+  // Depois de restaurar perguntas geradas antes do login, assim que a sessão
+  // fica disponível, completa o "guardar na conta" que o utilizador pedia.
+  useEffect(() => {
+    if (!session || !pendingAutoSave.current) return;
+    const questions = pendingAutoSave.current;
+    pendingAutoSave.current = null;
+    save.mutate({ cvId: null, jobTdr: tdrText, questions });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
+
   function resetAll() {
     setStep(1);
     setTdrText("");
@@ -189,6 +247,7 @@ function InterviewPrepStepper() {
     setCartaFileName(null);
     setCvFileName(null);
     setFileError(null);
+    setGeneratedQuestions(null);
     mutation.reset();
     save.reset();
   }
@@ -481,7 +540,7 @@ function InterviewPrepStepper() {
                   </button>
                 </div>
               </div>
-            ) : mutation.isPending || !mutation.data ? (
+            ) : mutation.isPending || !generatedQuestions ? (
               <ScannerAnimation title="A preparar a tua entrevista" messages={PREP_MESSAGES} />
             ) : (
               <div className="space-y-6">
@@ -509,7 +568,12 @@ function InterviewPrepStepper() {
                   <div className="flex items-start gap-2 rounded-lg border border-[#E3DFD7] bg-white px-3 py-2.5 text-xs text-[#5F5E5A]">
                     <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                     <span>
-                      <Link to="/auth" className="font-medium underline">
+                      <Link
+                        to="/auth"
+                        search={{ next: "/preparar-entrevista" }}
+                        onClick={handleGoToAuth}
+                        className="font-medium underline"
+                      >
                         Inicia sessão
                       </Link>{" "}
                       para guardares esta preparação na tua conta.
@@ -517,10 +581,10 @@ function InterviewPrepStepper() {
                   </div>
                 )}
 
-                <InterviewPrepResult questions={mutation.data} />
+                <InterviewPrepResult questions={generatedQuestions} />
 
                 <div className="flex flex-wrap justify-end gap-2 border-t border-[#E3DFD7] pt-4">
-                  <InterviewPrepExport questions={mutation.data} jobTdr={tdrText} />
+                  <InterviewPrepExport questions={generatedQuestions} jobTdr={tdrText} />
                   <button onClick={resetAll} className={SECONDARY_BTN}>
                     Nova simulação
                   </button>

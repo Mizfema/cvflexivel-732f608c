@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Search, Target, Sparkles, ArrowRight } from "lucide-react";
 import { AnaliseModal } from "@/components/AnaliseModal";
 import { VagaStepper } from "@/components/VagaStepper";
@@ -9,6 +9,7 @@ import { CvThumbnail } from "@/components/cv/CvThumbnail";
 import { TEMPLATES } from "@/lib/cv-design-presets";
 import { buildLandingSampleCv } from "@/lib/landing-sample-cv";
 import { track } from "@/lib/analytics";
+import { hasResumeState } from "@/lib/resume-state";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -36,6 +37,12 @@ function LandingPage() {
   const [analiseOpen, setAnaliseOpen] = useState(false);
   const [vagaOpen, setVagaOpen] = useState(false);
   const [importarOpen, setImportarOpen] = useState(false);
+
+  // Ao voltar de /auth a meio de uma análise iniciada na home, reabrir o
+  // modal — ele próprio repõe o texto colado e o resultado já gerado.
+  useEffect(() => {
+    if (hasResumeState("analise-modal")) setAnaliseOpen(true);
+  }, []);
 
   function handleCriarClick() {
     track("cta_click", { cta: "criar_cv_gratis" });
