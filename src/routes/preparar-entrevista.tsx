@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
   ArrowLeft,
@@ -23,6 +23,7 @@ import { useAuth } from "@/hooks/use-auth";
 import type { InterviewQuestion } from "@/lib/interview-types";
 import { parseLimitError } from "@/lib/usage-error";
 import { UsageLimitNotice } from "@/components/UsageLimitNotice";
+import { SIDEBAR_STATUS_QUERY_KEY } from "@/components/AppSidebar";
 
 const PREP_MESSAGES = [
   "A ler os Termos de Referência…",
@@ -155,6 +156,7 @@ function InterviewPrepStepper() {
   const [processingFile, setProcessingFile] = useState(false);
 
   const generate = useServerFn(generateInterviewPrep);
+  const queryClient = useQueryClient();
   const mutation = useMutation<
     InterviewQuestion[],
     Error,
@@ -162,6 +164,7 @@ function InterviewPrepStepper() {
   >({
     mutationFn: (vars) => generate({ data: vars }) as Promise<InterviewQuestion[]>,
     onSuccess: (questions) => {
+      queryClient.invalidateQueries({ queryKey: SIDEBAR_STATUS_QUERY_KEY });
       if (session) {
         save.mutate({ cvId: null, jobTdr: tdrText, questions });
       }

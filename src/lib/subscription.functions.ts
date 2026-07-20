@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
-import { optionalIdentity, peekRemainingUsage } from "@/lib/access-control.server";
+import { optionalIdentity, peekRemainingUsage, getUsageSummary } from "@/lib/access-control.server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   hasActivePlan,
@@ -88,8 +88,10 @@ export const getMyCreditBalance = createServerFn({ method: "GET" })
 /** Indicador da sidebar (Fase 2+3 da Proposta V3 §8; minutos desde a Fase B4
  * do Guia B0-B5): premium vê tempo restante real do plano (dias ou horas,
  * conforme a duração — um "ilimitado 12h" nunca pode mostrar "0 dias"); dono
- * de pacote avulso vê saldo de créditos e validade; grátis/anónimo vê
- * análises restantes no mês. */
+ * de pacote avulso vê saldo de créditos e validade; grátis/anónimo vê o
+ * painel de uso por funcionalidade (getUsageSummary), em vez de um único
+ * número genérico que não deixa claro a que feature se refere nem quando
+ * renova. */
 export const getSidebarStatus = createServerFn({ method: "GET" })
   .middleware([optionalIdentity])
   .handler(async ({ context }) => {
@@ -117,8 +119,8 @@ export const getSidebarStatus = createServerFn({ method: "GET" })
       return { tier: "avulso" as const, balance: credits.balance, daysLeft };
     }
 
-    const { remainingMonth } = await peekRemainingUsage("cv_analysis", context.userId, null);
-    return { tier: "free" as const, analysesRemaining: remainingMonth };
+    const usageSummary = await getUsageSummary(context.userId);
+    return { tier: "free" as const, usageSummary };
   });
 
 /** Detalhe do plano ativo do utilizador para a página /perfil — dá ao cliente

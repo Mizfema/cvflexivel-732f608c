@@ -471,6 +471,84 @@ export async function peekRemainingUsage(
   return { remainingMonth: Math.max(0, policy.max_per_month - count), tier };
 }
 
+export interface UsageSummaryItem {
+  key: string;
+  label: string;
+  today: { remaining: number; resetAt: string | null } | null;
+  month: { remaining: number; resetAt: string | null } | null;
+}
+
+const USAGE_SUMMARY_LABELS: Record<string, string> = {
+  cv_analysis: "Análise de CV",
+  ai_heavy: "Alinhamento CV ↔ TdR / CV via entrevista",
+  cover_letter: "Carta de apresentação",
+  download_free: "Download do CV",
+};
+const USAGE_SUMMARY_ORDER = Object.keys(USAGE_SUMMARY_LABELS);
+
+/** Painel de uso do tier grátis — uma linha por feature (ou por quota_group,
+ * quando partilhada, ex.: ai_heavy) com o saldo de hoje e do mês e quando cada
+ * um renova. Só serve o tier grátis: premium tem fair-use invisível de
+ * propósito (nunca expor o teto, ver getActiveFairUseBypass) e avulso já
+ * mostra o seu próprio saldo de créditos (getActiveCreditBalance) — um pool
+ * partilhado, não um teto por feature. */
+export async function getUsageSummary(userId: string): Promise<UsageSummaryItem[]> {
+  const { data, error } = await supabaseAdmin
+    .from("access_policies")
+    .select("feature, max_per_day, max_per_month, cooldown_hours, quota_group")
+    .eq("tier", "free")
+    .eq("enabled", true);
+  if (error) throw new Error(error.message);
+
+  const policies = data ?? [];
+  const identity = { userId, fingerprint: null };
+  const seen = new Set<string>();
+  const items: UsageSummaryItem[] = [];
+
+  for (const policy of policies) {
+    if (policy.max_per_day == null && policy.max_per_month == null) continue;
+    const key = policy.quota_group ?? policy.feature;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const scope: string | string[] = policy.quota_group
+      ? policies.filter((p) => p.quota_group === policy.quota_group).map((p) => p.feature)
+      : policy.feature;
+
+    let today: UsageSummaryItem["today"] = null;
+    if (policy.max_per_day != null) {
+      const { count, latest } = await countUsage(identity, scope, Date.now() - DAY_MS);
+      const remaining = Math.max(0, policy.max_per_day - count);
+      const cooldownMs = (policy.cooldown_hours ?? 24) * HOUR_MS;
+      today = {
+        remaining,
+        resetAt:
+          remaining === 0 && latest
+            ? new Date(new Date(latest).getTime() + cooldownMs).toISOString()
+            : null,
+      };
+    }
+
+    let month: UsageSummaryItem["month"] = null;
+    if (policy.max_per_month != null) {
+      const { count, oldest } = await countUsage(identity, scope, Date.now() - MONTH_MS);
+      const remaining = Math.max(0, policy.max_per_month - count);
+      month = {
+        remaining,
+        resetAt:
+          remaining === 0 && oldest
+            ? new Date(new Date(oldest).getTime() + MONTH_MS).toISOString()
+            : null,
+      };
+    }
+
+    items.push({ key, label: USAGE_SUMMARY_LABELS[key] ?? key, today, month });
+  }
+
+  items.sort((a, b) => USAGE_SUMMARY_ORDER.indexOf(a.key) - USAGE_SUMMARY_ORDER.indexOf(b.key));
+  return items;
+}
+
 /** Regista os tokens reais e o custo USD da chamada de IA já autorizada
  * (Fase 0.2, e Fase 0 da Proposta V3 §6 item 4 — custo real em vez de
  * estimativa por contagem de chamadas, gravado desde o primeiro request).

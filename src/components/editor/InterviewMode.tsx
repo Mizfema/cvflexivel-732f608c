@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, ArrowRight, Sparkles, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { generateCvFromInterview } from "@/lib/llm.functions";
 import type { CvDraft } from "@/lib/cv-types";
 import { parseLimitError } from "@/lib/usage-error";
 import { UsageLimitNotice } from "@/components/UsageLimitNotice";
+import { SIDEBAR_STATUS_QUERY_KEY } from "@/components/AppSidebar";
 
 const uid = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -128,10 +129,12 @@ export function InterviewMode({
   const [current, setCurrent] = useState("");
 
   const gen = useServerFn(generateCvFromInterview);
+  const queryClient = useQueryClient();
   const mut = useMutation<InterviewCvResult, Error, InterviewMutationInput>({
     mutationFn: (input) => gen({ data: input }) as Promise<InterviewCvResult>,
 
     onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: SIDEBAR_STATUS_QUERY_KEY });
       const sections: CvDraft["sections"] = {
         perfil: {
           nome: data.perfil.nome ?? "",

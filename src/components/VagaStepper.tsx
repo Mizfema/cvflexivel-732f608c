@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
   ArrowLeft,
@@ -19,6 +19,7 @@ import { EMPTY_CV } from "@/lib/cv-types";
 import type { AlignmentResult } from "@/lib/cv-types";
 import { parseLimitError } from "@/lib/usage-error";
 import { UsageLimitNotice } from "@/components/UsageLimitNotice";
+import { SIDEBAR_STATUS_QUERY_KEY } from "@/components/AppSidebar";
 
 const ALIGN_MESSAGES = [
   "A ler os Termos de Referência…",
@@ -48,9 +49,11 @@ export function VagaStepper({ open, onOpenChange }: VagaStepperProps) {
   const [processing, setProcessing] = useState(false);
 
   const align = useServerFn(alignCvToTdr);
+  const queryClient = useQueryClient();
   const mutation = useMutation<AlignmentResult, Error, { cv: string; jobTdr: string }>({
     mutationFn: (vars) => align({ data: vars }) as Promise<AlignmentResult>,
     onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: SIDEBAR_STATUS_QUERY_KEY });
       const draft = {
         ...EMPTY_CV,
         title: "CV alinhado à vaga",

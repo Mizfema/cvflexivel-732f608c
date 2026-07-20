@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
   ArrowLeft,
@@ -25,6 +25,7 @@ import type { CoverLetterMode, GeneratedCoverLetter, RecentTdr } from "@/lib/cov
 import { toSafeHtml } from "@/lib/rich-text";
 import { parseLimitError } from "@/lib/usage-error";
 import { UsageLimitNotice } from "@/components/UsageLimitNotice";
+import { SIDEBAR_STATUS_QUERY_KEY } from "@/components/AppSidebar";
 
 type Path = "zero" | "targeted" | "generic";
 type Step = "path" | "cv" | "tdr" | "generating" | "amostra";
@@ -92,6 +93,7 @@ export function NovaCartaStepper({ open, onOpenChange }: NovaCartaStepperProps) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
+  const queryClient = useQueryClient();
   const mutation = useMutation<GeneratedCoverLetter, Error, void>({
     mutationFn: async () => {
       let cvContent: unknown = "";
@@ -110,6 +112,7 @@ export function NovaCartaStepper({ open, onOpenChange }: NovaCartaStepperProps) 
       }) as Promise<GeneratedCoverLetter>;
     },
     onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: SIDEBAR_STATUS_QUERY_KEY });
       if (result.hasMore) {
         setStep("amostra");
         return;

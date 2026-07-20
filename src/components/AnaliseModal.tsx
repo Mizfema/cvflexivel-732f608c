@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
   AlertTriangle,
@@ -17,6 +17,7 @@ import { analyzeCoverage } from "@/lib/llm.functions";
 import type { CoverageAnalysis, GapDetail, GapType } from "@/lib/coverage-types";
 import { parseLimitError } from "@/lib/usage-error";
 import { UsageLimitNotice } from "@/components/UsageLimitNotice";
+import { SIDEBAR_STATUS_QUERY_KEY } from "@/components/AppSidebar";
 
 /* ── Tipos de gap ── */
 
@@ -383,8 +384,12 @@ export function AnaliseModal({ open, onOpenChange }: AnaliseModalProps) {
   const [processing, setProcessing] = useState(false);
 
   const analyze = useServerFn(analyzeCoverage);
+  const queryClient = useQueryClient();
   const mutation = useMutation<CoverageAnalysis, Error, { cv: string; jobTdr: string }>({
     mutationFn: (vars) => analyze({ data: vars }) as Promise<CoverageAnalysis>,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: SIDEBAR_STATUS_QUERY_KEY });
+    },
   });
 
   function handleClose(v: boolean) {

@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { AlertTriangle, ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { analyzeCoverage } from "@/lib/llm.functions";
 import type { CoverageAnalysis, SectionCoverage } from "@/lib/coverage-types";
 import { parseLimitError } from "@/lib/usage-error";
 import { UsageLimitNotice } from "@/components/UsageLimitNotice";
+import { SIDEBAR_STATUS_QUERY_KEY } from "@/components/AppSidebar";
 
 export const Route = createFileRoute("/analise")({
   head: () => ({
@@ -30,8 +31,12 @@ function AnalisePage() {
   const [tdr, setTdr] = useState("");
   const analyze = useServerFn(analyzeCoverage);
 
+  const queryClient = useQueryClient();
   const mutation = useMutation<CoverageAnalysis, Error, { cv: typeof draft; jobTdr: string }>({
     mutationFn: (vars) => analyze({ data: vars }) as Promise<CoverageAnalysis>,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: SIDEBAR_STATUS_QUERY_KEY });
+    },
   });
 
   const cvVazio =

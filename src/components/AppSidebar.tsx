@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { useQuery } from "@tanstack/react-query";
 import {
   Home,
   FileText,
@@ -12,6 +13,7 @@ import {
   ShieldCheck,
   Gem,
   User,
+  ChevronRight,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,6 +21,7 @@ import { getIsAdmin } from "@/lib/admin.functions";
 import { getSidebarStatus } from "@/lib/subscription.functions";
 import { formatPlanTimeLeft } from "@/lib/plan-time-format";
 import { UserAvatar } from "@/components/UserAvatar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
@@ -35,31 +38,88 @@ const NAV_ITEMS = [
   { label: "Planos", icon: Gem, to: "/planos", exact: false, auth: false },
 ] as const;
 
-type SidebarStatus =
-  | { tier: "anonymous" }
-  | { tier: "free"; analysesRemaining: number | null }
-  | { tier: "avulso"; balance: number; daysLeft: number }
-  | { tier: "premium"; minutesLeft: number | null };
+type SidebarStatus = Awaited<ReturnType<typeof getSidebarStatus>>;
+type UsageSummaryItem = Extract<SidebarStatus, { tier: "free" }>["usageSummary"][number];
+
+/** Chave partilhada com quem consome saldo (ex.: AnaliseModal, /analise) para
+ * invalidar o indicador logo após o consumo — sem isto o número só atualiza
+ * ao recarregar a página, porque o valor vem de uma leitura no servidor. */
+export const SIDEBAR_STATUS_QUERY_KEY = ["sidebar-status"] as const;
 
 /** Indicador de plano (Fase 2 da Proposta V3 §8; minutos desde a Fase B4 do
  * Guia B0-B5) — tempo restante para premium, análises restantes no mês para
  * grátis. Nunca mostra nada para anónimo (ainda não tem conta). */
 function useSidebarStatus(userId: string | undefined): SidebarStatus | null {
   const fetchStatus = useServerFn(getSidebarStatus);
-  const [status, setStatus] = useState<SidebarStatus | null>(null);
 
-  useEffect(() => {
-    if (!userId) {
-      setStatus(null);
-      return;
-    }
-    fetchStatus()
-      .then(setStatus)
-      .catch(() => setStatus(null));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  const { data } = useQuery({
+    queryKey: SIDEBAR_STATUS_QUERY_KEY,
+    queryFn: () => fetchStatus(),
+    enabled: !!userId,
+  });
 
-  return status;
+  return userId ? (data ?? null) : null;
+}
+
+/** Formata "quando renova" a partir de um ISO de reset — sem tick ao segundo
+ * (ao contrário do Countdown do UsageLimitNotice): esta leitura é só um
+ * instantâneo mostrado num popover, não um bloqueio a acompanhar em tempo
+ * real. */
+function formatResetIn(resetAt: string): string {
+  const ms = new Date(resetAt).getTime() - Date.now();
+  if (ms <= 0) return "já disponível";
+  const hours = ms / (60 * 60 * 1000);
+  if (hours < 24) return `${Math.ceil(hours)}h`;
+  const days = Math.ceil(hours / 24);
+  return `${days} ${days === 1 ? "dia" : "dias"}`;
+}
+
+function UsageRow({ item }: { item: UsageSummaryItem }) {
+  return (
+    <div className="space-y-0.5">
+      <p className="text-xs font-medium text-foreground">{item.label}</p>
+      {item.today && (
+        <p className="text-[11px] text-muted-foreground">
+          Hoje: {item.today.remaining} restante{item.today.remaining === 1 ? "" : "s"}
+          {item.today.remaining === 0 &&
+            item.today.resetAt &&
+            ` · renova em ${formatResetIn(item.today.resetAt)}`}
+        </p>
+      )}
+      {item.month && (
+        <p className="text-[11px] text-muted-foreground">
+          Este mês: {item.month.remaining} restante{item.month.remaining === 1 ? "" : "s"}
+          {item.month.remaining === 0 &&
+            item.month.resetAt &&
+            ` · renova em ${formatResetIn(item.month.resetAt)}`}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Painel de uso do tier grátis (Popover na sidebar) — uma linha por
+ * funcionalidade em vez de um único "X análises restantes" que só refletia a
+ * feature cv_analysis e confundia quem batia no limite de outra (Carta,
+ * Alinhamento CV↔TdR, etc.). */
+function UsagePanel({ items }: { items: UsageSummaryItem[] }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button className="mt-0.5 flex w-full items-center gap-0.5 text-[10.5px] text-[#8A8883] transition-colors hover:text-[#DDD9D1]">
+          Ver saldo de uso
+          <ChevronRight className="h-3 w-3 shrink-0" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side="right" align="end" className="w-64 space-y-3">
+        {items.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Sem limites configurados.</p>
+        ) : (
+          items.map((item) => <UsageRow key={item.key} item={item} />)
+        )}
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 function useIsAdmin(userId: string | undefined) {
@@ -186,17 +246,17 @@ function SidebarContent({ onClose }: SidebarContentProps) {
                   ? "Pacote avulso"
                   : "Conta grátis"}
             </p>
-            <p className="mt-0.5 text-[10.5px] text-[#8A8883]">
-              {sidebarStatus.tier === "premium"
-                ? sidebarStatus.minutesLeft != null
-                  ? `${formatPlanTimeLeft(sidebarStatus.minutesLeft)} restantes`
-                  : "Ilimitado"
-                : sidebarStatus.tier === "avulso"
-                  ? `${sidebarStatus.balance} créditos · expira em ${sidebarStatus.daysLeft} ${sidebarStatus.daysLeft === 1 ? "dia" : "dias"}`
-                  : sidebarStatus.analysesRemaining != null
-                    ? `${sidebarStatus.analysesRemaining} análises restantes`
-                    : "Limites do plano grátis"}
-            </p>
+            {sidebarStatus.tier === "free" ? (
+              <UsagePanel items={sidebarStatus.usageSummary} />
+            ) : (
+              <p className="mt-0.5 text-[10.5px] text-[#8A8883]">
+                {sidebarStatus.tier === "premium"
+                  ? sidebarStatus.minutesLeft != null
+                    ? `${formatPlanTimeLeft(sidebarStatus.minutesLeft)} restantes`
+                    : "Ilimitado"
+                  : `${sidebarStatus.balance} créditos · expira em ${sidebarStatus.daysLeft} ${sidebarStatus.daysLeft === 1 ? "dia" : "dias"}`}
+              </p>
+            )}
           </div>
         )}
         {!ready ? null : session ? (
