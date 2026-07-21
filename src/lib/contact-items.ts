@@ -6,6 +6,9 @@ import {
   Link2,
   Globe,
   IdCard,
+  Calendar,
+  VenusAndMars,
+  Heart,
   type LucideIcon,
 } from "lucide-react";
 
@@ -16,7 +19,10 @@ export type ContactField =
   | "linkedin"
   | "website"
   | "morada"
-  | "cartaConducao";
+  | "cartaConducao"
+  | "dataNascimento"
+  | "genero"
+  | "estadoCivil";
 
 export const CONTACT_ICONS: Record<ContactField, LucideIcon> = {
   localizacao: MapPin,
@@ -26,6 +32,9 @@ export const CONTACT_ICONS: Record<ContactField, LucideIcon> = {
   website: Globe,
   morada: MapPinHouse,
   cartaConducao: IdCard,
+  dataNascimento: Calendar,
+  genero: VenusAndMars,
+  estadoCivil: Heart,
 };
 
 export type ContactInput = {
@@ -37,6 +46,9 @@ export type ContactInput = {
   linkedin?: string | null;
   website?: string | null;
   cartaConducao?: string | null;
+  dataNascimento?: string | null;
+  genero?: string | null;
+  estadoCivil?: string | null;
 };
 
 export type ContactItem = { field: ContactField; icon: LucideIcon; text: string };
@@ -68,6 +80,15 @@ export function buildContactItems(input: ContactInput): ContactItem[] {
       icon: CONTACT_ICONS.cartaConducao,
       text: input.cartaConducao,
     });
+  if (input.dataNascimento)
+    items.push({
+      field: "dataNascimento",
+      icon: CONTACT_ICONS.dataNascimento,
+      text: input.dataNascimento,
+    });
+  if (input.genero) items.push({ field: "genero", icon: CONTACT_ICONS.genero, text: input.genero });
+  if (input.estadoCivil)
+    items.push({ field: "estadoCivil", icon: CONTACT_ICONS.estadoCivil, text: input.estadoCivil });
 
   return items;
 }

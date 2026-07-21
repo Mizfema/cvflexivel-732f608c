@@ -59,6 +59,9 @@ export type CvSections = {
     website?: string;
     morada?: string;
     cartaConducao?: string;
+    dataNascimento?: string;
+    genero?: string;
+    estadoCivil?: string;
     foto?: CvPhoto | null;
     resumo?: string; // rich text leve
   };
@@ -84,11 +87,25 @@ export type CvDesign = {
   spacing: CvSpacing;
 };
 
+export type FixedSectionKey =
+  | "perfil"
+  | "experiencia"
+  | "formacao"
+  | "competencias"
+  | "idiomas";
+export type SectionKey = FixedSectionKey | `extra:${string}`;
+export type SectionZone = "main" | "sidebar";
+export type CvSectionLayout = {
+  order: string[];
+  placement: Record<string, SectionZone>;
+};
+
 export type CvDraft = {
   title: string;
   sections: CvSections;
   template: string;
   design: CvDesign;
+  sectionLayout?: CvSectionLayout | null;
   updatedAt: string;
 };
 

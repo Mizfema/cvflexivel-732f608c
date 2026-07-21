@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, Download } from "lucide-react";
+import { ArrowLeft, Download, Loader2 } from "lucide-react";
 import { RichTextField } from "@/components/ui/RichTextField";
 import { PhotoField } from "@/components/PhotoField";
 import { useAuth } from "@/hooks/use-auth";
@@ -13,6 +13,9 @@ import { useCoverLetterHeader } from "@/hooks/use-cover-letter-header";
 import { useCoverLetterAutosave } from "@/hooks/use-cover-letter-autosave";
 import { getCoverLetter } from "@/lib/cover_letters.functions";
 import { exportCoverLetterPdf } from "@/lib/cover-letter-export";
+import { checkDownloadAllowed } from "@/lib/download-gate.functions";
+import { parseLimitError, type LimitInfo } from "@/lib/usage-error";
+import { UsageLimitNotice } from "@/components/UsageLimitNotice";
 import {
   readPendingCoverLetterDraft,
   clearPendingCoverLetterDraft,
@@ -53,13 +56,17 @@ function emptyDraft(): CoverLetterEditorState {
 function CartaEditorPage() {
   const { id } = Route.useSearch();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const fetchOne = useServerFn(getCoverLetter);
+  const checkDownload = useServerFn(checkDownloadAllowed);
 
   const [loading, setLoading] = useState(!!id);
   const [notFound, setNotFound] = useState(false);
   const [letterId, setLetterId] = useState<string | undefined>(id);
   const [draft, setDraft] = useState<CoverLetterEditorState>(emptyDraft);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exportLimitInfo, setExportLimitInfo] = useState<LimitInfo | null>(null);
   /** Evita reler do servidor quando `onSaved` atualiza o `?id=` na URL — o
    * conteúdo já está em memória, um refetch aqui apagaria o que se está a
    * escrever (a gravação é assíncrona e pode terminar depois de mais edições). */
@@ -149,6 +156,34 @@ function CartaEditorPage() {
     photo: draft.photo,
   };
 
+  async function handleExport() {
+    setExportError(null);
+    setExportLimitInfo(null);
+
+    if (!session) {
+      navigate({ to: "/auth", search: { next: `/carta-editor${id ? `?id=${id}` : ""}` } });
+      return;
+    }
+
+    setExportBusy(true);
+    try {
+      // Mesmo gate server-side já usado no download do CV (Fase 1.3) —
+      // reaproveitado tal e qual, já que a carta usa o mesmo catálogo de
+      // templates/isPremium (ver getTemplate).
+      await checkDownload({ data: { templateId: draft.template } });
+      await exportCoverLetterPdf(draft.title);
+    } catch (err) {
+      const limit = parseLimitError(err);
+      if (limit) {
+        setExportLimitInfo(limit);
+      } else {
+        setExportError(err instanceof Error ? err.message : "Falha ao exportar.");
+      }
+    } finally {
+      setExportBusy(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16 text-center text-sm text-muted-foreground">
@@ -220,14 +255,36 @@ function CartaEditorPage() {
             onToggleFullscreen={() => setFullscreen(true)}
             className="shadow-none"
           />
-          <button
-            type="button"
-            onClick={() => exportCoverLetterPdf(draft.title)}
-            className="inline-flex items-center gap-2 rounded-[10px] border border-navy-rule bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-surface"
-          >
-            <Download className="h-4 w-4" />
-            Exportar PDF
-          </button>
+          <div className="flex flex-col items-end gap-1">
+            <button
+              type="button"
+              disabled={exportBusy}
+              onClick={handleExport}
+              className="inline-flex items-center gap-2 rounded-[10px] border border-navy-rule bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-surface disabled:opacity-60"
+            >
+              {exportBusy ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              Exportar PDF
+            </button>
+            {exportError && (
+              <p className="max-w-xs text-right text-xs text-destructive">{exportError}</p>
+            )}
+            {exportLimitInfo && (
+              <div className="max-w-xs">
+                <UsageLimitNotice
+                  feature={
+                    exportLimitInfo.reason === "not_allowed_tier"
+                      ? "download_premium"
+                      : "download_free"
+                  }
+                  {...exportLimitInfo}
+                />
+              </div>
+            )}
+          </div>
         </div>
       </header>
 

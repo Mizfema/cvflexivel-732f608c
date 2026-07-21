@@ -93,6 +93,9 @@ const TEMPLATE_ACCENT: Record<TemplateId, string> = {
   retrato: "#7f1d1d",
   destaque: "#6b21a8",
   direto: "#b45309",
+  detalhado: "#1e3a5f",
+  institucional: "#24425f",
+  arco: "#24425f",
 };
 
 export function buildLandingSampleCv(templateId: TemplateId): CvDraft {

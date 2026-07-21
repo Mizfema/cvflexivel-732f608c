@@ -21,6 +21,10 @@ export type TemplateTheme = {
   headerStyle: HeaderStyle;
   accentColor: string;
   fontFamily: FontId;
+  layout: "single" | "sidebar";
+  accentSurface?: "sidebar" | "header" | "sidebar-block" | "sidebar-hero";
+  personalInfoTitle?: boolean;
+  isPremium: boolean;
 };
 
 const THEME_DEFAULTS: Record<TemplateId, { accentColor: string; fontFamily: FontId }> = {
@@ -34,12 +38,19 @@ const THEME_DEFAULTS: Record<TemplateId, { accentColor: string; fontFamily: Font
   retrato: { accentColor: "#7f1d1d", fontFamily: "ibm-plex-sans" },
   destaque: { accentColor: "#6b21a8", fontFamily: "inter" },
   direto: { accentColor: "#b45309", fontFamily: "ibm-plex-sans" },
+  detalhado: { accentColor: "#1e3a5f", fontFamily: "inter" },
+  institucional: { accentColor: "#24425f", fontFamily: "inter" },
+  arco: { accentColor: "#24425f", fontFamily: "inter" },
 };
 
 export const TEMPLATE_THEMES: TemplateTheme[] = TEMPLATES.map((t) => ({
   id: t.id,
   nome: t.nome,
   headerStyle: t.headerStyle,
+  layout: t.layout,
+  accentSurface: t.accentSurface,
+  personalInfoTitle: t.personalInfoTitle,
+  isPremium: t.isPremium,
   ...THEME_DEFAULTS[t.id],
 }));
 

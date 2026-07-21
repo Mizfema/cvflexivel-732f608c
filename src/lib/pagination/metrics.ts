@@ -13,7 +13,7 @@ export const PAGE_H = 1123;
 export const PAGE_GAP = 24;
 
 /** Largura da coluna lateral e do intervalo até à coluna principal. */
-export const SIDEBAR_W = 200;
+export const SIDEBAR_W = 232;
 export const SIDEBAR_GAP = 24;
 
 /** Espaço entre o título de secção e o seu 1.º item (equivale a `mt-2`). */

@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RichTextField } from "@/components/ui/RichTextField";
 import { PhotoField } from "@/components/PhotoField";
+import { OrganizarSeccoes } from "./OrganizarSeccoes";
 import { SECTION_ICONS, EXTRA_TYPE_ICONS } from "@/lib/section-icons";
 import { CONTACT_ICONS } from "@/lib/contact-items";
 import {
@@ -22,6 +23,7 @@ import type {
   CvIdioma,
   CvSecaoExtra,
 } from "@/lib/cv-types";
+import type { TemplateInfo } from "@/lib/cv-design-presets";
 
 const uid = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -41,11 +43,13 @@ const tiposExtra: Array<{ value: CvSecaoExtra["tipo"]; label: string }> = [
 
 export function EditorForm({
   draft,
+  template,
   update,
   userId,
   onGatedPhotoClick,
 }: {
   draft: CvDraft;
+  template: TemplateInfo;
   update: Updater;
   /** Sessão iniciada: necessário para upload de foto (Supabase Storage exige auth). */
   userId?: string;
@@ -71,6 +75,7 @@ export function EditorForm({
           cvHeadline={draft.sections.perfil.headline}
         />
       ))}
+      <OrganizarSeccoes draft={draft} template={template} update={update} />
       <AdicionarSecao update={update} />
     </div>
   );
@@ -220,6 +225,27 @@ function PerfilSection({
             value={p.cartaConducao ?? ""}
             onChange={(e) => set("cartaConducao", e.target.value)}
             placeholder="Categoria B"
+          />
+        </Field>
+        <Field label="Data de nascimento" icon={CONTACT_ICONS.dataNascimento}>
+          <Input
+            value={p.dataNascimento ?? ""}
+            onChange={(e) => set("dataNascimento", e.target.value)}
+            placeholder="8 de outubro de 1995"
+          />
+        </Field>
+        <Field label="Género" icon={CONTACT_ICONS.genero}>
+          <Input
+            value={p.genero ?? ""}
+            onChange={(e) => set("genero", e.target.value)}
+            placeholder="Masculino"
+          />
+        </Field>
+        <Field label="Estado civil" icon={CONTACT_ICONS.estadoCivil}>
+          <Input
+            value={p.estadoCivil ?? ""}
+            onChange={(e) => set("estadoCivil", e.target.value)}
+            placeholder="Solteiro(a)"
           />
         </Field>
         <Field label="LinkedIn" icon={CONTACT_ICONS.linkedin}>

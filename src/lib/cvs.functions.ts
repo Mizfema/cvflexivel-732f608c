@@ -8,6 +8,7 @@ const saveSchema = z.object({
   sections: z.any(),
   template: z.string().min(1).max(50),
   design: z.any(),
+  sectionLayout: z.any().optional().nullable(),
 });
 
 /**
@@ -24,6 +25,7 @@ export const saveCv = createServerFn({ method: "POST" })
       sections: data.sections,
       template: data.template,
       design: data.design,
+      section_layout: data.sectionLayout ?? null,
       updated_at: new Date().toISOString(),
     };
 
@@ -56,11 +58,16 @@ export const listCvs = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const { data, error } = await supabase
       .from("cvs")
-      .select("id, title, template, sections, design, updated_at, created_at")
+      .select("id, title, template, sections, design, section_layout, updated_at, created_at")
       .eq("user_id", userId)
       .order("updated_at", { ascending: false });
     if (error) throw new Error(error.message);
-    return { cvs: data ?? [] };
+    return {
+      cvs: (data ?? []).map(({ section_layout, ...row }) => ({
+        ...row,
+        sectionLayout: section_layout,
+      })),
+    };
   });
 
 /** Obtém um CV completo. */
@@ -71,12 +78,13 @@ export const getCv = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { data: row, error } = await supabase
       .from("cvs")
-      .select("id, title, template, sections, design, updated_at")
+      .select("id, title, template, sections, design, section_layout, updated_at")
       .eq("id", data.id)
       .eq("user_id", userId)
       .single();
     if (error) throw new Error(error.message);
-    return row;
+    const { section_layout, ...rest } = row;
+    return { ...rest, sectionLayout: section_layout };
   });
 
 /** Apaga um CV. */

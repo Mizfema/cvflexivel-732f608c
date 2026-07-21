@@ -42,7 +42,7 @@ export function CVDocument({
   pageLabel?: string | null;
   overflow?: boolean;
   /** Onde a cor de acento vira fundo sólido (ver TemplateInfo.accentSurface). */
-  accentSurface?: "sidebar" | "header";
+  accentSurface?: "sidebar" | "header" | "sidebar-block" | "sidebar-hero";
 }) {
   return (
     <div
@@ -69,15 +69,28 @@ export function CVDocument({
                     flexShrink: 0,
                     background: "var(--cv-accent)",
                     color: "#fff",
+                    WebkitPrintColorAdjust: "exact",
+                    printColorAdjust: "exact",
                     margin: `-${metrics.padY}px 0 -${metrics.padY}px -${metrics.padX}px`,
                     padding: `${metrics.padY}px 20px ${metrics.padY}px ${metrics.padX}px`,
                   }
-                : {
-                    width: SIDEBAR_W,
-                    flexShrink: 0,
-                    paddingRight: 20,
-                    borderRight: "1px solid var(--cv-rule)",
-                  }
+                : accentSurface === "sidebar-hero"
+                  ? {
+                      width: SIDEBAR_W,
+                      flexShrink: 0,
+                      background: "color-mix(in srgb, var(--cv-accent) 8%, #ffffff)",
+                      WebkitPrintColorAdjust: "exact",
+                      printColorAdjust: "exact",
+                      margin: `-${metrics.padY}px 0 -${metrics.padY}px -${metrics.padX}px`,
+                      padding: `${metrics.padY}px 20px ${metrics.padY}px ${metrics.padX}px`,
+                    }
+                  : {
+                      width: SIDEBAR_W,
+                      flexShrink: 0,
+                      paddingRight: 20,
+                      borderRight:
+                        accentSurface === "sidebar-block" ? "none" : "1px solid var(--cv-rule)",
+                    }
             }
           >
             {sidebar}

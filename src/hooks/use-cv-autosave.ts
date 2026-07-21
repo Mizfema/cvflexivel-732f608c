@@ -11,6 +11,7 @@ function draftSignature(draft: CvDraft) {
     sections: draft.sections,
     template: draft.template,
     design: draft.design,
+    sectionLayout: draft.sectionLayout,
   });
 }
 
@@ -66,6 +67,7 @@ export function useCvAutosave({
             sections: draft.sections,
             template: draft.template,
             design: draft.design,
+            sectionLayout: draft.sectionLayout,
           },
         });
         lastSaved.current = sig;

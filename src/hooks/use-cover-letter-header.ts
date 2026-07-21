@@ -5,8 +5,22 @@ import { getCv } from "@/lib/cvs.functions";
 import { buildContactItems, type ContactInput } from "@/lib/contact-items";
 import type { CartaHeaderInfo } from "@/components/carta/CartaDocument";
 
+/**
+ * `items` fica só com os contactos "base" (email/telefone/localização/…) —
+ * data de nascimento/género/estado civil ficam de fora dessa lista e são
+ * devolvidos à parte, porque só o template "Detalhado" os mostra (ver
+ * `CartaDocument`); incluí-los em `items` fá-los-ia aparecer em todos os
+ * templates sempre que preenchidos.
+ */
 function buildHeaderInfo(nome: string | null | undefined, contact: ContactInput): CartaHeaderInfo {
-  return { nome: nome?.trim() || "", items: buildContactItems(contact) };
+  const { dataNascimento, genero, estadoCivil, ...baseContact } = contact;
+  return {
+    nome: nome?.trim() || "",
+    items: buildContactItems(baseContact),
+    dataNascimento: dataNascimento ?? undefined,
+    genero: genero ?? undefined,
+    estadoCivil: estadoCivil ?? undefined,
+  };
 }
 
 /**
@@ -37,6 +51,9 @@ export function useCoverLetterHeader(cvId: string | null): CartaHeaderInfo {
               linkedin: p.linkedin,
               website: p.website,
               cartaConducao: p.cartaConducao,
+              dataNascimento: p.dataNascimento,
+              genero: p.genero,
+              estadoCivil: p.estadoCivil,
             }),
           );
           return;

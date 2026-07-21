@@ -13,9 +13,9 @@ import { useAuth } from "@/hooks/use-auth";
 import { useCvAutosave } from "@/hooks/use-cv-autosave";
 import { exportCvPdf } from "@/lib/cv-export";
 import { getCv } from "@/lib/cvs.functions";
-import { normalizeCvDesign } from "@/lib/cv-design-presets";
+import { getTemplate, normalizeCvDesign } from "@/lib/cv-design-presets";
 import { useServerFn } from "@tanstack/react-start";
-import type { CvSections, AlignmentChange } from "@/lib/cv-types";
+import type { CvSections, CvSectionLayout, AlignmentChange } from "@/lib/cv-types";
 
 const editorSearchSchema = z.object({
   modo: z.enum(["cv-vaga", "cv", "entrevista-vaga", "entrevista-zero"]).optional(),
@@ -63,6 +63,7 @@ function EditorPage() {
   const { modo, id, export: autoExport } = Route.useSearch();
   const navigate = useNavigate();
   const { draft, update, hydrated } = useDraftCv();
+  const template = getTemplate(draft.template);
   const { session } = useAuth();
   const fetchCv = useServerFn(getCv);
   const [tab, setTab] = useState<"editar" | "preview">("editar");
@@ -110,6 +111,7 @@ function EditorPage() {
           template: row.template,
           sections: row.sections as CvSections,
           design: normalizeCvDesign(row.design),
+          sectionLayout: row.sectionLayout as CvSectionLayout | null,
           updatedAt: row.updated_at,
         }));
       })
@@ -231,6 +233,7 @@ function EditorPage() {
           >
             <EditorForm
               draft={draft}
+              template={template}
               update={update}
               userId={session?.user.id}
               onGatedPhotoClick={() =>

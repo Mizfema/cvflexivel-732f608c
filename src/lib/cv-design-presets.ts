@@ -12,7 +12,10 @@ export type TemplateId =
   | "contraste"
   | "retrato"
   | "destaque"
-  | "direto";
+  | "direto"
+  | "detalhado"
+  | "institucional"
+  | "arco";
 
 export type TemplateInfo = {
   id: TemplateId;
@@ -21,11 +24,22 @@ export type TemplateInfo = {
   descricao: string;
   layout: "single" | "sidebar";
   headerStyle: "underline" | "accent" | "minimal" | "banner";
-  /** Onde a cor de acento vira fundo sólido (em vez de só texto/borda). */
-  accentSurface?: "sidebar" | "header";
+  /**
+   * Onde a cor de acento vira fundo sólido (em vez de só texto/borda).
+   * "sidebar-block" difere de "sidebar": só a foto + informações pessoais
+   * ficam num bloco de cor sólida com bleed até à borda da página — o resto
+   * da sidebar (competências, secções extra) fica no fundo branco normal.
+   */
+  accentSurface?: "sidebar" | "header" | "sidebar-block" | "sidebar-hero";
   /** Tamanho (px) do círculo de foto na sidebar; substitui PHOTO_SIZE_SIDEBAR_PX. */
   photoSizeSidebar?: number;
+  /** Envolve o bloco de contactos da sidebar num título "Informações pessoais". */
+  personalInfoTitle?: boolean;
+  /** Renderiza as secções extra (ex. Cursos) na sidebar em vez da coluna principal. */
+  sidebarExtras?: boolean;
   isPremium: boolean;
+  /** Nome vai para o topo da sidebar (suprime cabeçalho principal). */
+  nameInSidebar?: boolean;
 };
 
 export const TEMPLATES: TemplateInfo[] = [
@@ -121,6 +135,48 @@ export const TEMPLATES: TemplateInfo[] = [
     layout: "single",
     headerStyle: "accent",
     isPremium: true,
+  },
+  {
+    id: "detalhado",
+    nome: "Detalhado",
+    tipo: "visual",
+    descricao:
+      "Sidebar em bloco de cor sólida com foto e dados pessoais completos. Ideal para vagas que pedem informação detalhada.",
+    layout: "sidebar",
+    headerStyle: "minimal",
+    accentSurface: "sidebar-block",
+    photoSizeSidebar: 110,
+    personalInfoTitle: true,
+    sidebarExtras: true,
+    isPremium: true,
+  },
+  {
+    id: "institucional",
+    nome: "Institucional",
+    tipo: "visual",
+    descricao: "Barra lateral navy com nome em destaque, foto e informação pessoal.",
+    layout: "sidebar",
+    headerStyle: "banner",
+    accentSurface: "sidebar",
+    photoSizeSidebar: 112,
+    personalInfoTitle: true,
+    sidebarExtras: true,
+    isPremium: true,
+    nameInSidebar: true,
+  },
+  {
+    id: "arco",
+    nome: "Arco",
+    tipo: "visual",
+    descricao: "Cabeçalho navy arredondado com foto sobreposta e barra lateral azul suave.",
+    layout: "sidebar",
+    headerStyle: "banner",
+    accentSurface: "sidebar-hero",
+    photoSizeSidebar: 112,
+    personalInfoTitle: true,
+    sidebarExtras: true,
+    isPremium: true,
+    nameInSidebar: true,
   },
 ];
 

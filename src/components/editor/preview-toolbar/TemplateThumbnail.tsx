@@ -84,7 +84,10 @@ export function TemplateThumbnail({
                         width: SIDEBAR_W,
                         flexShrink: 0,
                         paddingRight: 20,
-                        borderRight: "1px solid var(--cv-rule)",
+                        borderRight:
+                          template.accentSurface === "sidebar-block"
+                            ? "none"
+                            : "1px solid var(--cv-rule)",
                       }
                 }
               >
