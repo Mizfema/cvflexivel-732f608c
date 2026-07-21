@@ -36,7 +36,7 @@ export function CvThumbnail({ draft }: { draft: CvDraft }) {
     color: "var(--cv-text)",
   };
 
-  const { mainBlocks, sidebar } = useCvBlocks(draft, template, metrics);
+  const { mainBlocks, sidebarHeader, sidebarBlocks } = useCvBlocks(draft, template, metrics);
 
   return (
     <div
@@ -59,7 +59,8 @@ export function CvThumbnail({ draft }: { draft: CvDraft }) {
       >
         <CVDocument
           blocks={mainBlocks}
-          sidebar={sidebar}
+          sidebarHeader={sidebarHeader}
+          sidebarContent={sidebarBlocks}
           isSidebar={isSidebar}
           metrics={metrics}
           cvStyle={cvStyle}

@@ -10,7 +10,7 @@ import {
   useState,
 } from "react";
 import type { CvBlock } from "./types";
-import { paginate } from "./paginate";
+import { paginate, paginateTwoColumns } from "./paginate";
 
 // useLayoutEffect no servidor emite warning; no SSR degradamos para useEffect.
 const useIsoLayoutEffect =
@@ -18,12 +18,30 @@ const useIsoLayoutEffect =
 
 export function usePagination(
   blocks: CvBlock[],
-  opts: { contentWidth: number; contentHeight: number; signature: string },
+  opts: {
+    contentWidth: number;
+    contentHeight: number;
+    signature: string;
+    sidebarBlocks?: CvBlock[];
+    sidebarContentHeight?: number;
+    firstPageSidebarContentHeight?: number;
+  },
 ) {
-  const { contentWidth, contentHeight, signature } = opts;
+  const {
+    contentWidth,
+    contentHeight,
+    signature,
+    sidebarBlocks,
+    sidebarContentHeight,
+    firstPageSidebarContentHeight,
+  } = opts;
   const measureRef = useRef<HTMLDivElement>(null);
   const [pages, setPages] = useState<CvBlock[][] | null>(null);
   const [overflowIds, setOverflowIds] = useState<Set<string>>(new Set());
+  const [twoColumnPages, setTwoColumnPages] = useState<Array<{
+    main: CvBlock[];
+    sidebar: CvBlock[];
+  }> | null>(null);
 
   const recompute = useCallback(() => {
     const container = measureRef.current;
@@ -35,10 +53,47 @@ export function usePagination(
         const id = n.dataset.blockId;
         if (id) heights.set(id, n.offsetHeight);
       });
-    const result = paginate(blocks, heights, contentHeight);
-    setPages(result.pages);
-    setOverflowIds(result.overflowIds);
-  }, [blocks, contentHeight]);
+
+    if (sidebarBlocks && sidebarBlocks.length > 0) {
+      // Cabeçalho fixo da sidebar (foto + nome + Informações pessoais, ver
+      // useCvBlocks/CvPagedPreview): quando presente no mesmo container de
+      // medição (atributo data-sidebar-header-id), a página 1 tem menos
+      // altura útil disponível para os blocos pagináveis de ambas as
+      // colunas, porque o cabeçalho ocupa esse espaço no desenho real.
+      // Resolvido aqui (em vez de exigir que o chamador pré-calcule e passe
+      // as alturas da página 1) para evitar duplicar a medição.
+      const headerEl = container.querySelector<HTMLElement>(
+        "[data-sidebar-header-id]",
+      );
+      const sidebarHeaderHeight = headerEl?.offsetHeight ?? 0;
+      const effectiveSidebarContentHeight = sidebarContentHeight ?? contentHeight;
+
+      const result = paginateTwoColumns(
+        blocks,
+        sidebarBlocks,
+        heights,
+        contentHeight,
+        effectiveSidebarContentHeight,
+        (firstPageSidebarContentHeight ?? effectiveSidebarContentHeight) -
+          sidebarHeaderHeight,
+        contentHeight - sidebarHeaderHeight,
+      );
+      setTwoColumnPages(result.pages);
+      setPages(result.pages.map((p) => p.main));
+      setOverflowIds(result.overflowIds);
+    } else {
+      const result = paginate(blocks, heights, contentHeight);
+      setPages(result.pages);
+      setOverflowIds(result.overflowIds);
+      setTwoColumnPages(null);
+    }
+  }, [
+    blocks,
+    contentHeight,
+    sidebarBlocks,
+    sidebarContentHeight,
+    firstPageSidebarContentHeight,
+  ]);
 
   // Recalcula quando conteúdo, largura útil ou densidade mudam.
   useIsoLayoutEffect(() => {
@@ -57,7 +112,7 @@ export function usePagination(
     };
     const ro = new ResizeObserver(schedule);
     container
-      .querySelectorAll<HTMLElement>("[data-block-id]")
+      .querySelectorAll<HTMLElement>("[data-block-id], [data-sidebar-header-id]")
       .forEach((n) => ro.observe(n));
     // Fonts carregam depois do 1.º paint → altura muda.
     if (typeof document !== "undefined" && "fonts" in document) {
@@ -69,5 +124,5 @@ export function usePagination(
     };
   }, [recompute, signature]);
 
-  return { pages, overflowIds, measureRef };
+  return { pages, overflowIds, measureRef, twoColumnPages };
 }

@@ -26,11 +26,19 @@ import {
   type PageMetrics,
 } from "./metrics";
 
-function RichText({ html, className }: { html: string; className?: string }) {
+function RichText({
+  html,
+  className,
+  color = "var(--cv-text)",
+}: {
+  html: string;
+  className?: string;
+  color?: string;
+}) {
   return (
     <div
       className={className ? `prose-cv ${className}` : "prose-cv"}
-      style={{ color: "var(--cv-text)" }}
+      style={{ color }}
       dangerouslySetInnerHTML={{ __html: toSafeHtml(html) }}
     />
   );
@@ -46,7 +54,14 @@ function fmtPeriodo(inicio?: string, fim?: string) {
 
 export type CvBlocks = {
   mainBlocks: CvBlock[];
-  /** Conteúdo da coluna lateral (só renderizado na página 1); null se single. */
+  /** Cabeçalho fixo da sidebar (foto + nome + Informações pessoais) —
+   *  aparece só na página 1; null se o template não tem sidebar. */
+  sidebarHeader: ReactNode | null;
+  /** Secções da sidebar, prontas a paginar; vazio se não tem sidebar. */
+  sidebarBlocks: CvBlock[];
+  /** Sidebar completa (cabeçalho + conteúdo) num único nó — compat.
+   *  Continua a ser o que o CvPagedPreview usa hoje. Null se não tem
+   *  sidebar. */
   sidebar: ReactNode | null;
 };
 
@@ -407,6 +422,8 @@ export function useCvBlocks(
 
     // ── Sidebar (contactos + secções colocadas na sidebar), só página 1 ──
     let sidebar: ReactNode | null = null;
+    let sidebarHeader: ReactNode | null = null;
+    let sidebarBlocks: CvBlock[] = [];
     if (isSidebar) {
       // Renderiza UMA secção na coluna SIDEBAR, dado o seu key de layout.
       // Regra de produto: descrições completas (texto rico), tipografia menor
@@ -424,7 +441,11 @@ export function useCvBlocks(
             <div key={key}>
               <SectionTitle titulo="Perfil" icon={SECTION_ICONS.perfil} light={light} />
               <div className="mt-2">
-                <RichText html={perfil.resumo} className="text-[11px] leading-snug" />
+                <RichText
+                  html={perfil.resumo}
+                  className="text-[11px] leading-snug"
+                  color={itemColor}
+                />
               </div>
             </div>
           );
@@ -454,7 +475,11 @@ export function useCvBlocks(
                       {e.local ? ` · ${e.local}` : ""}
                     </p>
                     {e.descricao && (
-                      <RichText html={e.descricao} className="mt-1 text-[10px] leading-snug" />
+                      <RichText
+                        html={e.descricao}
+                        className="mt-1 text-[10px] leading-snug"
+                        color={itemColor}
+                      />
                     )}
                   </div>
                 ))}
@@ -482,7 +507,11 @@ export function useCvBlocks(
                       {fmtPeriodo(f.inicio, f.fim)}
                     </p>
                     {f.descricao && (
-                      <RichText html={f.descricao} className="mt-1 text-[10px] leading-snug" />
+                      <RichText
+                        html={f.descricao}
+                        className="mt-1 text-[10px] leading-snug"
+                        color={itemColor}
+                      />
                     )}
                   </div>
                 ))}
@@ -537,7 +566,11 @@ export function useCvBlocks(
                       </p>
                     )}
                     {it.descricao && (
-                      <RichText html={it.descricao} className="text-[10px] leading-snug" />
+                      <RichText
+                        html={it.descricao}
+                        className="text-[10px] leading-snug"
+                        color={itemColor}
+                      />
                     )}
                   </div>
                 ))}
@@ -550,6 +583,27 @@ export function useCvBlocks(
 
       const renderSidebarEntries = (light: boolean, itemColor: string, mutedItemColor: string) =>
         sidebarKeys.map((key) => renderSidebarSection(key, light, itemColor, mutedItemColor));
+
+      // Mesmos keys de renderSidebarEntries, mas cada secção embrulhada num
+      // CvBlock pronto a paginar (Fase P2). Secções vazias (node null) ficam
+      // de fora.
+      const buildSidebarBlocks = (
+        light: boolean,
+        itemColor: string,
+        mutedItemColor: string,
+      ): CvBlock[] =>
+        sidebarKeys.reduce<CvBlock[]>((acc, key) => {
+          const node = renderSidebarSection(key, light, itemColor, mutedItemColor);
+          if (node === null) return acc;
+          acc.push({
+            id: `sidebar-${key}`,
+            kind: "sidebar-item",
+            sectionId: key,
+            marginBefore: sectionGap,
+            node,
+          });
+          return acc;
+        }, []);
 
       if (nameInSidebar) {
         const light = isColorSidebar; // institucional=true (aside navy) / arco=false (texto escuro sobre translúcido)
@@ -661,22 +715,22 @@ export function useCvBlocks(
           estadoCivil: perfil.estadoCivil,
         });
 
-        const infoAndSections = (
-          <>
-            <div>
-              <SectionTitle titulo="Informações pessoais" icon={SECTION_ICONS.perfil} light={light} />
-              <div className="mt-2">
-                <ContactList items={personalInfoItems} light={light} stacked />
-              </div>
+        const informacoesPessoais = (
+          <div>
+            <SectionTitle titulo="Informações pessoais" icon={SECTION_ICONS.perfil} light={light} />
+            <div className="mt-2">
+              <ContactList items={personalInfoItems} light={light} stacked />
             </div>
-            {renderSidebarEntries(light, itemColor, mutedItemColor)}
-          </>
+          </div>
         );
+
+        const sectionsNode = renderSidebarEntries(light, itemColor, mutedItemColor);
+        sidebarBlocks = buildSidebarBlocks(light, itemColor, mutedItemColor);
 
         if (isHeroSidebar) {
           // ── Template "Arco": hero navy arredondado + foto sobreposta + fundo translúcido ──
-          sidebar = (
-            <div className="space-y-4">
+          const headerNode = (
+            <>
               <div
                 style={{
                   background: "var(--cv-accent)",
@@ -694,16 +748,30 @@ export function useCvBlocks(
                 {nameBox}
               </div>
               {photoNode}
-              {infoAndSections}
+              {informacoesPessoais}
+            </>
+          );
+          sidebarHeader = headerNode;
+          sidebar = (
+            <div className="space-y-4">
+              {headerNode}
+              {sectionsNode}
             </div>
           );
         } else {
           // ── Template "Institucional": aside já é navy (accentSurface "sidebar") ──
-          sidebar = (
-            <div className="space-y-4" style={{ color: "#fff" }}>
+          const headerNode = (
+            <>
               {nameBox}
               {photoNode}
-              {infoAndSections}
+              {informacoesPessoais}
+            </>
+          );
+          sidebarHeader = headerNode;
+          sidebar = (
+            <div className="space-y-4" style={{ color: "#fff" }}>
+              {headerNode}
+              {sectionsNode}
             </div>
           );
         }
@@ -763,28 +831,33 @@ export function useCvBlocks(
           </div>
         );
 
+        const headerNode = isBlockSidebar ? (
+          <div
+            style={{
+              background: "var(--cv-accent)",
+              color: "#fff",
+              margin: `-${padY}px -20px 0 -${padX}px`,
+              padding: `${padY}px 20px 20px ${padX}px`,
+            }}
+          >
+            {photoAndPersonalInfo}
+          </div>
+        ) : (
+          photoAndPersonalInfo
+        );
+        const sectionsNode = renderSidebarEntries(isColorSidebar, itemColor, mutedItemColor);
+        sidebarBlocks = buildSidebarBlocks(isColorSidebar, itemColor, mutedItemColor);
+
+        sidebarHeader = headerNode;
         sidebar = (
           <div className="space-y-4" style={isColorSidebar ? { color: "#fff" } : undefined}>
-            {isBlockSidebar ? (
-              <div
-                style={{
-                  background: "var(--cv-accent)",
-                  color: "#fff",
-                  margin: `-${padY}px -20px 0 -${padX}px`,
-                  padding: `${padY}px 20px 20px ${padX}px`,
-                }}
-              >
-                {photoAndPersonalInfo}
-              </div>
-            ) : (
-              photoAndPersonalInfo
-            )}
-            {renderSidebarEntries(isColorSidebar, itemColor, mutedItemColor)}
+            {headerNode}
+            {sectionsNode}
           </div>
         );
       }
     }
 
-    return { mainBlocks: blocks, sidebar };
+    return { mainBlocks: blocks, sidebarHeader, sidebarBlocks, sidebar };
   }, [draft.sections, draft.sectionLayout, template, sectionGap, itemGap, isSidebar, padX, padY]);
 }

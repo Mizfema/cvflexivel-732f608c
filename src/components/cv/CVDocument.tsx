@@ -24,7 +24,8 @@ function BlockList({ blocks }: { blocks: CvBlock[] }) {
 
 export function CVDocument({
   blocks,
-  sidebar,
+  sidebarHeader,
+  sidebarContent,
   isSidebar,
   metrics,
   cvStyle,
@@ -33,8 +34,12 @@ export function CVDocument({
   accentSurface,
 }: {
   blocks: CvBlock[];
-  /** Conteúdo da coluna lateral para ESTA página; null esconde a aside. */
-  sidebar: ReactNode | null;
+  /** Cabeçalho fixo da sidebar (foto + nome + Informações pessoais) — só
+   *  desenhado quando presente, normalmente só na página 1. */
+  sidebarHeader: ReactNode | null;
+  /** Blocos pagináveis da sidebar para ESTA página; null/vazio quando não há
+   *  conteúdo paginável nesta página. */
+  sidebarContent: CvBlock[] | null;
   isSidebar: boolean;
   metrics: PageMetrics;
   cvStyle: CSSProperties;
@@ -93,7 +98,12 @@ export function CVDocument({
                     }
             }
           >
-            {sidebar}
+            {sidebarHeader}
+            {sidebarContent && sidebarContent.length > 0 && (
+              <div style={{ marginTop: sidebarHeader ? metrics.sectionGap : 0 }}>
+                <BlockList blocks={sidebarContent} />
+              </div>
+            )}
           </aside>
           <div style={{ flex: 1, minWidth: 0 }}>
             <BlockList blocks={blocks} />

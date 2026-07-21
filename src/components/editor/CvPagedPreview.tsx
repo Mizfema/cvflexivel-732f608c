@@ -11,7 +11,8 @@ import { designToCssVars, getTemplate, type FontId } from "@/lib/cv-design-prese
 import { ensureGoogleFont } from "@/lib/google-fonts";
 import { useCvBlocks } from "@/lib/pagination/useCvBlocks";
 import { usePagination } from "@/lib/pagination/usePagination";
-import { PAGE_GAP, PAGE_H, PAGE_W, pageMetrics } from "@/lib/pagination/metrics";
+import type { CvBlock } from "@/lib/pagination/types";
+import { PAGE_GAP, PAGE_H, PAGE_W, SIDEBAR_W, pageMetrics } from "@/lib/pagination/metrics";
 import { CVDocument } from "@/components/cv/CVDocument";
 
 const PAGE_SHADOW = "0 1px 2px rgba(15,23,42,0.06), 0 10px 30px rgba(15,23,42,0.10)";
@@ -57,7 +58,20 @@ export function CvPagedPreview({
     color: "var(--cv-text)",
   };
 
-  const { mainBlocks, sidebar } = useCvBlocks(draft, template, metrics);
+  const { mainBlocks, sidebarHeader, sidebarBlocks, sidebar } = useCvBlocks(
+    draft,
+    template,
+    metrics,
+  );
+
+  // Decisão de produto (Fase P4): por agora, só os templates com o nome na
+  // sidebar (nameInSidebar) usam a paginação de duas colunas — é o único
+  // caso onde o cabeçalho fixo da sidebar é mais alto do que o topo da
+  // coluna principal, exigindo o realinhamento. Os restantes templates de
+  // sidebar (accentSurface "sidebar"/"sidebar-block" sem nameInSidebar)
+  // continuam a usar o `sidebar` (compat) tal como hoje — só a página 1 o
+  // mostra, sem paginação — para não lhes alterar o comportamento nesta fase.
+  const useTwoColumn = isSidebar && !!template.nameInSidebar;
 
   const signature = useMemo(
     () =>
@@ -69,11 +83,23 @@ export function CvPagedPreview({
     [draft.sections, draft.design, draft.template],
   );
 
-  const { pages, overflowIds, measureRef } = usePagination(mainBlocks, {
+  const { pages, overflowIds, measureRef, twoColumnPages } = usePagination(mainBlocks, {
     contentWidth: metrics.mainWidth,
     contentHeight: metrics.contentHeight,
     signature,
+    sidebarBlocks: useTwoColumn ? sidebarBlocks : undefined,
+    sidebarContentHeight: metrics.contentHeight,
   });
+
+  // Normaliza os dois casos (coluna dupla vs. coluna única) numa única forma
+  // de iterar no render: cada página tem sempre `main` + `sidebarContent`
+  // (null quando não há paginação de sidebar nesta página/template).
+  const renderPages: Array<{ main: CvBlock[]; sidebarContent: CvBlock[] | null }> | null =
+    useTwoColumn && twoColumnPages
+      ? twoColumnPages.map((p) => ({ main: p.main, sidebarContent: p.sidebar }))
+      : pages
+        ? pages.map((blocks) => ({ main: blocks, sidebarContent: null }))
+        : null;
 
   // Escala para caber na largura do painel (nunca amplia acima da escala 1).
   const panelRef = useRef<HTMLDivElement>(null);
@@ -129,22 +155,43 @@ export function CvPagedPreview({
           position: "fixed",
           top: 0,
           left: 0,
-          width: metrics.mainWidth,
           visibility: "hidden",
           pointerEvents: "none",
           zIndex: -1,
         }}
       >
-        {mainBlocks.map((b) => (
-          <div key={b.id} data-block-id={b.id}>
-            {b.node}
+        <div style={{ width: metrics.mainWidth }}>
+          {mainBlocks.map((b) => (
+            <div key={b.id} data-block-id={b.id}>
+              {b.node}
+            </div>
+          ))}
+        </div>
+        {useTwoColumn && (
+          // Largura REAL do conteúdo dentro da <aside> — não SIDEBAR_W inteiro.
+          // A <aside> (CVDocument.tsx, accentSurface "sidebar"/"sidebar-hero",
+          // as únicas usadas pelos templates nameInSidebar) tem padding próprio
+          // de 20px à direita e metrics.padX à esquerda; medir a SIDEBAR_W
+          // cheio faz o texto quebrar em menos linhas do que no render real,
+          // subestimando a altura e deixando conteúdo real ultrapassar a
+          // página (cortado pelo overflow:hidden). Mantém isto sincronizado
+          // com o padding da aside em CVDocument.tsx.
+          <div style={{ width: SIDEBAR_W - 20 - metrics.padX }}>
+            {sidebarHeader && (
+              <div data-sidebar-header-id="sidebar-header">{sidebarHeader}</div>
+            )}
+            {sidebarBlocks.map((b) => (
+              <div key={b.id} data-block-id={b.id}>
+                {b.node}
+              </div>
+            ))}
           </div>
-        ))}
+        )}
       </div>
 
       {/* Área escalada: altura conhecida (N folhas A4 + intervalos) × escala. */}
       <div style={{ height: innerHeight * scale }}>
-        {pages ? (
+        {renderPages ? (
           <div
             style={{
               width: PAGE_W,
@@ -152,16 +199,23 @@ export function CvPagedPreview({
               transform: `scale(${scale})`,
             }}
           >
-            {pages.map((blocks, i) => (
-              <div key={i} style={{ marginBottom: i < pages.length - 1 ? PAGE_GAP : 0 }}>
+            {renderPages.map((page, i) => (
+              <div
+                key={i}
+                style={{ marginBottom: i < renderPages.length - 1 ? PAGE_GAP : 0 }}
+              >
                 <CVDocument
-                  blocks={blocks}
-                  sidebar={i === 0 ? sidebar : null}
+                  blocks={page.main}
+                  sidebarHeader={i === 0 ? (useTwoColumn ? sidebarHeader : sidebar) : null}
+                  sidebarContent={page.sidebarContent}
                   isSidebar={isSidebar}
                   metrics={metrics}
                   cvStyle={cvStyle}
-                  pageLabel={`${i + 1} / ${pages.length}`}
-                  overflow={blocks.some((b) => overflowIds.has(b.id))}
+                  pageLabel={`${i + 1} / ${renderPages.length}`}
+                  overflow={
+                    page.main.some((b) => overflowIds.has(b.id)) ||
+                    (page.sidebarContent?.some((b) => overflowIds.has(b.id)) ?? false)
+                  }
                   accentSurface={template.accentSurface}
                 />
               </div>
@@ -174,19 +228,26 @@ export function CvPagedPreview({
 
       {printable &&
         isPrinting &&
-        pages &&
+        renderPages &&
         createPortal(
           <div id="cv-print-root">
-            {pages.map((blocks, i) => (
-              <div key={i} style={{ marginBottom: i < pages.length - 1 ? PAGE_GAP : 0 }}>
+            {renderPages.map((page, i) => (
+              <div
+                key={i}
+                style={{ marginBottom: i < renderPages.length - 1 ? PAGE_GAP : 0 }}
+              >
                 <CVDocument
-                  blocks={blocks}
-                  sidebar={i === 0 ? sidebar : null}
+                  blocks={page.main}
+                  sidebarHeader={i === 0 ? (useTwoColumn ? sidebarHeader : sidebar) : null}
+                  sidebarContent={page.sidebarContent}
                   isSidebar={isSidebar}
                   metrics={metrics}
                   cvStyle={cvStyle}
-                  pageLabel={`${i + 1} / ${pages.length}`}
-                  overflow={blocks.some((b) => overflowIds.has(b.id))}
+                  pageLabel={`${i + 1} / ${renderPages.length}`}
+                  overflow={
+                    page.main.some((b) => overflowIds.has(b.id)) ||
+                    (page.sidebarContent?.some((b) => overflowIds.has(b.id)) ?? false)
+                  }
                   accentSurface={template.accentSurface}
                 />
               </div>
