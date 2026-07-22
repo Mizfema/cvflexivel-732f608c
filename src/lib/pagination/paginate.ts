@@ -83,11 +83,15 @@ export function paginate(
   return { pages, overflowIds };
 }
 
-// Pagina duas colunas (principal + sidebar) em paralelo, sincronizando as
-// quebras de página: cada página termina assim que UMA das colunas não
-// consegue encaixar mais um bloco, avançando ambos os cursores em conjunto.
-// A coluna que ainda tiver espaço fica com espaço em branco por baixo — é o
-// comportamento correcto (não redistribui blocos entre colunas).
+// Pagina duas colunas (principal + sidebar) de forma INDEPENDENTE: cada
+// página pede a cada coluna que preencha o seu próprio orçamento de altura
+// (fillColumn), sem que uma limite a outra. A coluna que esgotar o conteúdo
+// primeiro fica simplesmente vazia nas páginas seguintes — espaço em branco
+// por baixo é o comportamento correcto (não redistribui blocos entre
+// colunas). A única sincronização entre colunas é a quebra de página manual
+// (Fase F, `pageBreakBefore`): quando uma coluna pára por causa dela, a
+// outra é recalculada para também não começar nenhuma secção nova nessa
+// página (ver `syncBreak`/`forcedBreak` abaixo).
 export function paginateTwoColumns(
   mainBlocks: CvBlock[],
   sidebarBlocks: CvBlock[],

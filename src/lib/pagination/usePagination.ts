@@ -61,10 +61,13 @@ export function usePagination(
       // Cabeçalho fixo da sidebar (foto + nome + Informações pessoais, ver
       // useCvBlocks/CvPagedPreview): quando presente no mesmo container de
       // medição (atributo data-sidebar-header-id), a página 1 tem menos
-      // altura útil disponível para os blocos pagináveis de ambas as
-      // colunas, porque o cabeçalho ocupa esse espaço no desenho real.
-      // Resolvido aqui (em vez de exigir que o chamador pré-calcule e passe
-      // as alturas da página 1) para evitar duplicar a medição.
+      // altura útil disponível para os blocos pagináveis da SIDEBAR, porque
+      // o cabeçalho ocupa esse espaço dentro do próprio <aside> (ver
+      // CVDocument.tsx). A coluna principal é uma irmã de flexbox do
+      // <aside> e começa sempre no topo da página — não perde altura por
+      // causa do cabeçalho da sidebar. Resolvido aqui (em vez de exigir que
+      // o chamador pré-calcule e passe as alturas da página 1) para evitar
+      // duplicar a medição.
       const headerEl = container.querySelector<HTMLElement>(
         "[data-sidebar-header-id]",
       );
@@ -79,7 +82,7 @@ export function usePagination(
         effectiveSidebarContentHeight,
         (firstPageSidebarContentHeight ?? effectiveSidebarContentHeight) -
           sidebarHeaderHeight,
-        contentHeight - sidebarHeaderHeight,
+        contentHeight,
         pageBreakBefore,
       );
       setTwoColumnPages(result.pages);

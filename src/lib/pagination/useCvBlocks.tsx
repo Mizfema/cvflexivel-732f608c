@@ -646,7 +646,6 @@ export function useCvBlocks(
           <div>
             <div
               style={{
-                border: "1.5px solid rgba(255,255,255,0.5)",
                 padding: "10px 8px",
                 textAlign: "center",
               }}
