@@ -134,9 +134,9 @@ export function useCvBlocks(
           {items.map((it) => {
             const Icon = it.icon;
             return (
-              <span key={it.field} className="inline-flex items-center gap-1">
+              <span key={it.field} className="inline-flex min-w-0 items-start gap-1">
                 <Icon
-                  className="shrink-0"
+                  className="mt-[0.15em] shrink-0"
                   strokeWidth={2.5}
                   style={{
                     width: "1.25em",
@@ -144,7 +144,7 @@ export function useCvBlocks(
                     color: light ? "rgba(255,255,255,0.85)" : "var(--cv-accent-soft)",
                   }}
                 />
-                {it.text}
+                <span className="min-w-0 [overflow-wrap:anywhere]">{it.text}</span>
               </span>
             );
           })}
