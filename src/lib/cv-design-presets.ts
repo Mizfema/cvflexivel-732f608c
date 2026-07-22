@@ -1,6 +1,6 @@
 // Presets visuais do CV. Aplicados via CSS variables na preview.
 
-import type { CvDesign, CvSpacing, SpacingSize } from "./cv-types";
+import type { CvDesign, CvFontSize, CvSpacing, SpacingSize } from "./cv-types";
 
 export type TemplateId =
   | "classico"
@@ -268,6 +268,17 @@ export const PAGE_MARGIN_PX: Record<SpacingSize, number> = {
   L: 64,
 };
 
+export const DEFAULT_FONT_SIZE: CvFontSize = "M";
+
+/** M mantém exactamente o tamanho actual (13px) — nenhum CV existente muda. */
+export const FONT_SIZE_PX: Record<CvFontSize, number> = {
+  XS: 11,
+  S: 12,
+  M: 13,
+  L: 14,
+  XL: 15,
+};
+
 /** Tons neutros fixos — já não variam por preset, só a cor de acento é livre. */
 const TEXT_COLOR = "#1a1a17";
 const MUTED_COLOR = "#6b675f";
@@ -286,7 +297,7 @@ export function designToCssVars(design: CvDesign): Record<string, string> {
     "--cv-line-height": String(design.spacing.lineHeight),
     "--cv-item-gap": `${ITEM_GAP_PX[design.spacing.itemGap]}px`,
     "--cv-section-gap": `${SECTION_GAP_PX[design.spacing.sectionGap]}px`,
-    "--cv-base-size": "13px",
+    "--cv-base-size": `${FONT_SIZE_PX[design.fontSize] ?? FONT_SIZE_PX[DEFAULT_FONT_SIZE]}px`,
   };
 }
 
@@ -330,6 +341,10 @@ function isSpacingSize(v: unknown): v is SpacingSize {
   return v === "S" || v === "M" || v === "L";
 }
 
+function isFontSize(v: unknown): v is CvFontSize {
+  return v === "XS" || v === "S" || v === "M" || v === "L" || v === "XL";
+}
+
 function normalizeSpacing(raw: unknown): CvSpacing {
   if (!raw || typeof raw !== "object") return DEFAULT_SPACING;
   const r = raw as Record<string, unknown>;
@@ -356,6 +371,7 @@ export function normalizeCvDesign(raw: unknown): CvDesign {
       fontFamily: DEFAULT_FONT_ID,
       accentColor: LEGACY_PALETA_ACCENT.marinho,
       spacing: DEFAULT_SPACING,
+      fontSize: DEFAULT_FONT_SIZE,
     };
   }
 
@@ -372,6 +388,7 @@ export function normalizeCvDesign(raw: unknown): CvDesign {
       fontFamily: fonte ?? DEFAULT_FONT_ID,
       accentColor: paletaAccent ?? LEGACY_PALETA_ACCENT.marinho,
       spacing: densidadeSpacing ?? DEFAULT_SPACING,
+      fontSize: DEFAULT_FONT_SIZE,
     };
   }
 
@@ -388,5 +405,6 @@ export function normalizeCvDesign(raw: unknown): CvDesign {
     fontFamily,
     accentColor,
     spacing: normalizeSpacing(r.spacing),
+    fontSize: isFontSize(r.fontSize) ? r.fontSize : DEFAULT_FONT_SIZE,
   };
 }

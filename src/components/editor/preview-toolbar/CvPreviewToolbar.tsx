@@ -1,8 +1,9 @@
 import { Maximize2, Minimize2 } from "lucide-react";
-import type { CvDraft, CvSpacing } from "@/lib/cv-types";
+import type { CvDraft, CvFontSize, CvSpacing } from "@/lib/cv-types";
 import type { FontId } from "@/lib/cv-design-presets";
 import { TemplatePickerButton } from "./TemplatePickerButton";
 import { FontDropdown } from "./FontDropdown";
+import { FontSizePopover } from "./FontSizePopover";
 import { SpacingPopover } from "./SpacingPopover";
 import { AccentColorPopover } from "./AccentColorPopover";
 import { toolbarButtonClass } from "./styles";
@@ -37,6 +38,12 @@ export function CvPreviewToolbar({
         fontId={draft.design.fontFamily}
         onChange={(fontFamily: FontId) =>
           update((p) => ({ ...p, design: { ...p.design, fontFamily } }))
+        }
+      />
+      <FontSizePopover
+        fontSize={draft.design.fontSize}
+        onChange={(fontSize: CvFontSize) =>
+          update((p) => ({ ...p, design: { ...p.design, fontSize } }))
         }
       />
       <SpacingPopover spacing={draft.design.spacing} onChange={setSpacing} />

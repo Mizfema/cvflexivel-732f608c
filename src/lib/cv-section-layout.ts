@@ -33,6 +33,22 @@ export function extraIdFromKey(key: string): string {
 export type ResolvedLayout = {
   order: string[];
   placement: Record<string, SectionZone>;
+  /** Títulos personalizados por secção (E3). */
+  titles?: Record<string, string>;
+  /** Chaves de secções ocultadas (E4) — dados preservados, só não renderizam. */
+  hidden?: string[];
+  /** Chaves de secções com quebra de página manual (Fase F). */
+  pageBreakBefore?: string[];
+};
+
+/** Títulos por omissão — os mesmos textos que useCvBlocks.tsx já usava fixos
+ * em cada <SectionTitle>, antes de existir personalização (E3). */
+const DEFAULT_SECTION_TITLES: Record<string, string> = {
+  perfil: "Perfil",
+  experiencia: "Experiência profissional",
+  formacao: "Formação",
+  competencias: "Competências",
+  idiomas: "Idiomas",
 };
 
 /**
@@ -98,12 +114,57 @@ export function resolveSectionLayout(draft: CvDraft, template: TemplateInfo): Re
     placement = collapsed;
   }
 
-  return { order, placement };
+  // titles/hidden (E3/E4): preservados do que está guardado, filtrados às
+  // chaves ainda válidas — evita lixo de uma extra entretanto apagada.
+  const titles = saved?.titles
+    ? Object.fromEntries(Object.entries(saved.titles).filter(([k]) => validKeys.has(k)))
+    : undefined;
+  const hidden = saved?.hidden?.filter((k) => validKeys.has(k));
+  const pageBreakBefore = saved?.pageBreakBefore?.filter((k) => validKeys.has(k));
+
+  return { order, placement, titles, hidden, pageBreakBefore };
 }
 
-/** Conveniência para o render: chaves de cada zona, já na ordem final. */
+/** Conveniência para o render: chaves de cada zona, já na ordem final, SEM as
+ * chaves ocultadas (E4) — uma secção oculta não aparece em nenhuma zona. */
 export function keysByZone(layout: ResolvedLayout) {
-  const main = layout.order.filter((k) => layout.placement[k] !== "sidebar");
-  const sidebar = layout.order.filter((k) => layout.placement[k] === "sidebar");
+  const hidden = new Set(layout.hidden ?? []);
+  const visible = layout.order.filter((k) => !hidden.has(k));
+  const main = visible.filter((k) => layout.placement[k] !== "sidebar");
+  const sidebar = visible.filter((k) => layout.placement[k] === "sidebar");
   return { main, sidebar };
+}
+
+/** Título efectivo de uma secção: o override em layout.titles, senão o título
+ * por omissão (para extras, sec.titulo). */
+export function getSectionTitle(key: string, layout: ResolvedLayout, draft: CvDraft): string {
+  const override = layout.titles?.[key];
+  if (override) return override;
+  if (isExtraKey(key)) {
+    const sec = draft.sections.extras.find((e) => e.id === extraIdFromKey(key));
+    return sec?.titulo ?? "Secção";
+  }
+  return DEFAULT_SECTION_TITLES[key] ?? key;
+}
+
+/** true se a secção estiver oculta (E4) — dados preservados, só não renderiza. */
+export function isSectionHidden(key: string, layout: ResolvedLayout): boolean {
+  return !!layout.hidden?.includes(key);
+}
+
+/** true se a secção tiver quebra de página manual antes de si (Fase F). */
+export function hasPageBreakBefore(key: string, layout: ResolvedLayout): boolean {
+  return !!layout.pageBreakBefore?.includes(key);
+}
+
+/** Move uma única secção para "main" ou "sidebar", sem alterar `order`. Usado
+ * tanto pelo cartão "Organizar secções" (ao largar noutra zona) como pelo
+ * interruptor "Secção na barra lateral" no menu de três pontos de cada
+ * cartão — a mesma operação, dois pontos de entrada. */
+export function moveSectionToZone(
+  layout: ResolvedLayout,
+  key: string,
+  zone: SectionZone,
+): ResolvedLayout {
+  return { order: layout.order, placement: { ...layout.placement, [key]: zone } };
 }

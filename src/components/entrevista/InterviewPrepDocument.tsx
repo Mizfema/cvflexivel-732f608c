@@ -52,6 +52,7 @@ export function InterviewPrepDocument({ draft }: { draft: InterviewPrepDraft }) 
     fontFamily: theme.fontFamily,
     accentColor: theme.accentColor,
     spacing: { lineHeight: 1.6, itemGap: "M", sectionGap: "M", pageMargin: "M" },
+    fontSize: "M",
   };
   const cssVars = designToCssVars(design) as CSSProperties;
 

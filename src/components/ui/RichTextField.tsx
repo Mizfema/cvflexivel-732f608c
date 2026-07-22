@@ -248,10 +248,17 @@ export function RichTextField({
   });
 
   // Mantém o editor sincronizado quando o valor muda por fora (ex: carregar um CV existente).
+  // Compara contra sanitizeCvHtml(editor.getHTML()), não o getHTML() em bruto:
+  // toSafeHtml normaliza <p></p> vazio para <p><br></p> (ver rich-text.ts), e
+  // o Tiptap nunca inclui esse <br> no seu próprio getHTML() para um parágrafo
+  // vazio. Sem esta normalização em ambos os lados, a cada Enter numa linha em
+  // branco este efeito via `value` prop actualizado detecta uma "mudança
+  // externa" e chama setContent no meio da escrita, resetando o cursor e
+  // engolindo as teclas seguintes (incl. espaços).
   useEffect(() => {
     if (!editor) return;
     const incoming = toSafeHtml(value);
-    if (incoming !== editor.getHTML()) {
+    if (incoming !== sanitizeCvHtml(editor.getHTML())) {
       editor.commands.setContent(incoming, { emitUpdate: false });
     }
   }, [editor, value]);

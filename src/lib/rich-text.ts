@@ -25,16 +25,31 @@ export function setRichTextPrintBypass(active: boolean) {
   printBypassActive = active;
 }
 
+// O Tiptap serializa uma linha em branco (Enter) como <p></p> genuinamente
+// vazio, sem <br> dentro. Um <p> vazio não gera nenhuma line-box e renderiza
+// com altura zero em todos os browsers — não é a sanitização a remover nada
+// nem é uma margem CSS a colapsar, é o próprio HTML vazio a não ocupar
+// espaço. Normalizamos para <p><br></p> (mesma tag já permitida) para que a
+// linha em branco fique visível na pré-visualização e no PDF, tal como o
+// utilizador a viu ao escrever.
+const EMPTY_P_RE = /<p(\s[^>]*)?>\s*<\/p>/gi;
+
+function normalizeEmptyParagraphs(html: string): string {
+  return html.replace(EMPTY_P_RE, (_match, attrs) => `<p${attrs ?? ""}><br></p>`);
+}
+
 /** Sanitiza HTML de um campo de CV, restringindo à allowlist estrita da app. */
 export function sanitizeCvHtml(html: string): string {
-  if (printBypassActive) return html ?? "";
-  return sanitizeHtml(html ?? "", {
-    allowedTags: ALLOWED_TAGS,
-    allowedAttributes: { "*": ["style"] },
-    allowedStyles: {
-      "*": { "text-align": ALIGN_VALUES.map((v) => new RegExp(`^${v}$`)) },
-    },
-  });
+  if (printBypassActive) return normalizeEmptyParagraphs(html ?? "");
+  return normalizeEmptyParagraphs(
+    sanitizeHtml(html ?? "", {
+      allowedTags: ALLOWED_TAGS,
+      allowedAttributes: { "*": ["style"] },
+      allowedStyles: {
+        "*": { "text-align": ALIGN_VALUES.map((v) => new RegExp(`^${v}$`)) },
+      },
+    }),
+  );
 }
 
 function escapeHtml(text: string): string {

@@ -16,6 +16,7 @@ import { getCv } from "@/lib/cvs.functions";
 import { getTemplate, normalizeCvDesign } from "@/lib/cv-design-presets";
 import { useServerFn } from "@tanstack/react-start";
 import type { CvSections, CvSectionLayout, AlignmentChange } from "@/lib/cv-types";
+import { useSidebarCollapse } from "@/hooks/use-sidebar-collapse";
 
 const editorSearchSchema = z.object({
   modo: z.enum(["cv-vaga", "cv", "entrevista-vaga", "entrevista-zero"]).optional(),
@@ -72,6 +73,16 @@ function EditorPage() {
   const [alignChanges, setAlignChanges] = useState<AlignmentChange[] | null>(null);
   const [loadingCv, setLoadingCv] = useState(!!id);
   const [fullscreen, setFullscreen] = useState(false);
+  const { setCollapsed } = useSidebarCollapse();
+
+  // Recolhe o menu lateral ao entrar no editor para libertar largura; repõe
+  // ao sair. Deliberadamente sem persistência (nem localStorage, nem estado
+  // fora deste efeito) — recolhe sempre por defeito em cada entrada na rota.
+  useEffect(() => {
+    setCollapsed(true);
+    return () => setCollapsed(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const autosaveStatus = useCvAutosave({
     draft,
@@ -138,119 +149,127 @@ function EditorPage() {
 
   if (hydrated && isInterview) {
     return (
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:py-12">
-        <InterviewMode
-          modo={modo}
-          onComplete={(sections) => {
-            update((prev) => ({ ...prev, sections }));
-            setInterviewDone(true);
-          }}
-          onCancel={() => {
-            setInterviewDone(true);
-            navigate({ to: "/editor", search: { modo: "cv" } });
-          }}
-        />
+      <div className="h-full overflow-y-auto">
+        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:py-12">
+          <InterviewMode
+            modo={modo}
+            onComplete={(sections) => {
+              update((prev) => ({ ...prev, sections }));
+              setInterviewDone(true);
+            }}
+            onCancel={() => {
+              setInterviewDone(true);
+              navigate({ to: "/editor", search: { modo: "cv" } });
+            }}
+          />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:py-12">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-[0.22em] text-navy-mid">
-            Editor {modo ? `· ${labelModo[modo]}` : ""}
-          </p>
-          <h1 className="mt-2 font-serif text-3xl text-foreground sm:text-4xl">
-            {draft.sections.perfil.nome || "O teu CV"}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Edita à esquerda, vê a pré-visualização à direita. Guardado automaticamente neste
-            dispositivo.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {session && (
-            <span className="text-xs text-muted-foreground">
-              {autosaveStatus === "saving"
-                ? "A guardar…"
-                : autosaveStatus === "saved"
-                  ? "Guardado"
-                  : autosaveStatus === "error"
-                    ? "Falha ao guardar"
-                    : ""}
-            </span>
-          )}
-          <CvPreviewToolbar
-            draft={draft}
-            update={update}
-            fullscreen={false}
-            onToggleFullscreen={() => setFullscreen(true)}
-            className="shadow-none"
-          />
-          <ExportMenu
-            draft={draft}
-            cvId={cvId}
-            onSaved={setCvId}
-            authNext={buildEditorNext(modo, cvId, { export: "pdf" })}
-          />
-        </div>
-      </header>
-
-      {/* Mobile tabs */}
-      <div className="mb-4 flex rounded-md border border-navy-rule bg-card p-1 lg:hidden">
-        <button
-          onClick={() => setTab("editar")}
-          className={`flex-1 rounded px-3 py-1.5 text-sm font-medium transition-colors ${
-            tab === "editar" ? "bg-navy text-paper" : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          Editar
-        </button>
-        <button
-          onClick={() => setTab("preview")}
-          className={`flex-1 rounded px-3 py-1.5 text-sm font-medium transition-colors ${
-            tab === "preview" ? "bg-navy text-paper" : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          Pré-visualizar
-        </button>
-      </div>
-
-      {alignChanges && alignChanges.length > 0 && (
-        <AlignChangesPanel changes={alignChanges} onDismiss={() => setAlignChanges(null)} />
-      )}
-
-      {!hydrated ? (
-        <div className="rounded-lg border border-dashed border-navy-rule p-12 text-center text-sm text-muted-foreground">
-          A carregar rascunho…
-        </div>
-      ) : (
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-          <section
-            className={`${tab === "editar" ? "block" : "hidden"} lg:block`}
-            aria-label="Formulário"
-          >
-            <EditorForm
+    <div className="flex h-full flex-col overflow-hidden">
+      <div className="mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col px-4 py-4 sm:px-6">
+        <header className="mb-4 flex shrink-0 flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.22em] text-navy-mid">
+              Editor {modo ? `· ${labelModo[modo]}` : ""}
+            </p>
+            <h1 className="mt-2 font-serif text-3xl text-foreground sm:text-4xl">
+              {draft.sections.perfil.nome || "O teu CV"}
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Edita à esquerda, vê a pré-visualização à direita. Guardado automaticamente neste
+              dispositivo.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {session && (
+              <span className="text-xs text-muted-foreground">
+                {autosaveStatus === "saving"
+                  ? "A guardar…"
+                  : autosaveStatus === "saved"
+                    ? "Guardado"
+                    : autosaveStatus === "error"
+                      ? "Falha ao guardar"
+                      : ""}
+              </span>
+            )}
+            <CvPreviewToolbar
               draft={draft}
-              template={template}
               update={update}
-              userId={session?.user.id}
-              onGatedPhotoClick={() =>
-                navigate({ to: "/auth", search: { next: buildEditorNext(modo, cvId) } })
-              }
+              fullscreen={false}
+              onToggleFullscreen={() => setFullscreen(true)}
+              className="shadow-none"
             />
-          </section>
-          <section
-            className={`${tab === "preview" ? "block" : "hidden"} lg:block lg:sticky lg:top-20`}
-            aria-label="Pré-visualização"
+            <ExportMenu
+              draft={draft}
+              cvId={cvId}
+              onSaved={setCvId}
+              authNext={buildEditorNext(modo, cvId, { export: "pdf" })}
+            />
+          </div>
+        </header>
+
+        {/* Mobile tabs */}
+        <div className="mb-4 flex shrink-0 rounded-md border border-navy-rule bg-card p-1 lg:hidden">
+          <button
+            onClick={() => setTab("editar")}
+            className={`flex-1 rounded px-3 py-1.5 text-sm font-medium transition-colors ${
+              tab === "editar" ? "bg-navy text-paper" : "text-muted-foreground hover:text-foreground"
+            }`}
           >
-            <div className="relative lg:h-[calc(100vh_-_6rem)] lg:overflow-y-auto">
-              <CvPagedPreview draft={draft} />
-            </div>
-          </section>
+            Editar
+          </button>
+          <button
+            onClick={() => setTab("preview")}
+            className={`flex-1 rounded px-3 py-1.5 text-sm font-medium transition-colors ${
+              tab === "preview" ? "bg-navy text-paper" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Pré-visualizar
+          </button>
         </div>
-      )}
+
+        {alignChanges && alignChanges.length > 0 && (
+          <div className="shrink-0">
+            <AlignChangesPanel changes={alignChanges} onDismiss={() => setAlignChanges(null)} />
+          </div>
+        )}
+
+        {!hydrated ? (
+          <div className="rounded-lg border border-dashed border-navy-rule p-12 text-center text-sm text-muted-foreground">
+            A carregar rascunho…
+          </div>
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col gap-6 lg:flex-row">
+            <section
+              className={`${tab === "editar" ? "flex" : "hidden"} min-h-0 min-w-0 flex-1 flex-col lg:flex`}
+              aria-label="Formulário"
+            >
+              <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                <EditorForm
+                  draft={draft}
+                  template={template}
+                  update={update}
+                  userId={session?.user.id}
+                  onGatedPhotoClick={() =>
+                    navigate({ to: "/auth", search: { next: buildEditorNext(modo, cvId) } })
+                  }
+                />
+              </div>
+            </section>
+            <section
+              className={`${tab === "preview" ? "flex" : "hidden"} min-h-0 min-w-0 flex-1 flex-col lg:flex`}
+              aria-label="Pré-visualização"
+            >
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <CvPagedPreview draft={draft} />
+              </div>
+            </section>
+          </div>
+        )}
+      </div>
 
       {fullscreen && (
         <FullscreenPreviewOverlay

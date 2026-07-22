@@ -81,10 +81,13 @@ export type CvSpacing = {
   pageMargin: SpacingSize;
 };
 
+export type CvFontSize = "XS" | "S" | "M" | "L" | "XL";
+
 export type CvDesign = {
   fontFamily: string;
   accentColor: string;
   spacing: CvSpacing;
+  fontSize: CvFontSize;
 };
 
 export type FixedSectionKey =
@@ -98,6 +101,12 @@ export type SectionZone = "main" | "sidebar";
 export type CvSectionLayout = {
   order: string[];
   placement: Record<string, SectionZone>;
+  /** Títulos personalizados por secção (E3) — chave em falta usa o título por omissão. */
+  titles?: Record<string, string>;
+  /** Chaves de secções ocultadas (E4) — dados preservados, só não aparecem no render. */
+  hidden?: string[];
+  /** Chaves de secções que forçam início de página nova (Fase F). */
+  pageBreakBefore?: string[];
 };
 
 export type CvDraft = {
@@ -151,6 +160,7 @@ export const EMPTY_CV: CvDraft = {
     fontFamily: "inter",
     accentColor: "#1e3a5f",
     spacing: { lineHeight: 1.55, itemGap: "M", sectionGap: "M", pageMargin: "M" },
+    fontSize: "M",
   },
   updatedAt: new Date(0).toISOString(),
 };

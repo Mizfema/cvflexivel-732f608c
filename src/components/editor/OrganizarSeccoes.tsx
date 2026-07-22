@@ -36,6 +36,7 @@ import {
   keysByZone,
   isExtraKey,
   extraIdFromKey,
+  moveSectionToZone,
 } from "@/lib/cv-section-layout";
 
 type Updater = (updater: (prev: CvDraft) => CvDraft) => void;
@@ -239,9 +240,9 @@ export function OrganizarSeccoes({
     // arrastar para "sidebar" porque essa zona nem existe na UI.
     if (!isSidebar) targetZone = "main";
 
-    // Novo placement
-    const newPlacement: Record<string, SectionZone> = { ...layout.placement };
-    newPlacement[activeIdStr] = targetZone;
+    // Novo placement — mesma operação partilhada com o interruptor "Secção
+    // na barra lateral" do menu de três pontos de cada cartão.
+    const newPlacement = moveSectionToZone(layout, activeIdStr, targetZone).placement;
 
     // Nova ordem: constrói lista global mantendo a ordem visível resultante.
     // Passo 1: remove o item arrastado da ordem antiga.

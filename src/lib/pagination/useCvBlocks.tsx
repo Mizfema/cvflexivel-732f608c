@@ -17,7 +17,13 @@ import { headerBorderStyle, sectionLabelClass } from "@/lib/templates/themes";
 import { SECTION_ICONS, EXTRA_TYPE_ICONS } from "@/lib/section-icons";
 import { buildContactItems } from "@/lib/contact-items";
 import { photoFrameStyle, photoImgStyle } from "@/lib/photo-style";
-import { resolveSectionLayout, keysByZone, isExtraKey, extraIdFromKey } from "@/lib/cv-section-layout";
+import {
+  resolveSectionLayout,
+  keysByZone,
+  isExtraKey,
+  extraIdFromKey,
+  getSectionTitle,
+} from "@/lib/cv-section-layout";
 import type { CvBlock } from "./types";
 import {
   FIRST_ITEM_GAP,
@@ -275,7 +281,7 @@ export function useCvBlocks(
         if (perfil.resumo) {
           pushSection(
             "perfil",
-            "Perfil",
+            getSectionTitle("perfil", layout, draft),
             [{ id: "resumo", node: <RichText html={perfil.resumo} /> }],
             { icon: SECTION_ICONS.perfil },
           );
@@ -285,7 +291,7 @@ export function useCvBlocks(
       if (key === "experiencia") {
         pushSection(
           "experiencia",
-          "Experiência profissional",
+          getSectionTitle("experiencia", layout, draft),
           experiencia.map((e) => ({
             id: e.id,
             node: (
@@ -320,7 +326,7 @@ export function useCvBlocks(
       if (key === "formacao") {
         pushSection(
           "formacao",
-          "Formação",
+          getSectionTitle("formacao", layout, draft),
           formacao.map((f) => ({
             id: f.id,
             node: (
@@ -351,7 +357,7 @@ export function useCvBlocks(
         if (competencias.length > 0) {
           pushSection(
             "competencias",
-            "Competências",
+            getSectionTitle("competencias", layout, draft),
             [
               {
                 id: "lista",
@@ -373,7 +379,7 @@ export function useCvBlocks(
         if (idiomas.length > 0) {
           pushSection(
             "idiomas",
-            "Idiomas",
+            getSectionTitle("idiomas", layout, draft),
             [
               {
                 id: "lista",
@@ -392,9 +398,13 @@ export function useCvBlocks(
       if (isExtraKey(key)) {
         const sec = extraById.get(extraIdFromKey(key));
         if (!sec) return;
+        // sectionId = key (formato "extra:<id>"), igual ao que a sidebar já
+        // usa (renderSidebarSection/buildSidebarBlocks) e ao que sectionLayout
+        // usa em todo o lado (order/placement/titles/hidden/pageBreakBefore) —
+        // antes era "extra-<id>" (hífen), desalinhado destas chaves.
         pushSection(
-          `extra-${sec.id}`,
-          sec.titulo,
+          key,
+          getSectionTitle(key, layout, draft),
           sec.itens.map((it) => ({
             id: it.id,
             node: (
@@ -439,7 +449,11 @@ export function useCvBlocks(
           if (!perfil.resumo) return null;
           return (
             <div key={key}>
-              <SectionTitle titulo="Perfil" icon={SECTION_ICONS.perfil} light={light} />
+              <SectionTitle
+                titulo={getSectionTitle("perfil", layout, draft)}
+                icon={SECTION_ICONS.perfil}
+                light={light}
+              />
               <div className="mt-2">
                 <RichText
                   html={perfil.resumo}
@@ -455,7 +469,7 @@ export function useCvBlocks(
           return (
             <div key={key}>
               <SectionTitle
-                titulo="Experiência profissional"
+                titulo={getSectionTitle("experiencia", layout, draft)}
                 icon={SECTION_ICONS.experiencia}
                 light={light}
               />
@@ -491,7 +505,11 @@ export function useCvBlocks(
           if (formacao.length === 0) return null;
           return (
             <div key={key}>
-              <SectionTitle titulo="Formação" icon={SECTION_ICONS.formacao} light={light} />
+              <SectionTitle
+                titulo={getSectionTitle("formacao", layout, draft)}
+                icon={SECTION_ICONS.formacao}
+                light={light}
+              />
               <div className="mt-2 space-y-2">
                 {formacao.map((f) => (
                   <div key={f.id}>
@@ -523,7 +541,11 @@ export function useCvBlocks(
           if (competencias.length === 0) return null;
           return (
             <div key={key}>
-              <SectionTitle titulo="Competências" icon={SECTION_ICONS.competencias} light={light} />
+              <SectionTitle
+                titulo={getSectionTitle("competencias", layout, draft)}
+                icon={SECTION_ICONS.competencias}
+                light={light}
+              />
               <ul className="mt-2 space-y-0.5" style={{ color: itemColor }}>
                 {competencias.map((c) => (
                   <li key={c.id}>· {c.nome}</li>
@@ -536,7 +558,11 @@ export function useCvBlocks(
           if (idiomas.length === 0) return null;
           return (
             <div key={key}>
-              <SectionTitle titulo="Idiomas" icon={SECTION_ICONS.idiomas} light={light} />
+              <SectionTitle
+                titulo={getSectionTitle("idiomas", layout, draft)}
+                icon={SECTION_ICONS.idiomas}
+                light={light}
+              />
               <ul className="mt-2 space-y-0.5" style={{ color: itemColor }}>
                 {idiomas.map((i) => (
                   <li key={i.id}>
@@ -553,7 +579,11 @@ export function useCvBlocks(
           if (!sec) return null;
           return (
             <div key={key}>
-              <SectionTitle titulo={sec.titulo} icon={EXTRA_TYPE_ICONS[sec.tipo]} light={light} />
+              <SectionTitle
+                titulo={getSectionTitle(key, layout, draft)}
+                icon={EXTRA_TYPE_ICONS[sec.tipo]}
+                light={light}
+              />
               <div className="mt-2 space-y-2">
                 {sec.itens.map((it) => (
                   <div key={it.id}>

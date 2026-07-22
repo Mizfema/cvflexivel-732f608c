@@ -23,6 +23,7 @@ import { formatPlanTimeLeft } from "@/lib/plan-time-format";
 import { UserAvatar } from "@/components/UserAvatar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { useSidebarCollapse } from "@/hooks/use-sidebar-collapse";
 
 const NAV_ITEMS = [
   { label: "Início", icon: Home, to: "/", exact: true, auth: false },
@@ -298,13 +299,30 @@ function SidebarContent({ onClose }: SidebarContentProps) {
 
 export function AppSidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { collapsed, setCollapsed } = useSidebarCollapse();
 
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[210px] flex-col bg-[#1b1b19] md:flex">
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-40 hidden w-[210px] flex-col bg-[#1b1b19] transition-transform duration-200 md:flex",
+          collapsed && "md:-translate-x-full",
+        )}
+      >
         <SidebarContent />
       </aside>
+
+      {/* Desktop: reabrir menu recolhido (ex.: ao entrar no /editor) */}
+      {collapsed && (
+        <button
+          onClick={() => setCollapsed(false)}
+          className="fixed left-4 top-4 z-30 hidden h-9 w-9 items-center justify-center rounded-md bg-[#1b1b19] text-[#B4B2A9] shadow-md transition-colors hover:text-white md:flex"
+          aria-label="Abrir menu"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+      )}
 
       {/* Mobile: hamburger button */}
       <button

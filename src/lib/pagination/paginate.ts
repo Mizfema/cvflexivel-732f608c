@@ -5,10 +5,19 @@
 
 import type { CvBlock, PaginationResult, TwoColumnPaginationResult } from "./types";
 
+/** true para o bloco que marca o INÍCIO de uma secção — o único ponto onde
+ * uma quebra de página manual (Fase F) pode actuar. Na coluna principal é o
+ * "section-title"; na sidebar cada secção é UM bloco só ("sidebar-item"), por
+ * isso esse próprio bloco já é o "início". */
+function isSectionStart(b: CvBlock): boolean {
+  return b.kind === "section-title" || b.kind === "sidebar-item";
+}
+
 export function paginate(
   blocks: CvBlock[],
   heights: Map<string, number>,
   contentHeight: number,
+  pageBreakBefore: Set<string> = new Set(),
 ): PaginationResult {
   const pages: CvBlock[][] = [];
   const overflowIds = new Set<string>();
@@ -24,6 +33,13 @@ export function paginate(
   };
 
   for (const b of blocks) {
+    // Quebra de página manual (Fase F): força o fim da página actual antes do
+    // título desta secção — excepto se a página ainda estiver vazia (evita
+    // criar uma página em branco antes dela).
+    if (isSectionStart(b) && cur.length > 0 && pageBreakBefore.has(b.sectionId)) {
+      flush();
+    }
+
     const h = heights.get(b.id) ?? 0;
 
     // Bloco maior que uma página: fica na sua própria página (v1 — não partir
@@ -84,6 +100,11 @@ export function paginateTwoColumns(
   // uma altura útil menor para a coluna principal. Por omissão mantém-se
   // igual a mainContentHeight (comportamento anterior, sem desconto).
   firstPageMainContentHeight: number = mainContentHeight,
+  // Fase F: chaves de secções com quebra de página manual. Uma quebra numa
+  // coluna força a outra a terminar a página no mesmo ponto — mas só ao
+  // nível de secção: a coluna sincronizada acaba de preencher a secção já em
+  // curso, só não COMEÇA nenhuma secção nova nessa página (ver fillColumn).
+  pageBreakBefore: Set<string> = new Set(),
 ): TwoColumnPaginationResult {
   const pages: Array<{ main: CvBlock[]; sidebar: CvBlock[] }> = [];
   const overflowIds = new Set<string>();
@@ -92,17 +113,38 @@ export function paginateTwoColumns(
   // partir de startIdx — mesma regra dos órfãos e de overflow que a
   // `paginate` acima, mas devolve o ponto onde a próxima página deve
   // retomar em vez de continuar a acumular páginas internamente.
+  //
+  // `syncBreak`: quando true, esta coluna não pode começar NENHUMA secção
+  // nova nesta página — usado para sincronizar esta coluna com uma quebra
+  // forçada que já aconteceu na OUTRA coluna para a mesma página. Secções já
+  // em curso continuam a preencher normalmente (nunca corta uma secção a
+  // meio só por causa da sincronização).
   function fillColumn(
     blocks: CvBlock[],
     startIdx: number,
     availableHeight: number,
-  ): { placed: CvBlock[]; nextIdx: number } {
+    syncBreak: boolean = false,
+  ): { placed: CvBlock[]; nextIdx: number; forcedBreak: boolean } {
     const cur: CvBlock[] = [];
     let used = 0;
     let idx = startIdx;
+    let forcedBreak = false;
 
     while (idx < blocks.length) {
       const b = blocks[idx];
+
+      // Quebra de página manual (explícita nesta secção) ou sincronizada com
+      // a quebra forçada da outra coluna — nunca a meio de uma secção já em
+      // curso, e nunca numa página ainda vazia (evita página em branco).
+      if (
+        isSectionStart(b) &&
+        cur.length > 0 &&
+        (pageBreakBefore.has(b.sectionId) || syncBreak)
+      ) {
+        forcedBreak = true;
+        return { placed: cur, nextIdx: idx, forcedBreak };
+      }
+
       const h = heights.get(b.id) ?? 0;
 
       if (h > availableHeight) {
@@ -111,10 +153,10 @@ export function paginateTwoColumns(
             ? cur.pop()!
             : null;
         if (cur.length > 0) {
-          return { placed: cur, nextIdx: orphan ? idx - 1 : idx };
+          return { placed: cur, nextIdx: orphan ? idx - 1 : idx, forcedBreak };
         }
         overflowIds.add(b.id);
-        return { placed: orphan ? [orphan, b] : [b], nextIdx: idx + 1 };
+        return { placed: orphan ? [orphan, b] : [b], nextIdx: idx + 1, forcedBreak };
       }
 
       const margin = cur.length === 0 ? 0 : b.marginBefore;
@@ -122,7 +164,7 @@ export function paginateTwoColumns(
       if (cur.length > 0 && used + margin + h > availableHeight) {
         const orphan =
           cur[cur.length - 1].kind === "section-title" ? cur.pop()! : null;
-        return { placed: cur, nextIdx: orphan ? idx - 1 : idx };
+        return { placed: cur, nextIdx: orphan ? idx - 1 : idx, forcedBreak };
       }
 
       cur.push(b);
@@ -130,7 +172,7 @@ export function paginateTwoColumns(
       idx++;
     }
 
-    return { placed: cur, nextIdx: idx };
+    return { placed: cur, nextIdx: idx, forcedBreak };
   }
 
   let mainIdx = 0;
@@ -142,8 +184,17 @@ export function paginateTwoColumns(
       pageNum === 1 ? firstPageSidebarContentHeight : sidebarContentHeight;
     const mainHeight = pageNum === 1 ? firstPageMainContentHeight : mainContentHeight;
 
-    const mainResult = fillColumn(mainBlocks, mainIdx, mainHeight);
-    const sideResult = fillColumn(sidebarBlocks, sideIdx, sidebarHeight);
+    let mainResult = fillColumn(mainBlocks, mainIdx, mainHeight);
+    let sideResult = fillColumn(sidebarBlocks, sideIdx, sidebarHeight);
+
+    // Sincroniza a quebra forçada entre colunas (nos dois sentidos): se só
+    // uma coluna parou por causa de uma quebra manual, a outra é recalculada
+    // para também não começar nenhuma secção nova nesta página.
+    if (mainResult.forcedBreak && !sideResult.forcedBreak) {
+      sideResult = fillColumn(sidebarBlocks, sideIdx, sidebarHeight, true);
+    } else if (sideResult.forcedBreak && !mainResult.forcedBreak) {
+      mainResult = fillColumn(mainBlocks, mainIdx, mainHeight, true);
+    }
 
     pages.push({ main: mainResult.placed, sidebar: sideResult.placed });
     mainIdx = mainResult.nextIdx;

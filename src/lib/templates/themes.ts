@@ -10,7 +10,13 @@
 // livres via `design` (não mudam); na carta, que não tem um `design`
 // próprio, o template escolhido define-as por omissão.
 
-import { DEFAULT_SPACING, TEMPLATES, type FontId, type TemplateId } from "@/lib/cv-design-presets";
+import {
+  DEFAULT_FONT_SIZE,
+  DEFAULT_SPACING,
+  TEMPLATES,
+  type FontId,
+  type TemplateId,
+} from "@/lib/cv-design-presets";
 import type { CvDesign } from "@/lib/cv-types";
 
 export type HeaderStyle = "underline" | "accent" | "minimal" | "banner";
@@ -69,6 +75,7 @@ export function defaultDesignForTemplate(id: string): CvDesign {
     fontFamily: theme.fontFamily,
     accentColor: theme.accentColor,
     spacing: DEFAULT_SPACING,
+    fontSize: DEFAULT_FONT_SIZE,
   };
 }
 

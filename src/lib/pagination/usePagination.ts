@@ -25,6 +25,8 @@ export function usePagination(
     sidebarBlocks?: CvBlock[];
     sidebarContentHeight?: number;
     firstPageSidebarContentHeight?: number;
+    /** Fase F: chaves de secções com quebra de página manual. */
+    pageBreakBefore?: Set<string>;
   },
 ) {
   const {
@@ -34,6 +36,7 @@ export function usePagination(
     sidebarBlocks,
     sidebarContentHeight,
     firstPageSidebarContentHeight,
+    pageBreakBefore,
   } = opts;
   const measureRef = useRef<HTMLDivElement>(null);
   const [pages, setPages] = useState<CvBlock[][] | null>(null);
@@ -77,12 +80,13 @@ export function usePagination(
         (firstPageSidebarContentHeight ?? effectiveSidebarContentHeight) -
           sidebarHeaderHeight,
         contentHeight - sidebarHeaderHeight,
+        pageBreakBefore,
       );
       setTwoColumnPages(result.pages);
       setPages(result.pages.map((p) => p.main));
       setOverflowIds(result.overflowIds);
     } else {
-      const result = paginate(blocks, heights, contentHeight);
+      const result = paginate(blocks, heights, contentHeight, pageBreakBefore);
       setPages(result.pages);
       setOverflowIds(result.overflowIds);
       setTwoColumnPages(null);
@@ -93,6 +97,7 @@ export function usePagination(
     sidebarBlocks,
     sidebarContentHeight,
     firstPageSidebarContentHeight,
+    pageBreakBefore,
   ]);
 
   // Recalcula quando conteúdo, largura útil ou densidade mudam.

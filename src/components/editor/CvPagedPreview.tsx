@@ -14,6 +14,7 @@ import { usePagination } from "@/lib/pagination/usePagination";
 import type { CvBlock } from "@/lib/pagination/types";
 import { PAGE_GAP, PAGE_H, PAGE_W, SIDEBAR_W, pageMetrics } from "@/lib/pagination/metrics";
 import { CVDocument } from "@/components/cv/CVDocument";
+import { resolveSectionLayout } from "@/lib/cv-section-layout";
 
 const PAGE_SHADOW = "0 1px 2px rgba(15,23,42,0.06), 0 10px 30px rgba(15,23,42,0.10)";
 
@@ -64,6 +65,15 @@ export function CvPagedPreview({
     metrics,
   );
 
+  // Fase F: chaves de secções com quebra de página manual — mesmo
+  // resolveSectionLayout que useCvBlocks já usa internamente (barato/puro,
+  // sem necessidade de alterar a forma do que useCvBlocks devolve).
+  const layout = useMemo(() => resolveSectionLayout(draft, template), [draft, template]);
+  const pageBreakBefore = useMemo(
+    () => new Set(layout.pageBreakBefore ?? []),
+    [layout.pageBreakBefore],
+  );
+
   // Decisão de produto (Fase P4): por agora, só os templates com o nome na
   // sidebar (nameInSidebar) usam a paginação de duas colunas — é o único
   // caso onde o cabeçalho fixo da sidebar é mais alto do que o topo da
@@ -89,6 +99,7 @@ export function CvPagedPreview({
     signature,
     sidebarBlocks: useTwoColumn ? sidebarBlocks : undefined,
     sidebarContentHeight: metrics.contentHeight,
+    pageBreakBefore,
   });
 
   // Normaliza os dois casos (coluna dupla vs. coluna única) numa única forma

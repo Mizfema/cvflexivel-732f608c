@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -14,6 +15,8 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Toaster } from "@/components/ui/sonner";
+import { SidebarCollapseProvider, useSidebarCollapse } from "@/hooks/use-sidebar-collapse";
+import { cn } from "@/lib/utils";
 
 if (typeof window !== "undefined") {
   posthog.init(import.meta.env.VITE_POSTHOG_KEY, {
@@ -169,16 +172,38 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="flex min-h-screen bg-background">
-        <AppSidebar />
-        <div className="flex min-w-0 flex-1 flex-col md:pl-[210px]">
-          <main className="flex-1 pt-14 md:pt-0">
-            <Outlet />
-          </main>
-          <SiteFooter />
-        </div>
-      </div>
+      <SidebarCollapseProvider>
+        <RootLayout />
+      </SidebarCollapseProvider>
       <Toaster />
     </QueryClientProvider>
+  );
+}
+
+/** O /editor recolhe o menu lateral (via SidebarCollapseProvider) e precisa
+ * do shell inteiro fixo a 100dvh sem scroll de página — cada painel dele
+ * rola por si. As restantes rotas mantêm o scroll normal e o rodapé. */
+function RootLayout() {
+  const { collapsed } = useSidebarCollapse();
+  const router = useRouterState();
+  const isEditor = router.location.pathname.startsWith("/editor");
+
+  return (
+    <div className={cn("flex bg-background", isEditor ? "h-dvh overflow-hidden" : "min-h-screen")}>
+      <AppSidebar />
+      <div
+        className={cn(
+          "flex min-w-0 flex-1 flex-col transition-[padding-left] duration-200",
+          collapsed ? "md:pl-0" : "md:pl-[210px]",
+        )}
+      >
+        <main
+          className={cn("flex-1 pt-14 md:pt-0", isEditor && "min-h-0 overflow-hidden")}
+        >
+          <Outlet />
+        </main>
+        {!isEditor && <SiteFooter />}
+      </div>
+    </div>
   );
 }
