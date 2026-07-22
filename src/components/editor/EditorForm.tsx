@@ -11,7 +11,7 @@ import {
   Scissors,
   type LucideIcon,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import {
   DndContext,
   PointerSensor,
@@ -393,6 +393,7 @@ function SectionMenu({
   const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameValue, setRenameValue] = useState(titulo);
+  const sidebarToggleId = useId();
 
   return (
     <>
@@ -400,7 +401,7 @@ function SectionMenu({
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-black/[0.04] hover:text-foreground"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-black/[0.04] hover:text-foreground"
             aria-label={`Mais opções — ${titulo}`}
           >
             <MoreVertical className="h-4 w-4" />
@@ -443,10 +444,19 @@ function SectionMenu({
               <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
                 Opções de layout
               </DropdownMenuLabel>
-              <div className="flex items-center justify-between gap-3 px-2 py-1.5">
+              {/* Toda a linha é clicável (não só o interruptor de 20px) — alvo de toque
+                  adequado em ecrã táctil (Fase G). */}
+              <label
+                htmlFor={sidebarToggleId}
+                className="flex cursor-pointer items-center justify-between gap-3 px-2 py-2.5"
+              >
                 <span className="text-sm text-foreground">Secção na barra lateral</span>
-                <Switch checked={sidebarChecked} onCheckedChange={onToggleSidebar} />
-              </div>
+                <Switch
+                  id={sidebarToggleId}
+                  checked={sidebarChecked}
+                  onCheckedChange={onToggleSidebar}
+                />
+              </label>
             </>
           )}
         </DropdownMenuContent>
@@ -588,7 +598,7 @@ function SectionCard({
       <div className="flex w-full items-center gap-1 px-2 py-2">
         <button
           type="button"
-          className={`flex h-8 w-8 shrink-0 cursor-grab items-center justify-center rounded-md text-muted-foreground hover:bg-black/[0.04] hover:text-foreground active:cursor-grabbing touch-none ${DRAG_HANDLE_VISIBILITY_CLASS}`}
+          className={`flex h-10 w-10 shrink-0 cursor-grab items-center justify-center rounded-md text-muted-foreground hover:bg-black/[0.04] hover:text-foreground active:cursor-grabbing touch-none ${DRAG_HANDLE_VISIBILITY_CLASS}`}
           aria-label={`Arrastar secção ${titulo}`}
           {...attributes}
           {...listeners}
@@ -598,7 +608,7 @@ function SectionCard({
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1 text-left"
+          className="flex min-w-0 flex-1 items-center gap-2 px-2 py-2 text-left"
         >
           {open ? (
             <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -686,7 +696,7 @@ function ItemCard({
       <div className="flex items-center gap-1 px-1.5 py-1.5">
         <button
           type="button"
-          className={`flex h-7 w-7 shrink-0 cursor-grab items-center justify-center rounded-md text-muted-foreground hover:bg-black/[0.04] hover:text-foreground active:cursor-grabbing touch-none ${DRAG_HANDLE_VISIBILITY_CLASS}`}
+          className={`flex h-10 w-10 shrink-0 cursor-grab items-center justify-center rounded-md text-muted-foreground hover:bg-black/[0.04] hover:text-foreground active:cursor-grabbing touch-none ${DRAG_HANDLE_VISIBILITY_CLASS}`}
           aria-label="Arrastar item"
           {...attributes}
           {...listeners}
@@ -696,7 +706,7 @@ function ItemCard({
         <button
           type="button"
           onClick={onToggle}
-          className="flex min-w-0 flex-1 items-center gap-2 px-1.5 py-1 text-left"
+          className="flex min-w-0 flex-1 items-center gap-2 px-1.5 py-2.5 text-left"
         >
           {open ? (
             <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -711,7 +721,7 @@ function ItemCard({
           variant="ghost"
           onClick={onRemove}
           aria-label="Remover"
-          className="shrink-0"
+          className="h-10 w-10 shrink-0"
         >
           <Trash2 className="h-4 w-4" />
         </Button>

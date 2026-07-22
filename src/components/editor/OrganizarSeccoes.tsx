@@ -108,7 +108,7 @@ function SortablePill({
     >
       <button
         type="button"
-        className="cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing"
+        className="flex h-10 w-10 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground hover:bg-black/[0.04] hover:text-foreground active:cursor-grabbing"
         aria-label={`Arrastar ${label}`}
         {...attributes}
         {...listeners}

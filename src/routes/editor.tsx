@@ -183,9 +183,9 @@ function EditorPage() {
               dispositivo.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             {session && (
-              <span className="text-xs text-muted-foreground">
+              <span className="shrink-0 text-xs text-muted-foreground">
                 {autosaveStatus === "saving"
                   ? "A guardar…"
                   : autosaveStatus === "saved"
@@ -195,19 +195,26 @@ function EditorPage() {
                       : ""}
               </span>
             )}
-            <CvPreviewToolbar
-              draft={draft}
-              update={update}
-              fullscreen={false}
-              onToggleFullscreen={() => setFullscreen(true)}
-              className="shadow-none"
-            />
-            <ExportMenu
-              draft={draft}
-              cvId={cvId}
-              onSaved={setCvId}
-              authNext={buildEditorNext(modo, cvId, { export: "pdf" })}
-            />
+            {/* Ecrã estreito (Fase G): a barra + "Exportar PDF" juntas são mais largas do
+                que 390px — em vez de as deixar cortadas pelo overflow-hidden do shell do
+                editor, esta faixa ganha o seu próprio scroll horizontal. */}
+            <div className="flex w-full min-w-0 items-center gap-2 overflow-x-auto sm:w-auto">
+              <CvPreviewToolbar
+                draft={draft}
+                update={update}
+                fullscreen={false}
+                onToggleFullscreen={() => setFullscreen(true)}
+                className="shrink-0 shadow-none"
+              />
+              <div className="shrink-0">
+                <ExportMenu
+                  draft={draft}
+                  cvId={cvId}
+                  onSaved={setCvId}
+                  authNext={buildEditorNext(modo, cvId, { export: "pdf" })}
+                />
+              </div>
+            </div>
           </div>
         </header>
 
