@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -211,6 +211,7 @@ export type Database = {
           design: Json | null
           id: string
           job_tdr: string | null
+          perfil: Json | null
           photo: Json | null
           template: string
           title: string
@@ -224,6 +225,7 @@ export type Database = {
           design?: Json | null
           id?: string
           job_tdr?: string | null
+          perfil?: Json | null
           photo?: Json | null
           template?: string
           title?: string
@@ -237,6 +239,7 @@ export type Database = {
           design?: Json | null
           id?: string
           job_tdr?: string | null
+          perfil?: Json | null
           photo?: Json | null
           template?: string
           title?: string

@@ -28,6 +28,7 @@ const PAGE_SHADOW = "0 1px 2px rgba(15,23,42,0.06), 0 10px 30px rgba(15,23,42,0.
 
 export type CartaHeaderInfo = {
   nome: string;
+  headline?: string;
   items: ContactItem[];
   /** Só usados pelo template "Detalhado" (sidebar), ver bloco abaixo. */
   dataNascimento?: string;
@@ -150,6 +151,18 @@ export function CartaDocument({ draft }: { draft: CartaDraft }) {
                   {draft.header.nome}
                 </p>
               )}
+              {draft.header.headline && (
+                <p
+                  style={{
+                    margin: "2px 0 0",
+                    fontSize: 11,
+                    textAlign: "center",
+                    color: "rgba(255,255,255,0.85)",
+                  }}
+                >
+                  {draft.header.headline}
+                </p>
+              )}
               {(draft.header.nome || personalInfoItems.length > 0) && (
                 <div style={{ marginTop: 14 }}>
                   <h2
@@ -212,6 +225,11 @@ export function CartaDocument({ draft }: { draft: CartaDraft }) {
           {draft.header.nome && (
             <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "var(--cv-accent)" }}>
               {draft.header.nome}
+            </p>
+          )}
+          {draft.header.headline && (
+            <p style={{ margin: "2px 0 0", fontSize: 11, color: "var(--cv-accent-soft)" }}>
+              {draft.header.headline}
             </p>
           )}
           {draft.header.items.length > 0 && (

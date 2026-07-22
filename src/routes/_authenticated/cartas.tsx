@@ -10,6 +10,8 @@ import type { CartaDraft } from "@/components/carta/CartaDocument";
 import { normalizeCvDesign } from "@/lib/cv-design-presets";
 import { defaultDesignForTemplate } from "@/lib/templates/themes";
 import { DocumentCard, DocumentCardGrid } from "@/components/library/DocumentCardGrid";
+import { buildCartaHeaderInfo } from "@/hooks/use-cover-letter-header";
+import { normalizeCartaPerfil } from "@/lib/cover-letter-types";
 
 type LetterRow = {
   id: string;
@@ -19,6 +21,7 @@ type LetterRow = {
   template: string;
   design: unknown;
   photo: unknown;
+  perfil: unknown;
   updated_at: string;
   created_at: string;
 };
@@ -26,7 +29,7 @@ type LetterRow = {
 function toThumbnailDraft(letter: LetterRow): CartaDraft {
   return {
     template: letter.template,
-    header: { nome: "", items: [] },
+    header: buildCartaHeaderInfo(normalizeCartaPerfil(letter.perfil)),
     date: "",
     content: letter.content,
     design: letter.design

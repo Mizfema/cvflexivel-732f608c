@@ -5,11 +5,12 @@ import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, Download, Loader2 } from "lucide-react";
 import { RichTextField } from "@/components/ui/RichTextField";
 import { PhotoField } from "@/components/PhotoField";
+import { CartaPerfilFieldsForm } from "@/components/cartas/CartaPerfilFieldsForm";
 import { useAuth } from "@/hooks/use-auth";
 import { CartaPagedPreview } from "@/components/carta/CartaPagedPreview";
 import { CartaPreviewToolbar } from "@/components/cartas/preview-toolbar/CartaPreviewToolbar";
 import { CartaFullscreenPreviewOverlay } from "@/components/cartas/preview-toolbar/CartaFullscreenPreviewOverlay";
-import { useCoverLetterHeader } from "@/hooks/use-cover-letter-header";
+import { buildCartaHeaderInfo, useCartaPerfilPrefill } from "@/hooks/use-cover-letter-header";
 import { useCoverLetterAutosave } from "@/hooks/use-cover-letter-autosave";
 import { getCoverLetter } from "@/lib/cover_letters.functions";
 import { exportCoverLetterPdf } from "@/lib/cover-letter-export";
@@ -22,7 +23,12 @@ import {
 } from "@/lib/cover-letter-draft";
 import { normalizeCvDesign } from "@/lib/cv-design-presets";
 import { defaultDesignForTemplate } from "@/lib/templates/themes";
-import type { CoverLetterEditorState } from "@/lib/cover-letter-types";
+import {
+  EMPTY_CARTA_PERFIL,
+  isCartaPerfilEmpty,
+  normalizeCartaPerfil,
+  type CoverLetterEditorState,
+} from "@/lib/cover-letter-types";
 
 const DEFAULT_TEMPLATE = "classico";
 
@@ -50,6 +56,7 @@ function emptyDraft(): CoverLetterEditorState {
     template: DEFAULT_TEMPLATE,
     design: defaultDesignForTemplate(DEFAULT_TEMPLATE),
     photo: null,
+    perfil: EMPTY_CARTA_PERFIL,
   };
 }
 
@@ -101,6 +108,7 @@ function CartaEditorPage() {
               ? normalizeCvDesign(row.design)
               : defaultDesignForTemplate(row.template),
             photo: (row.photo as CoverLetterEditorState["photo"]) ?? null,
+            perfil: normalizeCartaPerfil(row.perfil),
           });
         })
         .catch(() => setNotFound(true))
@@ -141,7 +149,16 @@ function CartaEditorPage() {
     skip: loading,
   });
 
-  const header = useCoverLetterHeader(draft.cvId);
+  // Pré-preenchimento só para cartas novas (sem `?id=` na URL — `id` nunca
+  // muda durante a sessão, ao contrário de `letterId`, que passa a existir
+  // logo após o primeiro autosave): uma carta já guardada mantém sempre o
+  // `perfil` que tem, mesmo que esteja vazio.
+  const perfilPrefill = useCartaPerfilPrefill(!id ? draft.cvId : null);
+  useEffect(() => {
+    if (!perfilPrefill) return;
+    setDraft((prev) => (isCartaPerfilEmpty(prev.perfil) ? { ...prev, perfil: perfilPrefill } : prev));
+  }, [perfilPrefill]);
+
   const today = new Date().toLocaleDateString("pt-PT", {
     day: "2-digit",
     month: "long",
@@ -149,7 +166,7 @@ function CartaEditorPage() {
   });
   const previewDraft = {
     template: draft.template,
-    header,
+    header: buildCartaHeaderInfo(draft.perfil),
     date: today,
     content: draft.content,
     design: draft.design,
@@ -318,6 +335,15 @@ function CartaEditorPage() {
               photo={draft.photo}
               onChange={(photo) => update((p) => ({ ...p, photo }))}
               userId={user?.id}
+            />
+          </div>
+          <div className="mb-4 rounded-lg border border-navy-rule bg-card p-4">
+            <p className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Perfil
+            </p>
+            <CartaPerfilFieldsForm
+              perfil={draft.perfil}
+              onChange={(perfil) => update((p) => ({ ...p, perfil }))}
             />
           </div>
           <RichTextField

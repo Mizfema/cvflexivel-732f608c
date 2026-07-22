@@ -14,6 +14,7 @@ function draftSignature(draft: CoverLetterEditorState) {
     template: draft.template,
     design: draft.design,
     photo: draft.photo,
+    perfil: draft.perfil,
   });
 }
 
@@ -69,6 +70,7 @@ export function useCoverLetterAutosave({
             template: draft.template,
             design: draft.design,
             photo: draft.photo,
+            perfil: draft.perfil,
           },
         });
         lastSaved.current = sig;
