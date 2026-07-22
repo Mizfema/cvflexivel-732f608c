@@ -84,16 +84,9 @@ const SAMPLE_SECTIONS: CvSections = {
 
 const TEMPLATE_ACCENT: Record<TemplateId, string> = {
   classico: "#1e3a5f",
-  moderno: "#1a5454",
-  compacto: "#6b2142",
-  "visual-sidebar": "#3d4f1e",
-  executivo: "#1f2937",
-  editorial: "#475569",
   contraste: "#1D9E75",
   retrato: "#7f1d1d",
   destaque: "#6b21a8",
-  direto: "#b45309",
-  detalhado: "#1e3a5f",
   institucional: "#24425f",
   arco: "#24425f",
 };

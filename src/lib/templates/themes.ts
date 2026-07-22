@@ -13,6 +13,7 @@
 import {
   DEFAULT_FONT_SIZE,
   DEFAULT_SPACING,
+  TEMPLATE_REDIRECTS,
   TEMPLATES,
   type FontId,
   type TemplateId,
@@ -35,16 +36,9 @@ export type TemplateTheme = {
 
 const THEME_DEFAULTS: Record<TemplateId, { accentColor: string; fontFamily: FontId }> = {
   classico: { accentColor: "#1e3a5f", fontFamily: "pt-serif" },
-  moderno: { accentColor: "#1D9E75", fontFamily: "inter" },
-  compacto: { accentColor: "#475569", fontFamily: "source-sans-3" },
-  "visual-sidebar": { accentColor: "#6b21a8", fontFamily: "poppins" },
-  executivo: { accentColor: "#1f2937", fontFamily: "pt-serif" },
-  editorial: { accentColor: "#475569", fontFamily: "lora" },
   contraste: { accentColor: "#1D9E75", fontFamily: "poppins" },
   retrato: { accentColor: "#7f1d1d", fontFamily: "ibm-plex-sans" },
   destaque: { accentColor: "#6b21a8", fontFamily: "inter" },
-  direto: { accentColor: "#b45309", fontFamily: "ibm-plex-sans" },
-  detalhado: { accentColor: "#1e3a5f", fontFamily: "inter" },
   institucional: { accentColor: "#24425f", fontFamily: "inter" },
   arco: { accentColor: "#24425f", fontFamily: "inter" },
 };
@@ -61,7 +55,10 @@ export const TEMPLATE_THEMES: TemplateTheme[] = TEMPLATES.map((t) => ({
 }));
 
 export function getTemplateTheme(id: string): TemplateTheme {
-  return TEMPLATE_THEMES.find((t) => t.id === id) ?? TEMPLATE_THEMES[0];
+  const direct = TEMPLATE_THEMES.find((t) => t.id === id);
+  if (direct) return direct;
+  const redirected = TEMPLATE_REDIRECTS[id];
+  return TEMPLATE_THEMES.find((t) => t.id === redirected) ?? TEMPLATE_THEMES[0];
 }
 
 /**

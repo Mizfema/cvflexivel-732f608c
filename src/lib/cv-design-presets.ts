@@ -4,16 +4,9 @@ import type { CvDesign, CvFontSize, CvSpacing, SpacingSize } from "./cv-types";
 
 export type TemplateId =
   | "classico"
-  | "moderno"
-  | "compacto"
-  | "visual-sidebar"
-  | "executivo"
-  | "editorial"
   | "contraste"
   | "retrato"
   | "destaque"
-  | "direto"
-  | "detalhado"
   | "institucional"
   | "arco";
 
@@ -53,51 +46,6 @@ export const TEMPLATES: TemplateInfo[] = [
     isPremium: false,
   },
   {
-    id: "moderno",
-    nome: "Moderno",
-    tipo: "ats",
-    descricao: "Uma coluna, títulos com cor de acento e ícones discretos.",
-    layout: "single",
-    headerStyle: "accent",
-    isPremium: false,
-  },
-  {
-    id: "compacto",
-    nome: "Compacto",
-    tipo: "ats",
-    descricao: "Uma coluna mais densa. Bom para CVs longos.",
-    layout: "single",
-    headerStyle: "minimal",
-    isPremium: false,
-  },
-  {
-    id: "visual-sidebar",
-    nome: "Sidebar",
-    tipo: "visual",
-    descricao: "Sidebar com contactos e competências. Não recomendado para ATS.",
-    layout: "sidebar",
-    headerStyle: "accent",
-    isPremium: false,
-  },
-  {
-    id: "executivo",
-    nome: "Executivo",
-    tipo: "ats",
-    descricao: "Sóbrio e formal, uma coluna. Indicado para cargos seniores.",
-    layout: "single",
-    headerStyle: "underline",
-    isPremium: false,
-  },
-  {
-    id: "editorial",
-    nome: "Editorial",
-    tipo: "ats",
-    descricao: "Minimalista tipográfico, foco total no texto, sem elementos gráficos.",
-    layout: "single",
-    headerStyle: "minimal",
-    isPremium: false,
-  },
-  {
     id: "contraste",
     nome: "Contraste",
     tipo: "visual",
@@ -125,29 +73,6 @@ export const TEMPLATES: TemplateInfo[] = [
     layout: "single",
     headerStyle: "banner",
     accentSurface: "header",
-    isPremium: true,
-  },
-  {
-    id: "direto",
-    nome: "Direto",
-    tipo: "ats",
-    descricao: "Uma coluna direta ao ponto, com toques de cor discretos.",
-    layout: "single",
-    headerStyle: "accent",
-    isPremium: true,
-  },
-  {
-    id: "detalhado",
-    nome: "Detalhado",
-    tipo: "visual",
-    descricao:
-      "Sidebar em bloco de cor sólida com foto e dados pessoais completos. Ideal para vagas que pedem informação detalhada.",
-    layout: "sidebar",
-    headerStyle: "minimal",
-    accentSurface: "sidebar-block",
-    photoSizeSidebar: 110,
-    personalInfoTitle: true,
-    sidebarExtras: true,
     isPremium: true,
   },
   {
@@ -301,8 +226,26 @@ export function designToCssVars(design: CvDesign): Record<string, string> {
   };
 }
 
+/**
+ * Reencaminhamento para CVs já guardados com um `template` removido do
+ * catálogo. Feito em tempo de leitura (sem migração de dados no Supabase) —
+ * cada id aponta para o sobrevivente visualmente mais próximo.
+ */
+export const TEMPLATE_REDIRECTS: Record<string, TemplateId> = {
+  moderno: "classico",
+  compacto: "classico",
+  executivo: "classico",
+  editorial: "classico",
+  direto: "classico",
+  "visual-sidebar": "retrato",
+  detalhado: "contraste",
+};
+
 export function getTemplate(id: string): TemplateInfo {
-  return TEMPLATES.find((t) => t.id === id) ?? TEMPLATES[0];
+  const direct = TEMPLATES.find((t) => t.id === id);
+  if (direct) return direct;
+  const redirected = TEMPLATE_REDIRECTS[id];
+  return TEMPLATES.find((t) => t.id === redirected) ?? TEMPLATES.find((t) => t.id === "classico")!;
 }
 
 const HEX_RE = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
