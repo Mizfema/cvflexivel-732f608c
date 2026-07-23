@@ -34,14 +34,18 @@ export const saveInterviewPrep = createServerFn({ method: "POST" })
     return { id: row.id };
   });
 
-/** Lista preparações de entrevista do utilizador, ordenadas por criação desc. */
+/** Lista preparações de entrevista do utilizador, ordenadas por criação desc.
+ * Inclui `questions` (Fase 2): a grelha de miniaturas precisa do conteúdo
+ * completo de cada preparação para renderizar a página 1 real, tal como
+ * listCvs/listCoverLetters já devolvem `sections`/`content` inteiros para as
+ * miniaturas de CV/carta. */
 export const listInterviewPreps = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
     const { data, error } = await supabase
       .from("interview_preps")
-      .select("id, cv_id, job_tdr, created_at, updated_at")
+      .select("id, cv_id, job_tdr, questions, created_at, updated_at")
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);

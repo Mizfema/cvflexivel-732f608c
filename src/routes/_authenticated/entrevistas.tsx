@@ -1,16 +1,22 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { MessageSquare, Plus, ChevronDown, Loader2 } from "lucide-react";
+import { MessageSquare, Plus, ChevronDown, Loader2, Eye } from "lucide-react";
 import { listInterviewPreps, getInterviewPrep } from "@/lib/interview-preps.functions";
-import { InterviewPrepResult } from "@/components/InterviewPrepResult";
-import { InterviewPrepExport } from "@/components/entrevista/InterviewPrepExport";
+import { InterviewPrepView } from "@/components/entrevista/InterviewPrepView";
+import {
+  InterviewPrepThumbnail,
+  INTERVIEW_THUMB_W,
+} from "@/components/entrevista/InterviewPrepThumbnail";
+import { DocumentCard, DocumentCardGrid } from "@/components/library/DocumentCardGrid";
+import { ViewToggle, type DocumentView } from "@/components/library/ViewToggle";
 import type { InterviewQuestion } from "@/lib/interview-types";
 
 type PrepRow = {
   id: string;
   cv_id: string | null;
   job_tdr: string | null;
+  questions: InterviewQuestion[];
   created_at: string;
   updated_at: string;
 };
@@ -41,16 +47,29 @@ function EntrevistasPage() {
 
   const [rows, setRows] = useState<PrepRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [view, setView] = useState<DocumentView>("grid");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<Record<string, InterviewQuestion[]>>({});
   const [loadingId, setLoadingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchList()
-      .then((res) => setRows(res.preps as PrepRow[]))
+      .then((res) =>
+        setRows(
+          res.preps.map((p) => ({
+            ...p,
+            questions: (p.questions ?? []) as unknown as InterviewQuestion[],
+          })),
+        ),
+      )
       .catch((e) => setError(e instanceof Error ? e.message : "Erro a carregar preparações"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function viewPrep(id: string) {
+    setView("list");
+    if (expandedId !== id) toggle(id);
+  }
 
   async function toggle(id: string) {
     if (expandedId === id) {
@@ -97,6 +116,12 @@ function EntrevistasPage() {
         </Link>
       </header>
 
+      {rows && rows.length > 0 && (
+        <div className="mb-4 flex justify-end">
+          <ViewToggle value={view} onChange={setView} />
+        </div>
+      )}
+
       {error && (
         <div className="mb-6 rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
           {error}
@@ -126,6 +151,37 @@ function EntrevistasPage() {
             Preparar entrevista
           </Link>
         </div>
+      ) : view === "grid" ? (
+        <DocumentCardGrid>
+          {rows.map((row) => (
+            <DocumentCard
+              key={row.id}
+              thumbnail={
+                <InterviewPrepThumbnail
+                  draft={{ template: "classico", jobTdr: row.job_tdr, questions: row.questions }}
+                />
+              }
+              thumbnailWidth={INTERVIEW_THUMB_W}
+              title={tdrPreview(row.job_tdr)}
+              badge={`${row.questions.length} pergunta${row.questions.length === 1 ? "" : "s"}`}
+              date={new Date(row.created_at).toLocaleDateString("pt-PT", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              })}
+              actions={
+                <button
+                  type="button"
+                  onClick={() => viewPrep(row.id)}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-[10px] border border-navy-rule bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  Ver
+                </button>
+              }
+            />
+          ))}
+        </DocumentCardGrid>
       ) : (
         <ul className="space-y-3">
           {rows.map((row) => {
@@ -162,12 +218,7 @@ function EntrevistasPage() {
                         <Loader2 className="h-4 w-4 animate-spin" />A carregar perguntas…
                       </div>
                     ) : detail[row.id] ? (
-                      <div className="space-y-4">
-                        <div className="flex justify-end">
-                          <InterviewPrepExport questions={detail[row.id]} jobTdr={row.job_tdr} />
-                        </div>
-                        <InterviewPrepResult questions={detail[row.id]} />
-                      </div>
+                      <InterviewPrepView questions={detail[row.id]} jobTdr={row.job_tdr} />
                     ) : null}
                   </div>
                 )}
