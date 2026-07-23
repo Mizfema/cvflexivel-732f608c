@@ -865,7 +865,7 @@ Outras regras:
 - Cada pergunta deve ser específica a esta vaga (usa terminologia do TdR), nunca genérica.
 - Quando houver evidência real, estrutura a "resposta_sugerida" pelo método STAR (Situação, Tarefa, Acção, Resultado) com factos do candidato.`;
 
-const MOCK_INTERVIEW_QUESTIONS: InterviewQuestion[] = [
+const MOCK_INTERVIEW_QUESTIONS: Omit<InterviewQuestion, "id">[] = [
   {
     categoria: "comportamental",
     pergunta:
@@ -938,7 +938,7 @@ export const generateInterviewPrep = createServerFn({ method: "POST" })
     const usageCheck = await requireUsageAllowed("interview_prep", context.userId, context.fingerprint);
     if (!process.env.LOVABLE_API_KEY) {
       console.warn("MOCK: LOVABLE_API_KEY ausente, a devolver preparação de entrevista simulada");
-      return MOCK_INTERVIEW_QUESTIONS;
+      return MOCK_INTERVIEW_QUESTIONS.map((q) => ({ id: crypto.randomUUID(), ...q }));
     }
 
     const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY);
@@ -959,15 +959,17 @@ export const generateInterviewPrep = createServerFn({ method: "POST" })
     };
 
     try {
-      let result: InterviewQuestion[];
+      let raw: Awaited<ReturnType<typeof callOnce>>;
       try {
-        result = await callOnce();
+        raw = await callOnce();
       } catch (e) {
         console.warn("generateInterviewPrep: 1ª tentativa falhou, a repetir.", e);
-        result = await callOnce();
+        raw = await callOnce();
       }
       await recordUsageTokens(usageCheck.usageId, tokenUsage);
-      return result;
+      // Fase 3A: cada pergunta ganha um id estável (drag and drop/edição sem
+      // depender do índice no array) — mesmo padrão de addId() em alignCvToTdr.
+      return raw.map((q): InterviewQuestion => ({ id: crypto.randomUUID(), ...q }));
     } catch (err) {
       throw new Error(`Falha a gerar preparação de entrevista: ${friendlyAiError(err).message}`);
     }
@@ -975,7 +977,13 @@ export const generateInterviewPrep = createServerFn({ method: "POST" })
 
 // =================== Sugestões de IA para campos ===================
 
-const fieldSuggestionSectionTypes = ["summary", "experience", "education", "extra"] as const;
+const fieldSuggestionSectionTypes = [
+  "summary",
+  "experience",
+  "education",
+  "extra",
+  "interview_answer",
+] as const;
 export type FieldSuggestionSectionType = (typeof fieldSuggestionSectionTypes)[number];
 
 const fieldSuggestionsInputSchema = z.object({
@@ -990,6 +998,18 @@ const fieldSuggestionsInputSchema = z.object({
     .default({}),
   existingHtml: z.string().optional().default(""),
   cvHeadline: z.string().optional().default(""),
+  /** Só usado quando sectionType === "interview_answer" — a pergunta e a
+   * categoria são obrigatórias para o prompt fazer sentido; `cv`/`jobTdr` são
+   * opcionais porque a "Preparar Entrevista" pode não ter ambos acessíveis
+   * em todos os pontos de entrada da UI (ver InterviewPrepResult.tsx). */
+  interviewContext: z
+    .object({
+      pergunta: z.string(),
+      categoria: z.enum(interviewCategorias),
+      cv: z.string().optional(),
+      jobTdr: z.string().optional(),
+    })
+    .optional(),
   language: z.literal("pt").optional().default("pt"),
   sessionId: z.string().optional().nullable(),
 });
@@ -1003,9 +1023,10 @@ const FIELD_SUGGESTION_LABELS: Record<FieldSuggestionSectionType, string> = {
   experience: "descrição de uma experiência profissional",
   education: "descrição de uma formação académica",
   extra: "descrição de um item de uma secção adicional do CV (curso, certificado, atividade, etc.)",
+  interview_answer: "resposta sugerida a uma pergunta de entrevista",
 };
 
-const FIELD_SUGGESTIONS_SYSTEM = `És um redator de CVs especializado em ONGs, desenvolvimento, consultoria e administração pública em Moçambique e PALOP. Geras sugestões de bullets para um campo específico de um CV, para o utilizador escolher e inserir.
+const CV_FIELD_SUGGESTIONS_SYSTEM = `És um redator de CVs especializado em ONGs, desenvolvimento, consultoria e administração pública em Moçambique e PALOP. Geras sugestões de bullets para um campo específico de um CV, para o utilizador escolher e inserir.
 
 Regras absolutas:
 - Responde sempre em PORTUGUÊS EUROPEU (PT-PT).
@@ -1014,6 +1035,24 @@ Regras absolutas:
 - PROIBIDO inventar números, percentagens, nomes de projetos, organizações, tecnologias ou quaisquer factos específicos que não tenham sido fornecidos — usa formulações genéricas que o utilizador possa adaptar e completar com os seus próprios factos.
 - Nunca repitas ideias que já constam do texto atual do campo (fornecido em "Texto atual do campo") — as sugestões devem ser complementares, nunca duplicadas.
 - Se não houver cargo/organização/contexto específico fornecido (ex: resumo sem cargo definido), baseia-te no que existir de contexto geral do CV (ex: título/cargo geral do perfil) para gerares sugestões genéricas mas plausíveis; se não houver contexto nenhum, sugere responsabilidades genéricas de qualquer profissional.`;
+
+/** Prompt próprio para sugestões de resposta a uma pergunta de "Preparar
+ * Entrevista" — distinto do gerador de bullets de CV acima: aqui o campo é
+ * texto corrido em primeira pessoa, não uma lista de bullets, e a mesma
+ * regra de zero-invenção do INTERVIEW_PREP_SYSTEM aplica-se (ver acima). */
+const INTERVIEW_ANSWER_SUGGESTIONS_SYSTEM = `És um coach de entrevistas especializado em ONGs, desenvolvimento, consultoria e administração pública em Moçambique e PALOP. Geras sugestões de resposta (ou reformulações de uma resposta já escrita) para UMA pergunta de entrevista específica, para o candidato escolher, adaptar e treinar por palavras próprias.
+
+Regra absoluta e não negociável — ZERO INVENÇÃO:
+- As sugestões têm de estar ancoradas ESTRITAMENTE no CV e/ou TdR fornecidos, quando disponíveis.
+- NUNCA inventes experiências, empregos, números, resultados ou conquistas que não estejam nos documentos fornecidos.
+- Quando não houver evidência suficiente no CV/TdR para sustentar uma resposta forte, uma das sugestões deve dizê-lo explicitamente — por exemplo: "Não há no teu CV elemento que suporte isto — considera preparar um exemplo real de [algo relevante]." NUNCA fabriques um exemplo para preencher essa lacuna.
+- Cada sugestão é um texto em PRIMEIRA PESSOA, pronto a adaptar por palavras próprias — apresenta-a sempre como sugestão de discurso, nunca como facto objectivo.
+
+Outras regras:
+- Responde sempre em PORTUGUÊS EUROPEU (PT-PT).
+- Gera entre 2 e 4 sugestões, texto simples (sem HTML, sem markdown, sem marcador "-" ou "•" no início).
+- Calibra o tom e a estrutura pela categoria da pergunta: "comportamental" e "eliminatoria" beneficiam do método STAR (Situação, Tarefa, Acção, Resultado) quando houver evidência real; "tecnica" foca conhecimento e ferramentas reais do candidato; "sobre_empresa" liga motivação/percurso à organização, usando o TdR se disponível.
+- Se existir "Texto atual da resposta", trata as sugestões como reformulações ou alternativas a esse texto, não repetições.`;
 
 function sanitizePlainSuggestion(text: string): string {
   return text
@@ -1062,6 +1101,10 @@ const MOCK_FIELD_SUGGESTIONS: Record<FieldSuggestionSectionType, string[]> = {
     "⚠️ MOCK — Colaborei com outros participantes para alcançar os resultados esperados.",
     "⚠️ MOCK — Apliquei conhecimentos adquiridos em contexto prático.",
   ],
+  interview_answer: [
+    "⚠️ MOCK (sem LOVABLE_API_KEY) — Sugestão de discurso: estrutura pela metodologia STAR usando um exemplo real do teu CV.",
+    "⚠️ MOCK (sem LOVABLE_API_KEY) — Não há no teu CV elemento que suporte isto — considera preparar um exemplo real antes da entrevista.",
+  ],
 };
 
 export const generateFieldSuggestions = createServerFn({ method: "POST" })
@@ -1082,26 +1125,41 @@ export const generateFieldSuggestions = createServerFn({ method: "POST" })
     const gateway = createLovableAiGatewayProvider(process.env.LOVABLE_API_KEY);
 
     const existingPlain = data.existingHtml ? htmlToPlainText(data.existingHtml) : "";
-    const prompt = [
-      `Campo a sugerir: ${FIELD_SUGGESTION_LABELS[data.sectionType]}.`,
-      data.fieldContext.cargo ? `Cargo/título: ${data.fieldContext.cargo}` : "",
-      data.fieldContext.organizacao
-        ? `Organização/instituição: ${data.fieldContext.organizacao}`
-        : "",
-      data.fieldContext.local ? `Local: ${data.fieldContext.local}` : "",
-      data.cvHeadline ? `Cargo/título geral do perfil no CV: ${data.cvHeadline}` : "",
-      `Texto atual do campo: ${existingPlain || "(vazio)"}`,
-      "",
-      'Responde APENAS com um objecto JSON válido (sem markdown, sem comentários, sem texto antes ou depois) com esta forma exacta: { "suggestions": string[] } — entre 4 e 6 strings.',
-    ]
-      .filter(Boolean)
-      .join("\n");
+    const isInterviewAnswer = data.sectionType === "interview_answer";
+    const prompt = isInterviewAnswer
+      ? [
+          data.interviewContext ? `Pergunta de entrevista: ${data.interviewContext.pergunta}` : "",
+          data.interviewContext ? `Categoria da pergunta: ${data.interviewContext.categoria}` : "",
+          data.interviewContext?.jobTdr
+            ? `Termos de Referência (TdR) da vaga:\n${data.interviewContext.jobTdr}`
+            : "",
+          data.interviewContext?.cv ? `CV do candidato:\n${data.interviewContext.cv}` : "",
+          `Texto atual da resposta: ${existingPlain || "(vazio)"}`,
+          "",
+          'Responde APENAS com um objecto JSON válido (sem markdown, sem comentários, sem texto antes ou depois) com esta forma exacta: { "suggestions": string[] } — entre 2 e 4 strings.',
+        ]
+          .filter(Boolean)
+          .join("\n")
+      : [
+          `Campo a sugerir: ${FIELD_SUGGESTION_LABELS[data.sectionType]}.`,
+          data.fieldContext.cargo ? `Cargo/título: ${data.fieldContext.cargo}` : "",
+          data.fieldContext.organizacao
+            ? `Organização/instituição: ${data.fieldContext.organizacao}`
+            : "",
+          data.fieldContext.local ? `Local: ${data.fieldContext.local}` : "",
+          data.cvHeadline ? `Cargo/título geral do perfil no CV: ${data.cvHeadline}` : "",
+          `Texto atual do campo: ${existingPlain || "(vazio)"}`,
+          "",
+          'Responde APENAS com um objecto JSON válido (sem markdown, sem comentários, sem texto antes ou depois) com esta forma exacta: { "suggestions": string[] } — entre 4 e 6 strings.',
+        ]
+          .filter(Boolean)
+          .join("\n");
 
     let tokenUsage: LanguageModelUsage | undefined;
     const callOnce = async () => {
       const { text, usage } = await generateText({
         model: gateway("google/gemini-3-flash-preview"),
-        system: FIELD_SUGGESTIONS_SYSTEM,
+        system: isInterviewAnswer ? INTERVIEW_ANSWER_SUGGESTIONS_SYSTEM : CV_FIELD_SUGGESTIONS_SYSTEM,
         prompt,
         maxOutputTokens: 500,
       });

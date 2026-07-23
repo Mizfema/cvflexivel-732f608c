@@ -27,6 +27,7 @@ import {
 import { parseLimitError } from "@/lib/usage-error";
 import { getSessionId } from "@/lib/session-id";
 import { UsageLimitNotice } from "@/components/UsageLimitNotice";
+import type { InterviewQuestionCategoria } from "@/lib/interview-types";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,6 +41,13 @@ export type AiSuggestionsConfig = {
   sectionType: FieldSuggestionSectionType;
   fieldContext?: { cargo?: string; organizacao?: string; local?: string };
   cvHeadline?: string;
+  /** Só usado com sectionType "interview_answer" — ver InterviewPrepEditor.tsx. */
+  interviewContext?: {
+    pergunta: string;
+    categoria: InterviewQuestionCategoria;
+    cv?: string;
+    jobTdr?: string;
+  };
 };
 
 const ALIGN_OPTIONS = [
@@ -285,6 +293,7 @@ export function RichTextField({
           fieldContext: aiSuggestions.fieldContext ?? {},
           existingHtml: editor.getHTML(),
           cvHeadline: aiSuggestions.cvHeadline ?? "",
+          interviewContext: aiSuggestions.interviewContext,
           language: "pt",
           sessionId: getSessionId(),
         },

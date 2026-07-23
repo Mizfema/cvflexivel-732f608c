@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ChevronDown, Users, Wrench, Building2, ShieldAlert, Info } from "lucide-react";
+import { CATEGORY_ORDER } from "@/lib/interview-types";
 import type { InterviewQuestion, InterviewQuestionCategoria } from "@/lib/interview-types";
 
 const CATEGORY_CONFIG: Record<
@@ -46,13 +47,6 @@ const CATEGORY_CONFIG: Record<
     bgColor: "bg-red-50",
   },
 };
-
-const CATEGORY_ORDER: InterviewQuestionCategoria[] = [
-  "comportamental",
-  "tecnica",
-  "sobre_empresa",
-  "eliminatoria",
-];
 
 function QuestionCard({
   q,

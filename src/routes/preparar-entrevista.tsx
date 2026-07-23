@@ -15,7 +15,7 @@ import {
 import { FileTextInput } from "@/components/ui/file-text-input";
 import { ScannerAnimation } from "@/components/ScannerAnimation";
 import { InterviewPrepResult } from "@/components/InterviewPrepResult";
-import { InterviewPrepExport } from "@/components/entrevista/InterviewPrepExport";
+import { InterviewPrepView } from "@/components/entrevista/InterviewPrepView";
 import { generateInterviewPrep } from "@/lib/llm.functions";
 import { saveInterviewPrep } from "@/lib/interview-preps.functions";
 import { getMyPlanStatus } from "@/lib/subscription.functions";
@@ -100,18 +100,21 @@ function PrepararEntrevistaPage() {
 function InterviewPrepVitrine() {
   const sampleQuestions: InterviewQuestion[] = [
     {
+      id: "sample-comportamental",
       categoria: "comportamental",
       pergunta: "Conta-me sobre uma vez em que tiveste de gerir prioridades conflituantes.",
       resposta_sugerida:
         "Descreve uma situação real do teu CV: o contexto, a decisão que tomaste e o resultado — ancorado no que já fizeste.",
     },
     {
+      id: "sample-tecnica",
       categoria: "tecnica",
       pergunta: "Que ferramentas ou metodologias usaste no projeto mais recente?",
       resposta_sugerida:
         "Liga a tua resposta a competências e ferramentas específicas já mencionadas no teu CV.",
     },
     {
+      id: "sample-eliminatoria",
       categoria: "eliminatoria",
       pergunta: "Cumpres o requisito mínimo de experiência exigido no anúncio?",
       resposta_sugerida:
@@ -228,6 +231,16 @@ function InterviewPrepStepper() {
     mutationFn: (vars) => saveFn({ data: vars }) as Promise<{ id: string }>,
   });
 
+  // Fonte de verdade do id da preparação para o autosave de InterviewPrepView
+  // (Fase 3C) — populado assim que o save inicial (acima) resolver; se o
+  // próprio autosave chegar a criar a linha primeiro (janela de corrida
+  // teórica, ver InterviewPrepView.tsx), o seu onSaved actualiza este mesmo
+  // estado, para as gravações seguintes atualizarem sempre a mesma linha.
+  const [prepId, setPrepId] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    if (save.data?.id) setPrepId(save.data.id);
+  }, [save.data?.id]);
+
   // Depois de restaurar perguntas geradas antes do login, assim que a sessão
   // fica disponível, completa o "guardar na conta" que o utilizador pedia.
   useEffect(() => {
@@ -248,6 +261,7 @@ function InterviewPrepStepper() {
     setCvFileName(null);
     setFileError(null);
     setGeneratedQuestions(null);
+    setPrepId(undefined);
     mutation.reset();
     save.reset();
   }
@@ -581,10 +595,14 @@ function InterviewPrepStepper() {
                   </div>
                 )}
 
-                <InterviewPrepResult questions={generatedQuestions} />
+                <InterviewPrepView
+                  questions={generatedQuestions}
+                  jobTdr={tdrText}
+                  prepId={prepId}
+                  onSaved={setPrepId}
+                />
 
                 <div className="flex flex-wrap justify-end gap-2 border-t border-[#E3DFD7] pt-4">
-                  <InterviewPrepExport questions={generatedQuestions} jobTdr={tdrText} />
                   <button onClick={resetAll} className={SECONDARY_BTN}>
                     Nova simulação
                   </button>

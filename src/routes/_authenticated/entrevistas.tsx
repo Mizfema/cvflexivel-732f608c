@@ -218,7 +218,12 @@ function EntrevistasPage() {
                         <Loader2 className="h-4 w-4 animate-spin" />A carregar perguntas…
                       </div>
                     ) : detail[row.id] ? (
-                      <InterviewPrepView questions={detail[row.id]} jobTdr={row.job_tdr} />
+                      <InterviewPrepView
+                        questions={detail[row.id]}
+                        jobTdr={row.job_tdr}
+                        prepId={row.id}
+                        cvId={row.cv_id}
+                      />
                     ) : null}
                   </div>
                 )}
