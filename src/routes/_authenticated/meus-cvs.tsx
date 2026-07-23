@@ -5,7 +5,13 @@ import { FileText, Plus } from "lucide-react";
 import { listCvs, deleteCv, duplicateCv } from "@/lib/cvs.functions";
 import { Button } from "@/components/ui/button";
 import { CvThumbnail, THUMB_W } from "@/components/cv/CvThumbnail";
-import { DocumentCard, DocumentCardGrid } from "@/components/library/DocumentCardGrid";
+import {
+  DocumentCard,
+  DocumentCardGrid,
+  DocumentListRow,
+  DocumentListStack,
+} from "@/components/library/DocumentCardGrid";
+import { ViewToggle, type DocumentView } from "@/components/library/ViewToggle";
 import { normalizeCvDesign } from "@/lib/cv-design-presets";
 import { EMPTY_CV, type CvDraft, type CvSections } from "@/lib/cv-types";
 
@@ -48,6 +54,7 @@ function MeusCvsPage() {
   const [rows, setRows] = useState<CvRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [view, setView] = useState<DocumentView>("grid");
 
   const reload = async () => {
     try {
@@ -107,6 +114,12 @@ function MeusCvsPage() {
         </Link>
       </header>
 
+      {rows && rows.length > 0 && (
+        <div className="mb-4 flex justify-end">
+          <ViewToggle value={view} onChange={setView} />
+        </div>
+      )}
+
       {error && (
         <div className="mb-6 rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
           {error}
@@ -137,50 +150,70 @@ function MeusCvsPage() {
           </Link>
         </div>
       ) : (
-        <DocumentCardGrid>
-          {rows.map((cv) => (
-            <DocumentCard
-              key={cv.id}
-              thumbnail={<CvThumbnail draft={toThumbnailDraft(cv)} />}
-              thumbnailWidth={THUMB_W}
-              title={cv.title || "CV sem título"}
-              badge={cv.template}
-              date={new Date(cv.updated_at).toLocaleDateString("pt-PT", {
-                day: "2-digit",
-                month: "short",
-                year: "numeric",
-              })}
-              actions={
-                <>
-                  <Link
-                    to="/editor"
-                    search={{ id: cv.id }}
-                    className="inline-flex items-center justify-center rounded-[10px] border border-navy-rule bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface"
-                  >
-                    Abrir
-                  </Link>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={busy === cv.id}
-                    onClick={() => onDuplicate(cv.id)}
-                  >
-                    Duplicar
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={busy === cv.id}
-                    onClick={() => onDelete(cv.id)}
-                    className="text-destructive hover:text-destructive"
-                  >
-                    Apagar
-                  </Button>
-                </>
-              }
-            />
-          ))}
-        </DocumentCardGrid>
+        (() => {
+          const cvDate = (cv: CvRow) =>
+            new Date(cv.updated_at).toLocaleDateString("pt-PT", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            });
+          const cvActions = (cv: CvRow) => (
+            <>
+              <Link
+                to="/editor"
+                search={{ id: cv.id }}
+                className="inline-flex items-center justify-center rounded-[10px] border border-navy-rule bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface"
+              >
+                Abrir
+              </Link>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={busy === cv.id}
+                onClick={() => onDuplicate(cv.id)}
+              >
+                Duplicar
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={busy === cv.id}
+                onClick={() => onDelete(cv.id)}
+                className="text-destructive hover:text-destructive"
+              >
+                Apagar
+              </Button>
+            </>
+          );
+
+          return view === "grid" ? (
+            <DocumentCardGrid>
+              {rows.map((cv) => (
+                <DocumentCard
+                  key={cv.id}
+                  thumbnail={<CvThumbnail draft={toThumbnailDraft(cv)} />}
+                  thumbnailWidth={THUMB_W}
+                  title={cv.title || "CV sem título"}
+                  badge={cv.template}
+                  date={cvDate(cv)}
+                  actions={cvActions(cv)}
+                />
+              ))}
+            </DocumentCardGrid>
+          ) : (
+            <DocumentListStack>
+              {rows.map((cv) => (
+                <DocumentListRow
+                  key={cv.id}
+                  title={cv.title || "CV sem título"}
+                  badge={cv.template}
+                  date={cvDate(cv)}
+                  actions={cvActions(cv)}
+                />
+              ))}
+            </DocumentListStack>
+          );
+        })()
       )}
     </div>
   );

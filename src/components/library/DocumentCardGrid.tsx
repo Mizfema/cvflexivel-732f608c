@@ -1,6 +1,11 @@
 // Grelha de cartões com miniatura, partilhada pelas páginas "Os meus CVs" e
 // "Cartas de Motivação" — só muda o documento renderizado dentro da
 // miniatura (CvThumbnail vs CartaThumbnail).
+//
+// DocumentListRow/DocumentListStack são a vista alternativa (Fase 2): mesmos
+// dados (título, badge, data, ações), sem miniatura renderizada — poupa o
+// custo de render de N documentos completos quando o utilizador só quer ver
+// a lista.
 
 import type { ReactNode } from "react";
 
@@ -44,6 +49,34 @@ export function DocumentCard({
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">{actions}</div>
       </div>
+    </div>
+  );
+}
+
+export function DocumentListStack({ children }: { children: ReactNode }) {
+  return <div className="space-y-2">{children}</div>;
+}
+
+export function DocumentListRow({
+  title,
+  badge,
+  date,
+  actions,
+}: {
+  title: string;
+  badge: string;
+  date: string;
+  actions: ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-navy-rule bg-card px-4 py-3 sm:px-6">
+      <div className="min-w-0">
+        <p className="truncate font-serif text-base text-foreground">{title}</p>
+        <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+          {badge} · {date}
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">{actions}</div>
     </div>
   );
 }

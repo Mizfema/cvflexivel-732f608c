@@ -9,7 +9,13 @@ import { CartaThumbnail, CARTA_THUMB_W } from "@/components/carta/CartaThumbnail
 import type { CartaDraft } from "@/components/carta/CartaDocument";
 import { normalizeCvDesign } from "@/lib/cv-design-presets";
 import { defaultDesignForTemplate } from "@/lib/templates/themes";
-import { DocumentCard, DocumentCardGrid } from "@/components/library/DocumentCardGrid";
+import {
+  DocumentCard,
+  DocumentCardGrid,
+  DocumentListRow,
+  DocumentListStack,
+} from "@/components/library/DocumentCardGrid";
+import { ViewToggle, type DocumentView } from "@/components/library/ViewToggle";
 import { buildCartaHeaderInfo } from "@/hooks/use-cover-letter-header";
 import { normalizeCartaPerfil } from "@/lib/cover-letter-types";
 
@@ -58,6 +64,7 @@ function CartasPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [novaCartaOpen, setNovaCartaOpen] = useState(false);
+  const [view, setView] = useState<DocumentView>("grid");
 
   const reload = async () => {
     try {
@@ -108,6 +115,12 @@ function CartasPage() {
         </button>
       </header>
 
+      {rows && rows.length > 0 && (
+        <div className="mb-4 flex justify-end">
+          <ViewToggle value={view} onChange={setView} />
+        </div>
+      )}
+
       {error && (
         <div className="mb-6 rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
           {error}
@@ -140,42 +153,62 @@ function CartasPage() {
           </button>
         </div>
       ) : (
-        <DocumentCardGrid>
-          {rows.map((letter) => (
-            <DocumentCard
-              key={letter.id}
-              thumbnail={<CartaThumbnail draft={toThumbnailDraft(letter)} />}
-              thumbnailWidth={CARTA_THUMB_W}
-              title={letter.title || "Carta sem título"}
-              badge={letter.template}
-              date={new Date(letter.updated_at).toLocaleDateString("pt-PT", {
-                day: "2-digit",
-                month: "short",
-                year: "numeric",
-              })}
-              actions={
-                <>
-                  <button
-                    type="button"
-                    onClick={() => navigate({ to: "/carta-editor", search: { id: letter.id } })}
-                    className="inline-flex items-center justify-center rounded-[10px] border border-navy-rule bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface"
-                  >
-                    Abrir
-                  </button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={busy === letter.id}
-                    onClick={() => onDelete(letter.id)}
-                    className="text-destructive hover:text-destructive"
-                  >
-                    Apagar
-                  </Button>
-                </>
-              }
-            />
-          ))}
-        </DocumentCardGrid>
+        (() => {
+          const letterDate = (letter: LetterRow) =>
+            new Date(letter.updated_at).toLocaleDateString("pt-PT", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            });
+          const letterActions = (letter: LetterRow) => (
+            <>
+              <button
+                type="button"
+                onClick={() => navigate({ to: "/carta-editor", search: { id: letter.id } })}
+                className="inline-flex items-center justify-center rounded-[10px] border border-navy-rule bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface"
+              >
+                Abrir
+              </button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={busy === letter.id}
+                onClick={() => onDelete(letter.id)}
+                className="text-destructive hover:text-destructive"
+              >
+                Apagar
+              </Button>
+            </>
+          );
+
+          return view === "grid" ? (
+            <DocumentCardGrid>
+              {rows.map((letter) => (
+                <DocumentCard
+                  key={letter.id}
+                  thumbnail={<CartaThumbnail draft={toThumbnailDraft(letter)} />}
+                  thumbnailWidth={CARTA_THUMB_W}
+                  title={letter.title || "Carta sem título"}
+                  badge={letter.template}
+                  date={letterDate(letter)}
+                  actions={letterActions(letter)}
+                />
+              ))}
+            </DocumentCardGrid>
+          ) : (
+            <DocumentListStack>
+              {rows.map((letter) => (
+                <DocumentListRow
+                  key={letter.id}
+                  title={letter.title || "Carta sem título"}
+                  badge={letter.template}
+                  date={letterDate(letter)}
+                  actions={letterActions(letter)}
+                />
+              ))}
+            </DocumentListStack>
+          );
+        })()
       )}
 
       <NovaCartaStepper
